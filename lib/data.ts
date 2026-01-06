@@ -1,112 +1,46 @@
 
-// ... (Önceki kodların korunduğunu varsayıyoruz, buraya ekleme yapıyoruz)
-// Bu dosya setup_v12'deki verinin üzerine satıcı fonksiyonlarını ekler.
-
-// --- MEVCUT KODLARIN TEKRARI (VERİ TUTARLILIĞI İÇİN) ---
-const cities = ['İstanbul', 'Ankara', 'İzmir', 'Antalya', 'Bursa'];
-
-const generateRealEstateAds = (count, startId) => {
+// Rastgele ilan üretici (Genişletilmiş Veri Seti - 120 İlan)
+const generateAds = (count, prefix, startPrice) => {
   return Array.from({ length: count }).map((_, i) => {
-    const city = cities[i % cities.length];
-    const price = 2000000 + (i * 150000);
+    const cityIndex = i % 5;
+    const city = ['İstanbul', 'Ankara', 'İzmir', 'Antalya', 'Bursa'][cityIndex];
+    const district = ['Merkez', 'Çankaya', 'Karşıyaka', 'Muratpaşa', 'Nilüfer'][cityIndex];
+    const priceValue = startPrice + (i * 12500) + (cityIndex * 5000);
+
     return {
-      id: startId + i,
-      title: `Sahibinden Satılık ${i % 4 + 1}+1 Fırsat Daire`,
-      image: `https://picsum.photos/seed/house${i}/300/200`,
-      price: price.toLocaleString('tr-TR', { maximumFractionDigits: 0 }),
-      rawPrice: price,
+      id: 100000 + i + (startPrice / 1000),
+      title: `${prefix} - Fırsat İlan ${i + 1} ${i % 2 === 0 ? 'Sahibinden' : 'Emlakçıdan'}`,
+      image: `https://picsum.photos/seed/${prefix}${i}/300/200`,
+      price: priceValue.toLocaleString('tr-TR', { maximumFractionDigits: 0 }),
+      rawPrice: priceValue,
       currency: 'TL',
       city: city,
-      district: 'Merkez',
-      location: `${city} / Merkez`,
+      district: district,
+      location: `${city} / ${district}`,
+      dateRaw: new Date(2025, 0, 24).getTime() - (i * 3600000), // Her ilanı 1 saat arayla
       date: '25 Ocak 2025',
-      dateRaw: new Date().getTime(),
-      category: 'emlak',
-      sellerId: 101, // Örnek Satıcı ID
-      sellerName: 'Ahmet Yılmaz',
-      room: (i % 4 + 1) + '+1',
-      attributes: [{ label: 'İlan No', value: `100${i}` }],
-      description: '<p>Harika konumda daire.</p>'
+      category: i < 60 ? 'emlak' : 'vasita', // İlk 60 emlak, kalanı vasıta
+      attributes: [
+        { label: 'İlan No', value: `102938${i}` },
+        { label: 'Kimden', value: 'Sahibinden' },
+      ],
+      description: '<p>Bu ilan sahibinden.com klon projesi için oluşturulmuş örnek bir veridir.</p>',
+      // Emlak/Vasıta filtreleri için dummy datalar
+      room: ['1+1', '2+1', '3+1'][i % 3],
+      year: 2015 + (i % 10),
+      km: 10000 * (i % 20)
     };
   });
 };
 
-const generateVehicleAds = (count, startId) => {
-  return Array.from({ length: count }).map((_, i) => {
-    const price = 800000 + (i * 200000);
-    return {
-      id: startId + i,
-      title: `Temiz Aile Aracı ${2015 + (i % 5)} Model`,
-      image: `https://picsum.photos/seed/car${i}/300/200`,
-      price: price.toLocaleString('tr-TR', { maximumFractionDigits: 0 }),
-      rawPrice: price,
-      currency: 'TL',
-      city: cities[i % cities.length],
-      district: 'Oto Galeri',
-      location: `${cities[i % cities.length]} / Oto Galeri`,
-      date: '24 Ocak 2025',
-      dateRaw: new Date().getTime(),
-      category: 'vasita',
-      sellerId: 102, // Örnek Satıcı ID
-      sellerName: 'Mehmet Demir',
-      year: 2015 + (i % 5),
-      km: 10000 + (i * 15000),
-      attributes: [{ label: 'İlan No', value: `200${i}` }],
-      description: '<p>Servis bakımlı araç.</p>'
-    };
-  });
-};
-
-export const ads = [...generateRealEstateAds(30, 10000), ...generateVehicleAds(30, 50000)];
-export const urgentAds = generateVehicleAds(5, 90000);
-export const interestingAds = generateRealEstateAds(5, 95000);
+// Veri Setleri
+export const ads = generateAds(120, 'İlan', 1000000); // Ana havuz
+export const urgentAds = generateAds(10, 'Acil', 750000);
+export const interestingAds = generateAds(10, 'İlginç', 5000000);
 
 export function getAdById(id) {
-  const all = [...ads, ...urgentAds, ...interestingAds];
-  return all.find(x => x.id === Number(id));
-}
-
-// --- YENİ EKLENEN KISIM: SATICI VERİLERİ ---
-
-const sellers = [
-  {
-    id: 101,
-    name: 'Ahmet Yılmaz',
-    joined: 'Ekim 2018',
-    lastSeen: 'Bugün',
-    phone: '+90 532 123 45 67',
-    isVerified: true,
-    avatar: 'AY',
-    rating: 4.8,
-    reviews: [
-      { id: 1, user: 'Caner K.', comment: 'Çok ilgili bir satıcı, teşekkürler.', rate: 5, date: '10.01.2025' },
-      { id: 2, user: 'Selin B.', comment: 'Ürün anlatıldığı gibiydi.', rate: 5, date: '05.01.2025' },
-      { id: 3, user: 'Murat T.', comment: 'Kargo biraz gecikti ama satıcı iyi.', rate: 4, date: '20.12.2024' },
-    ]
-  },
-  {
-    id: 102,
-    name: 'Mehmet Demir',
-    joined: 'Mart 2021',
-    lastSeen: 'Dün',
-    phone: '+90 555 987 65 43',
-    isVerified: false,
-    avatar: 'MD',
-    rating: 3.5,
-    reviews: [
-      { id: 1, user: 'Ali V.', comment: 'İletişim kurmak zor oldu.', rate: 3, date: '15.01.2025' },
-      { id: 2, user: 'Zeynep A.', comment: 'Fiyatta yardımcı olmadı.', rate: 4, date: '12.01.2025' },
-    ]
-  }
-];
-
-export function getSellerById(id) {
-  return sellers.find(s => s.id === Number(id));
-}
-
-export function getAdsBySeller(sellerId) {
-  const all = [...ads, ...urgentAds, ...interestingAds];
-  return all.filter(ad => ad.sellerId === Number(sellerId));
+  const allAds = [...ads, ...urgentAds, ...interestingAds];
+  return allAds.find(ad => ad.id === Number(id));
 }
 
 export const categories = [
@@ -115,10 +49,50 @@ export const categories = [
   { id: 'alisveris', name: 'İkinci El ve Sıfır Alışveriş', icon: 'Monitor', subs: ['Bilgisayar', 'Telefon'] },
 ];
 
+export function getSellerById(id) { return { id, name: 'Ahmet Yılmaz', avatar: 'AY', rating: 4.5, joined: '2020', lastSeen: 'Bugün', isVerified: true, reviews: [] }; }
+export function getAdsBySeller(id) { return ads.slice(0, 5); }
+
+// GELİŞMİŞ ARAMA VE SAYFALAMA
 export function searchAds(params) {
-  // Basitleştirilmiş arama (Hata almamak için)
   let filtered = [...ads, ...urgentAds, ...interestingAds];
-  if (params.q) filtered = filtered.filter(ad => ad.title.toLowerCase().includes(params.q.toLowerCase()));
+
+  // Filtreleme Mantığı
+  if (params.q) {
+    const q = params.q.toLowerCase();
+    filtered = filtered.filter(ad => ad.title.toLowerCase().includes(q));
+  }
+  if (params.category) filtered = filtered.filter(ad => ad.category === params.category);
   if (params.city) filtered = filtered.filter(ad => ad.city === params.city);
-  return filtered;
+  if (params.minPrice) filtered = filtered.filter(ad => ad.rawPrice >= Number(params.minPrice));
+  if (params.maxPrice) filtered = filtered.filter(ad => ad.rawPrice <= Number(params.maxPrice));
+
+  // Sıralama
+  if (params.sort) {
+    switch (params.sort) {
+      case 'price_asc': filtered.sort((a, b) => a.rawPrice - b.rawPrice); break;
+      case 'price_desc': filtered.sort((a, b) => b.rawPrice - a.rawPrice); break;
+      case 'date_desc': filtered.sort((a, b) => b.dateRaw - a.dateRaw); break;
+      case 'date_asc': filtered.sort((a, b) => a.dateRaw - b.dateRaw); break;
+    }
+  }
+
+  // SAYFALAMA (Pagination)
+  const page = Number(params.page) || 1;
+  const limit = 15; // Sayfa başına 15 ilan
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
+
+  const paginatedData = filtered.slice(startIndex, endIndex);
+  const total = filtered.length;
+  const totalPages = Math.ceil(total / limit);
+
+  return {
+    data: paginatedData,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages
+    }
+  };
 }

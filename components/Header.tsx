@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, User, Heart, LogOut, ChevronDown, Menu, ArrowUpRight, Bell, Check } from 'lucide-react';
+import { Search, Plus, User, Heart, LogOut, ChevronDown, Menu, ArrowUpRight, Bell, Settings } from 'lucide-react';
 import { useFavorites } from '@/context/FavoritesContext';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import MobileMenu from '@/components/MobileMenu';
+import ThemeToggle from '@/components/ThemeToggle'; // YENİ
 import { ads, categories } from '@/lib/data';
 
 export default function Header() {
@@ -27,7 +28,6 @@ export default function Header() {
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  // Dışarı tıklayınca kapanma olayları
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -41,7 +41,6 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Arama önerileri mantığı... (Önceki kodun aynısı)
   useEffect(() => {
     if (searchTerm.length >= 2) {
       const q = searchTerm.toLowerCase();
@@ -118,6 +117,10 @@ export default function Header() {
           </div>
 
           <div className="flex items-center gap-4 text-[12px] font-medium">
+
+            {/* TEMA DEĞİŞTİRİCİ */}
+            <ThemeToggle />
+
             {!user ? (
               <>
                 <Link href="/login" className="hover:text-[#ffe800] whitespace-nowrap hidden sm:inline">Giriş Yap</Link>
@@ -126,7 +129,6 @@ export default function Header() {
               </>
             ) : (
               <>
-                {/* BİLDİRİM BUTONU */}
                 <div className="relative" ref={notifRef}>
                   <button onClick={() => setNotifOpen(!notifOpen)} className="relative hover:text-[#ffe800]">
                     <Bell size={18} />
@@ -183,6 +185,9 @@ export default function Header() {
                       <Link href="/bana-ozel" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Bana Özel Özet</Link>
                       <Link href="/bana-ozel/ilanlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">İlanlarım</Link>
                       <Link href="/bana-ozel/favori-aramalar" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Favori Aramalarım</Link>
+                      <Link href="/bana-ozel/ayarlar" onClick={() => setMenuOpen(false)} className="w-full text-left px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px] flex items-center gap-2 border-t border-gray-100">
+                        <Settings size={14} /> Ayarlar
+                      </Link>
                       <button onClick={() => { logout(); setMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-600 text-[13px] flex items-center gap-2 border-t border-gray-100">
                         <LogOut size={14} /> Çıkış Yap
                       </button>
