@@ -6,6 +6,9 @@ import Header from "@/components/Header";
 import Footer from "@/components/Footer";
 import MobileBottomNav from "@/components/MobileBottomNav";
 import { Providers } from "@/components/Providers";
+import CompareBar from "@/components/CompareBar";
+import ModalRoot from "@/components/ModalRoot";
+import CookieBanner from "@/components/CookieBanner"; // YENİ
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -39,6 +42,9 @@ export default function RootLayout({
           </div>
           <Footer />
           <MobileBottomNav />
+          <CompareBar />
+          <ModalRoot />
+          <CookieBanner />
         </Providers>
       </body>
     </html>

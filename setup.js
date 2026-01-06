@@ -18,419 +18,481 @@ function createFile(filePath, content) {
   console.log(`✅ Oluşturuldu/Güncellendi: ${filePath}`);
 }
 
-// --- 1. ADIM: AUTH CONTEXT (OTURUM YÖNETİMİ) ---
-const contextAuth = `
+// --- 1. ADIM: HISTORY CONTEXT (GEÇMİŞ YÖNETİMİ) ---
+const contextHistory = `
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
-type User = {
-  name: string;
-  email: string;
-  avatar?: string;
+type Ad = {
+  id: number;
+  title: string;
+  image: string;
+  price: string;
+  currency: string;
 };
 
-type AuthContextType = {
-  user: User | null;
-  login: (email: string) => void;
-  logout: () => void;
-  updateUser: (data: Partial<User>) => void;
+type HistoryContextType = {
+  recentAds: Ad[];
+  addToHistory: (ad: Ad) => void;
+  clearHistory: () => void;
 };
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+const HistoryContext = createContext<HistoryContextType | undefined>(undefined);
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const router = useRouter();
+export function HistoryProvider({ children }: { children: React.ReactNode }) {
+  const [recentAds, setRecentAds] = useState<Ad[]>([]);
 
-  // Sayfa yenilendiğinde oturumu hatırla (Simülasyon)
+  // Başlangıçta LocalStorage'dan veriyi çek
   useEffect(() => {
-    const storedUser = localStorage.getItem('sahibinden_user');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
+    const stored = localStorage.getItem('sahibinden_history');
+    if (stored) {
+      setRecentAds(JSON.parse(stored));
     }
   }, []);
 
-  const login = (email: string) => {
-    // Mock user verisi
-    const mockUser = {
-      name: 'Ahmet Yılmaz',
-      email: email,
-      avatar: 'AY'
-    };
-    setUser(mockUser);
-    localStorage.setItem('sahibinden_user', JSON.stringify(mockUser));
-    router.push('/bana-ozel'); // Giriş başarılıysa yönlendir
+  const addToHistory = (ad: Ad) => {
+    setRecentAds((prev) => {
+      // Önce listede varsa çıkar (en başa eklemek için)
+      const filtered = prev.filter((item) => item.id !== ad.id);
+      // Yeni ilanı başa ekle, en fazla 5 tane tut
+      const updated = [ad, ...filtered].slice(0, 5);
+
+      localStorage.setItem('sahibinden_history', JSON.stringify(updated));
+      return updated;
+    });
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('sahibinden_user');
-    router.push('/');
-  };
-
-  const updateUser = (data: Partial<User>) => {
-    if (user) {
-      const updated = { ...user, ...data };
-      setUser(updated);
-      localStorage.setItem('sahibinden_user', JSON.stringify(updated));
-    }
+  const clearHistory = () => {
+    setRecentAds([]);
+    localStorage.removeItem('sahibinden_history');
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, updateUser }}>
+    <HistoryContext.Provider value={{ recentAds, addToHistory, clearHistory }}>
       {children}
-    </AuthContext.Provider>
+    </HistoryContext.Provider>
   );
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext);
+export function useHistory() {
+  const context = useContext(HistoryContext);
   if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error('useHistory must be used within a HistoryProvider');
   }
   return context;
 }
 `;
 
-// --- 2. ADIM: PROVIDER GÜNCELLEMESİ (AUTH + FAVORITES) ---
+// --- 2. ADIM: HISTORY TRACKER (İLAN DETAY İÇİN GİZLİ BİLEŞEN) ---
+const componentHistoryTracker = `
+"use client";
+import { useEffect } from 'react';
+import { useHistory } from '@/context/HistoryContext';
+
+export default function HistoryTracker({ ad }: { ad: any }) {
+  const { addToHistory } = useHistory();
+
+  useEffect(() => {
+    if (ad) {
+      addToHistory({
+        id: ad.id,
+        title: ad.title,
+        image: ad.image,
+        price: ad.price,
+        currency: ad.currency
+      });
+    }
+  }, [ad]); // ad değiştiğinde çalışır
+
+  return null; // Görünmez bileşen
+}
+`;
+
+// --- 3. ADIM: SON GEZİLENLER WIDGET'I (SIDEBAR İÇİN) ---
+const componentRecentAdsWidget = `
+"use client";
+import React from 'react';
+import Link from 'next/link';
+import { useHistory } from '@/context/HistoryContext';
+import { History, Trash2 } from 'lucide-react';
+
+export default function RecentAdsWidget() {
+  const { recentAds, clearHistory } = useHistory();
+
+  if (recentAds.length === 0) return null;
+
+  return (
+    <div className="mt-4 bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
+      <div className="bg-gray-50 p-3 border-b border-gray-100 flex justify-between items-center">
+        <h3 className="text-xs font-bold text-[#333] flex items-center gap-1">
+          <History size={14} className="text-blue-600" />
+          Son Gezilenler
+        </h3>
+        <button onClick={clearHistory} className="text-gray-400 hover:text-red-500" title="Temizle">
+          <Trash2 size={12} />
+        </button>
+      </div>
+
+      <ul>
+        {recentAds.map((ad) => (
+          <li key={ad.id} className="border-b border-gray-50 last:border-0">
+            <Link href={\`/ilan/\${ad.id}\`} className="flex gap-2 p-2 hover:bg-blue-50 transition-colors group">
+              <div className="w-12 h-10 bg-gray-200 shrink-0 overflow-hidden rounded-sm border border-gray-200">
+                <img src={ad.image} alt={ad.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-[10px] font-semibold text-[#333] truncate group-hover:text-blue-700">{ad.title}</p>
+                <p className="text-[10px] font-bold text-blue-900">{ad.price} {ad.currency}</p>
+              </div>
+            </Link>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+`;
+
+// --- 4. ADIM: COOKIE BANNER (ÇEREZ UYARISI) ---
+const componentCookieBanner = `
+"use client";
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { X, Cookie } from 'lucide-react';
+
+export default function CookieBanner() {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    // Daha önce kabul etmediyse göster
+    const accepted = localStorage.getItem('cookie_consent');
+    if (!accepted) {
+      setIsVisible(true);
+    }
+  }, []);
+
+  const handleAccept = () => {
+    localStorage.setItem('cookie_consent', 'true');
+    setIsVisible(false);
+  };
+
+  if (!isVisible) return null;
+
+  return (
+    <div className="fixed bottom-0 left-0 w-full bg-[#333] text-white p-4 z-[9999] shadow-2xl animate-in slide-in-from-bottom-5 duration-500">
+      <div className="container max-w-[1150px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <Cookie size={32} className="text-[#ffe800] shrink-0" />
+          <div className="text-xs md:text-sm">
+            <p className="font-bold mb-1">Çerez Politikası</p>
+            <p className="text-gray-300">
+              Sizlere daha iyi hizmet sunabilmek adına sitemizde çerezler kullanılmaktadır.
+              Devam ederek <Link href="/kurumsal/gizlilik-politikasi" className="text-[#ffe800] underline hover:text-white">Gizlilik Politikamızı</Link> kabul etmiş olursunuz.
+            </p>
+          </div>
+        </div>
+        <div className="flex gap-3 shrink-0">
+          <button
+            onClick={() => setIsVisible(false)}
+            className="text-gray-400 hover:text-white text-xs underline"
+          >
+            Reddet
+          </button>
+          <button
+            onClick={handleAccept}
+            className="bg-[#ffe800] text-black px-6 py-2 rounded-sm font-bold text-xs hover:bg-yellow-400 transition-colors"
+          >
+            Kabul Et
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+`;
+
+// --- 5. ADIM: PROVIDER GÜNCELLEMESİ (HISTORY EKLENDİ) ---
 const componentsProvidersUpdated = `
 "use client";
 import React from 'react';
 import { FavoritesProvider } from '@/context/FavoritesContext';
 import { AuthProvider } from '@/context/AuthContext';
+import { ToastProvider } from '@/context/ToastContext';
+import { CompareProvider } from '@/context/CompareContext';
+import { NotificationProvider } from '@/context/NotificationContext';
+import { ModalProvider } from '@/context/ModalContext';
+import { HistoryProvider } from '@/context/HistoryContext';
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <AuthProvider>
-      <FavoritesProvider>
-        {children}
-      </FavoritesProvider>
-    </AuthProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <ModalProvider>
+          <FavoritesProvider>
+            <CompareProvider>
+              <NotificationProvider>
+                <HistoryProvider>
+                  {children}
+                </HistoryProvider>
+              </NotificationProvider>
+            </CompareProvider>
+          </FavoritesProvider>
+        </ModalProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }
 `;
 
-// --- 3. ADIM: DİNAMİK HEADER (KULLANICI DURUMUNA GÖRE) ---
-const componentsHeaderAuth = `
-"use client";
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { Search, Plus, User, Heart, LogOut, ChevronDown } from 'lucide-react';
-import { useFavorites } from '@/context/FavoritesContext';
-import { useAuth } from '@/context/AuthContext';
-
-export default function Header() {
-  const [searchTerm, setSearchTerm] = useState('');
-  const router = useRouter();
-  const { favorites } = useFavorites();
-  const { user, logout } = useAuth();
-  const [menuOpen, setMenuOpen] = useState(false);
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (searchTerm.trim()) {
-      router.push(\`/search?q=\${encodeURIComponent(searchTerm)}\`);
-    }
-  };
-
-  return (
-    <header className="bg-[#2d405a] text-white h-[50px] flex items-center justify-center text-sm font-sans sticky top-0 z-50 shadow-md">
-      <div className="container max-w-[1150px] flex items-center justify-between px-4 h-full">
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <Link href="/" className="font-bold text-xl tracking-tighter text-[#ffe800]">
-            sahibinden.com
-          </Link>
-        </div>
-
-        {/* Arama Formu */}
-        <form onSubmit={handleSearch} className="flex-1 max-w-[480px] mx-4 relative hidden md:block">
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Kelime, ilan no veya mağaza adı ile ara"
-            className="w-full h-[34px] px-3 text-black rounded-sm focus:outline-none placeholder:text-gray-500 text-[13px]"
-          />
-          <button type="submit" className="absolute right-0 top-0 h-[34px] w-[34px] flex items-center justify-center text-gray-500 hover:text-blue-900 bg-white rounded-r-sm">
-            <Search size={18} />
-          </button>
-        </form>
-
-        {/* Sağ Menü */}
-        <div className="flex items-center gap-4 text-[12px] font-medium">
-
-          {!user ? (
-            // GİRİŞ YAPILMAMIŞSA
-            <>
-              <Link href="/login" className="hover:text-[#ffe800] whitespace-nowrap hidden sm:inline">Giriş Yap</Link>
-              <span className="text-gray-500 hidden sm:inline">|</span>
-              <Link href="/register" className="hover:text-[#ffe800] whitespace-nowrap hidden sm:inline">Üye Ol</Link>
-            </>
-          ) : (
-            // GİRİŞ YAPILMIŞSA
-            <div className="relative">
-              <button
-                onClick={() => setMenuOpen(!menuOpen)}
-                className="flex items-center gap-2 hover:text-[#ffe800] focus:outline-none"
-              >
-                <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold">
-                  {user.avatar}
-                </div>
-                <span className="hidden sm:inline">{user.name}</span>
-                <ChevronDown size={12} />
-              </button>
-
-              {/* Dropdown Menü */}
-              {menuOpen && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white text-[#333] border border-gray-200 rounded-sm shadow-lg py-1 z-50">
-                  <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
-                    <p className="font-bold text-[13px]">{user.name}</p>
-                    <p className="text-[10px] text-gray-500">{user.email}</p>
-                  </div>
-                  <Link href="/bana-ozel" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Bana Özel Özet</Link>
-                  <Link href="/bana-ozel/ilanlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">İlanlarım</Link>
-                  <Link href="/bana-ozel/mesajlar" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Mesajlarım</Link>
-                  <button
-                    onClick={() => { logout(); setMenuOpen(false); }}
-                    className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-600 text-[13px] flex items-center gap-2 border-t border-gray-100"
-                  >
-                    <LogOut size={14} /> Çıkış Yap
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Favorilerim Linki */}
-          <Link href="/bana-ozel/favoriler" className="hover:text-[#ffe800] flex items-center gap-1 relative group ml-2">
-             <Heart size={14} className={favorites.length > 0 ? 'fill-[#ffe800] text-[#ffe800]' : ''} />
-             <span className="hidden sm:inline">Favorilerim</span>
-             {favorites.length > 0 && (
-               <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full">
-                 {favorites.length}
-               </span>
-             )}
-          </Link>
-
-          <Link
-            href="/ilan-ver"
-            className="bg-[#ffe800] text-black px-4 h-[34px] flex items-center gap-1 rounded-sm font-bold hover:bg-yellow-400 transition-colors ml-2 whitespace-nowrap"
-          >
-            <Plus size={14} />
-            Ücretsiz İlan Ver
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
-`;
-
-// --- 4. ADIM: LOGIN SAYFASI (CONTEXT BAĞLANTISI) ---
-const appLoginPageUpdated = `
-"use client";
-import React, { useState } from 'react';
-import Link from 'next/link';
-import { useAuth } from '@/context/AuthContext';
-
-export default function LoginPage() {
-  const { login } = useAuth();
-  const [email, setEmail] = useState('kullanici@ornek.com');
-
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    login(email);
-  };
-
-  return (
-    <div className="flex items-center justify-center min-h-[60vh] bg-[#f6f7f9]">
-      <div className="bg-white border border-gray-200 shadow-sm p-8 rounded-sm w-full max-w-[400px]">
-        <h2 className="text-[#333] font-bold text-lg mb-6 text-center">Üye Girişi</h2>
-
-        <form onSubmit={handleLogin} className="space-y-4">
-          <div>
-            <label className="block text-[12px] font-bold text-[#333] mb-1">E-posta Adresi</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full border border-gray-300 rounded-sm h-[34px] px-3 focus:border-blue-500 focus:outline-none transition-colors"
-            />
-          </div>
-          <div>
-            <label className="block text-[12px] font-bold text-[#333] mb-1">Şifre</label>
-            <input
-              type="password"
-              defaultValue="123456"
-              className="w-full border border-gray-300 rounded-sm h-[34px] px-3 focus:border-blue-500 focus:outline-none transition-colors"
-            />
-          </div>
-
-          <button type="submit" className="w-full bg-blue-700 text-white font-bold h-[40px] rounded-sm hover:bg-blue-800 transition-colors shadow-sm mt-2">
-            Giriş Yap
-          </button>
-        </form>
-
-        <div className="mt-6 pt-6 border-t border-gray-200 text-center">
-          <p className="text-[12px] text-gray-600 mb-2">Henüz hesabın yok mu?</p>
-          <Link href="#" className="inline-block border border-yellow-500 text-[#333] font-bold py-2 px-6 rounded-sm bg-yellow-50 hover:bg-yellow-100 transition-colors text-[13px]">
-            Üye Ol
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-}
-`;
-
-// --- 5. ADIM: İLANLARIM SAYFASI ---
-const appMyAdsPage = `
-"use client";
+// --- 6. ADIM: SIDEBAR GÜNCELLEMESİ (WIDGET EKLENDİ) ---
+const componentsSidebarUpdated = `
 import React from 'react';
-import { Eye, Edit, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer, ChevronRight } from 'lucide-react';
+import { categories } from '@/lib/data';
+import RecentAdsWidget from '@/components/RecentAdsWidget';
 
-export default function MyAdsPage() {
-  const myAds = [
-    { id: 101, title: 'Sahibinden temiz aile aracı 2018 model', price: '950.000 TL', date: '20 Ocak 2025', status: 'active', views: 124 },
-    { id: 102, title: 'Kadıköy merkezde kiralık 2+1 daire', price: '25.000 TL', date: '15 Ocak 2025', status: 'pending', views: 45 },
-    { id: 103, title: 'Az kullanılmış oyun bilgisayarı', price: '35.000 TL', date: '10 Aralık 2024', status: 'passive', views: 890 },
-  ];
+const iconMap: any = {
+  Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer
+};
+
+export default function Sidebar() {
+  return (
+    <aside className="w-[220px] shrink-0 hidden md:block py-4 relative z-40">
+      <ul className="border border-gray-200 bg-white shadow-sm rounded-sm">
+        {categories.map((cat, index) => {
+          const IconComponent = iconMap[cat.icon] || Home;
+          return (
+            <li key={cat.id} className="group border-b border-gray-100 last:border-0 relative">
+              <Link href={\`/search?category=\${cat.id}\`} className="flex items-center justify-between px-3 py-2.5 text-[13px] text-[#333] hover:bg-blue-50 hover:text-blue-700 transition-colors">
+                <span className="flex items-center gap-2.5 font-medium">
+                  <IconComponent size={15} className="text-gray-400 group-hover:text-blue-700" />
+                  {cat.name}
+                </span>
+                <ChevronRight size={12} className="text-gray-300 opacity-0 group-hover:opacity-100" />
+              </Link>
+
+              {/* MEGA MENÜ */}
+              <div className="hidden group-hover:block absolute left-[100%] top-0 w-[600px] min-h-full bg-white border border-gray-200 shadow-lg p-6 z-50 rounded-r-sm -ml-[1px]">
+                <h3 className="font-bold text-[#333] text-lg border-b border-gray-200 pb-2 mb-4">{cat.name}</h3>
+                <div className="grid grid-cols-3 gap-y-2 gap-x-8">
+                  {cat.subs.map((sub: string, idx: number) => (
+                    <Link key={idx} href="#" className="text-[13px] text-gray-600 hover:text-blue-700 hover:underline flex items-center gap-1">
+                      <span className="w-1 h-1 bg-gray-300 rounded-full"></span>
+                      {sub}
+                    </Link>
+                  ))}
+                </div>
+                <div className="mt-8 pt-4 border-t border-gray-100">
+                   <Link href="#" className="text-blue-700 text-sm font-bold hover:underline">
+                     Tüm {cat.name} İlanları &rarr;
+                   </Link>
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-sm text-center">
+         <p className="text-[12px] font-bold text-blue-900">Reklam Alanı</p>
+         <div className="h-[200px] bg-gray-200 mt-2 flex items-center justify-center text-gray-400 text-[10px]">
+            Google Ads
+         </div>
+      </div>
+
+      {/* SON GEZİLENLER WIDGET */}
+      <RecentAdsWidget />
+    </aside>
+  );
+}
+`;
+
+// --- 7. ADIM: İLAN DETAY GÜNCELLEMESİ (TRACKER EKLENDİ) ---
+const appAdDetailUpdated = `
+import React from 'react';
+import Link from 'next/link';
+import { notFound } from 'next/navigation';
+import { getAdById } from '@/lib/data';
+import Breadcrumb from '@/components/Breadcrumb';
+import Gallery from '@/components/Gallery';
+import { Phone, User, ShieldCheck, ChevronRight } from 'lucide-react';
+import MobileAdActionBar from '@/components/MobileAdActionBar';
+import RelatedAds from '@/components/RelatedAds';
+import AdActionButtons from '@/components/AdActionButtons';
+import HistoryTracker from '@/components/HistoryTracker'; // YENİ
+
+export default async function AdDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const ad = getAdById(Number(id));
+
+  if (!ad) return notFound();
+
+  const sellerId = ad.sellerId || 101;
+  const sellerName = ad.sellerName || 'Ahmet Yılmaz';
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6">
-      <h2 className="text-xl font-bold text-[#333] mb-6 border-b border-gray-100 pb-2">İlanlarım</h2>
+    <div className="pb-10">
+      {/* GEÇMİŞ TAKİPÇİSİ (Client Component) */}
+      <HistoryTracker ad={ad} />
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-gray-50 text-[12px] text-gray-500 border-b border-gray-200">
-              <th className="p-3">İlan Başlığı</th>
-              <th className="p-3">Fiyat</th>
-              <th className="p-3">Tarih</th>
-              <th className="p-3">Durum</th>
-              <th className="p-3 text-center">İşlemler</th>
-            </tr>
-          </thead>
-          <tbody className="text-[13px] text-[#333]">
-            {myAds.map((ad) => (
-              <tr key={ad.id} className="border-b border-gray-100 hover:bg-gray-50">
-                <td className="p-3 font-semibold">
-                  {ad.title}
-                  <div className="flex items-center gap-1 text-gray-400 text-[10px] mt-1 font-normal">
-                    <Eye size={10} /> {ad.views} görüntülenme
-                  </div>
-                </td>
-                <td className="p-3 text-blue-900 font-bold">{ad.price}</td>
-                <td className="p-3 text-gray-600">{ad.date}</td>
-                <td className="p-3">
-                  {ad.status === 'active' && <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-[10px] font-bold">Yayında</span>}
-                  {ad.status === 'pending' && <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-[10px] font-bold">Onay Bekliyor</span>}
-                  {ad.status === 'passive' && <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-[10px] font-bold">Pasif</span>}
-                </td>
-                <td className="p-3">
-                  <div className="flex justify-center gap-2">
-                    <button className="p-1.5 border border-gray-300 rounded hover:bg-blue-50 text-blue-600" title="Düzenle">
-                      <Edit size={14} />
-                    </button>
-                    <button className="p-1.5 border border-gray-300 rounded hover:bg-red-50 text-red-600" title="Sil">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      <Breadcrumb path={ad.category} />
+
+      <div className="border-b border-gray-200 pb-2 mb-4">
+        <h1 className="text-[#333] font-bold text-lg">{ad.title}</h1>
       </div>
+
+      <div className="flex flex-col lg:flex-row gap-4 mb-20 md:mb-0">
+
+        {/* SOL KOLON */}
+        <div className="lg:w-[500px] shrink-0">
+          <Gallery mainImage={ad.image} />
+          <AdActionButtons id={ad.id} title={ad.title} />
+        </div>
+
+        {/* ORTA KOLON */}
+        <div className="flex-1 min-w-0">
+          <div className="mb-4 hidden md:block">
+            <span className="block text-blue-600 font-bold text-xl">{ad.price} {ad.currency}</span>
+            <span className="block text-gray-500 text-[12px] mt-1">{ad.location}</span>
+          </div>
+
+          <div className="border-t border-gray-200">
+            {ad.attributes.map((attr: any, index: number) => (
+              <div key={index} className="flex justify-between items-center py-1.5 border-b border-gray-100 text-[13px]">
+                <span className="font-bold text-[#333]">{attr.label}</span>
+                <span className={attr.label === 'İlan No' ? 'text-red-600' : 'text-[#333]'}>
+                  {attr.value}
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8">
+            <h3 className="font-bold text-[#333] text-sm mb-3 border-b border-gray-200 pb-1">İlan Açıklaması</h3>
+            <div className="text-[14px] text-[#333] leading-relaxed" dangerouslySetInnerHTML={{ __html: ad.description }} />
+          </div>
+        </div>
+
+        {/* SAĞ KOLON */}
+        <div className="lg:w-[260px] shrink-0 hidden md:block">
+           <div className="border border-gray-200 bg-white p-4 rounded-sm shadow-sm sticky top-4">
+              <h4 className="font-bold text-md text-[#333] mb-4">İlan Sahibi</h4>
+
+              <Link href={\`/satici/\${sellerId}\`} className="flex items-center gap-3 mb-4 group cursor-pointer hover:bg-gray-50 p-2 -mx-2 rounded transition-colors">
+                <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 group-hover:bg-blue-100 group-hover:text-blue-600 transition-colors">
+                  <User size={20} />
+                </div>
+                <div className="flex-1">
+                  <p className="font-bold text-sm text-[#333] group-hover:text-blue-700 flex justify-between items-center">
+                    {sellerName} <ChevronRight size={14} className="opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </p>
+                  <p className="text-[11px] text-gray-500">Tüm İlanları</p>
+                </div>
+              </Link>
+
+              <div className="space-y-2">
+                <button className="w-full bg-[#4682b4] hover:bg-[#315f85] text-white font-bold py-2 rounded-sm text-sm flex items-center justify-center gap-2">
+                   <Phone size={16} /> Cep Telini Göster
+                </button>
+                <button className="w-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-[#333] font-bold py-2 rounded-sm text-sm">
+                   Mesaj Gönder
+                </button>
+              </div>
+
+              <div className="mt-4 pt-4 border-t border-gray-200 text-[11px] text-green-700 flex items-center gap-1">
+                 <ShieldCheck size={14} />
+                 <span>Güvenlik İpuçları</span>
+              </div>
+           </div>
+        </div>
+
+      </div>
+
+      <RelatedAds category={ad.category} currentId={ad.id} />
+      <MobileAdActionBar price={\`\${ad.price} \${ad.currency}\`} />
     </div>
   );
 }
 `;
 
-// --- 6. ADIM: AYARLAR SAYFASI ---
-const appSettingsPage = `
-"use client";
-import React, { useState } from 'react';
-import { useAuth } from '@/context/AuthContext';
+// --- 8. ADIM: LAYOUT GÜNCELLEMESİ (COOKIE BANNER EKLENDİ) ---
+const appLayoutUpdated = `
+import type { Metadata } from "next";
+import { Geist, Geist_Mono } from "next/font/google";
+import "./globals.css";
+import Header from "@/components/Header";
+import Footer from "@/components/Footer";
+import MobileBottomNav from "@/components/MobileBottomNav";
+import { Providers } from "@/components/Providers";
+import CompareBar from "@/components/CompareBar";
+import ModalRoot from "@/components/ModalRoot";
+import CookieBanner from "@/components/CookieBanner"; // YENİ
 
-export default function SettingsPage() {
-  const { user, updateUser } = useAuth();
-  const [name, setName] = useState(user?.name || '');
-  const [email, setEmail] = useState(user?.email || '');
+const geistSans = Geist({
+  variable: "--font-geist-sans",
+  subsets: ["latin"],
+});
 
-  const handleSave = (e: React.FormEvent) => {
-    e.preventDefault();
-    updateUser({ name, email });
-    alert('Bilgileriniz güncellendi!');
-  };
+const geistMono = Geist_Mono({
+  variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
 
+export const metadata: Metadata = {
+  title: "sahibinden.com: Satılık, Kiralık, 2.El, Emlak, Oto, Araba",
+  description: "Sahibinden.com klon projesi",
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6 max-w-[600px]">
-      <h2 className="text-xl font-bold text-[#333] mb-6 border-b border-gray-100 pb-2">Üyelik Bilgilerim</h2>
-
-      <form onSubmit={handleSave} className="space-y-4">
-        <div>
-          <label className="block text-[12px] font-bold text-[#333] mb-1">Ad Soyad</label>
-          <input
-            type="text"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="w-full border border-gray-300 rounded-sm h-[34px] px-3 focus:border-blue-500 focus:outline-none"
-          />
-        </div>
-        <div>
-          <label className="block text-[12px] font-bold text-[#333] mb-1">E-posta</label>
-          <input
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className="w-full border border-gray-300 rounded-sm h-[34px] px-3 focus:border-blue-500 focus:outline-none bg-gray-50"
-          />
-        </div>
-
-        <div className="pt-4 border-t border-gray-100 mt-4">
-          <h3 className="text-sm font-bold text-[#333] mb-3">Şifre Değiştir</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-[12px] font-bold text-[#333] mb-1">Yeni Şifre</label>
-              <input type="password" className="w-full border border-gray-300 rounded-sm h-[34px] px-3 focus:border-blue-500 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-[12px] font-bold text-[#333] mb-1">Yeni Şifre (Tekrar)</label>
-              <input type="password" className="w-full border border-gray-300 rounded-sm h-[34px] px-3 focus:border-blue-500 focus:outline-none" />
-            </div>
+    <html lang="tr">
+      <body
+        className={\`\${geistSans.variable} \${geistMono.variable} antialiased bg-[#f6f7f9] min-h-screen flex flex-col font-sans pb-[60px] md:pb-0\`}
+      >
+        <Providers>
+          <Header />
+          <div className="flex-1 w-full max-w-[1150px] mx-auto px-4 py-4">
+              {children}
           </div>
-        </div>
-
-        <button type="submit" className="bg-blue-700 text-white font-bold py-2 px-6 rounded-sm hover:bg-blue-800 text-[13px] mt-4">
-          Kaydet ve Güncelle
-        </button>
-      </form>
-    </div>
+          <Footer />
+          <MobileBottomNav />
+          <CompareBar />
+          <ModalRoot />
+          <CookieBanner />
+        </Providers>
+      </body>
+    </html>
   );
 }
 `;
 
 // --- DOSYALARI OLUŞTURUYORUZ ---
 
-createFile("context/AuthContext.tsx", contextAuth); // Auth Context
-createFile("components/Providers.tsx", componentsProvidersUpdated); // Provider Wrapper
-createFile("components/Header.tsx", componentsHeaderAuth); // Akıllı Header
-createFile("app/login/page.tsx", appLoginPageUpdated); // Login Entegrasyonu
-createFile("app/bana-ozel/ilanlarim/page.tsx", appMyAdsPage); // İlanlarım
-createFile("app/bana-ozel/ayarlar/page.tsx", appSettingsPage); // Ayarlar
+createFile("context/HistoryContext.tsx", contextHistory);
+createFile("components/HistoryTracker.tsx", componentHistoryTracker);
+createFile("components/RecentAdsWidget.tsx", componentRecentAdsWidget);
+createFile("components/CookieBanner.tsx", componentCookieBanner);
+createFile("components/Providers.tsx", componentsProvidersUpdated);
+createFile("components/Sidebar.tsx", componentsSidebarUpdated);
+createFile("app/ilan/[id]/page.tsx", appAdDetailUpdated);
+createFile("app/layout.tsx", appLayoutUpdated);
 
 console.log("---------------------------------------------------------");
-console.log("🚀 Level 8 Güncellemesi Tamamlandı! (Oturum Yönetimi)");
+console.log("🚀 Level 22 Güncellemesi Tamamlandı! (Geçmiş & Çerezler)");
 console.log("---------------------------------------------------------");
 console.log("Denenmesi Gerekenler:");
-console.log("1. /login sayfasına gidin ve 'Giriş Yap'a basın.");
-console.log("2. Header'da artık isminizi görmelisiniz. Tıklayıp menüyü açın.");
-console.log("3. Menüden 'İlanlarım' veya 'Ayarlar' sayfalarını gezin.");
 console.log(
-  "4. 'Çıkış Yap' diyerek oturumu kapatın ve Header'ın eski haline döndüğünü görün."
+  "1. Sayfayı yenileyin, altta siyah 'Çerez Politikası' barını görün ve kabul edin."
+);
+console.log(
+  "2. Ana sayfadan farklı farklı 2-3 ilana tıklayın ve detaylarına girin."
+);
+console.log(
+  "3. Ana sayfaya geri dönün; sol menüde 'Son Gezilenler' listesinin dolduğunu görün."
 );
 console.log("---------------------------------------------------------");

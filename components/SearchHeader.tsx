@@ -3,6 +3,7 @@
 import React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { List, Map as MapIcon } from 'lucide-react';
+import SaveSearchButton from '@/components/SaveSearchButton';
 
 export default function SearchHeader({ total, query, currentSort, currentView }: any) {
   const router = useRouter();
@@ -16,12 +17,14 @@ export default function SearchHeader({ total, query, currentSort, currentView }:
 
   return (
     <div className="flex flex-col sm:flex-row justify-between items-center mb-3 border-b border-gray-200 pb-2 gap-3">
-      <h1 className="text-[#333] font-bold text-sm">
-        {query ? `"${query}" aramanız için` : 'Arama sonuçları:'} <span className="text-blue-900">{total}</span> ilan bulundu
-      </h1>
+      <div className="flex items-center">
+        <h1 className="text-[#333] font-bold text-sm">
+          {query ? `"${query}" aramanız için` : 'Arama sonuçları:'} <span className="text-blue-900">{total}</span> ilan bulundu
+        </h1>
+        <SaveSearchButton />
+      </div>
 
       <div className="flex items-center gap-3">
-        {/* Görünüm Modu Toggle */}
         <div className="flex border border-gray-300 rounded-sm overflow-hidden">
           <button
             onClick={() => updateParam('view', 'list')}
@@ -40,7 +43,6 @@ export default function SearchHeader({ total, query, currentSort, currentView }:
           </button>
         </div>
 
-        {/* Sıralama */}
         <select
           value={currentSort || ''}
           onChange={(e) => updateParam('sort', e.target.value)}
