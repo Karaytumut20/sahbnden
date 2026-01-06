@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
@@ -8,7 +7,7 @@ import { User, Lock, Bell, Shield, Save } from 'lucide-react';
 export default function SettingsPage() {
   const { user } = useAuth();
   const { addToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'profile' | 'security' | 'notifications'>('profile');
+  const [activeTab, setActiveTab] = useState('profile');
   const [loading, setLoading] = useState(false);
 
   // Form States
@@ -18,7 +17,6 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     setLoading(true);
-    // API Simülasyonu
     setTimeout(() => {
       setLoading(false);
       addToast('Ayarlarınız başarıyla güncellendi.', 'success');
@@ -26,7 +24,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm min-h-[500px] flex flex-col md:flex-row dark:bg-gray-800 dark:border-gray-700">
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm min-h-[500px] flex flex-col md:flex-row dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors">
 
       {/* SOL MENÜ */}
       <div className="w-full md:w-64 border-b md:border-b-0 md:border-r border-gray-200 dark:border-gray-700 p-4">
@@ -34,19 +32,19 @@ export default function SettingsPage() {
         <nav className="space-y-1">
           <button
             onClick={() => setActiveTab('profile')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
           >
             <User size={18} /> Profil Bilgileri
           </button>
           <button
             onClick={() => setActiveTab('security')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${activeTab === 'security' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${activeTab === 'security' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
           >
             <Lock size={18} /> Şifre ve Güvenlik
           </button>
           <button
             onClick={() => setActiveTab('notifications')}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${activeTab === 'notifications' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-700'}`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded text-sm font-medium transition-colors ${activeTab === 'notifications' ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' : 'text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
           >
             <Bell size={18} /> Bildirim Tercihleri
           </button>
@@ -65,7 +63,7 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex items-center gap-4 mb-6">
-              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-xl font-bold text-blue-600 dark:text-blue-300">
+              <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900/50 rounded-full flex items-center justify-center text-xl font-bold text-blue-600 dark:text-blue-400 border-2 border-white dark:border-gray-600">
                 {user?.avatar || 'U'}
               </div>
               <button className="text-sm text-blue-700 font-bold hover:underline dark:text-blue-400">Fotoğrafı Değiştir</button>
@@ -78,7 +76,7 @@ export default function SettingsPage() {
                   type="text"
                   value={profileData.name}
                   onChange={(e) => setProfileData({...profileData, name: e.target.value})}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -87,7 +85,7 @@ export default function SettingsPage() {
                   type="email"
                   value={profileData.email}
                   onChange={(e) => setProfileData({...profileData, email: e.target.value})}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -96,7 +94,7 @@ export default function SettingsPage() {
                   type="tel"
                   value={profileData.phone}
                   onChange={(e) => setProfileData({...profileData, phone: e.target.value})}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
                 />
               </div>
             </div>
@@ -118,7 +116,7 @@ export default function SettingsPage() {
                   type="password"
                   value={securityData.currentPass}
                   onChange={(e) => setSecurityData({...securityData, currentPass: e.target.value})}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -127,7 +125,7 @@ export default function SettingsPage() {
                   type="password"
                   value={securityData.newPass}
                   onChange={(e) => setSecurityData({...securityData, newPass: e.target.value})}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
                 />
               </div>
               <div>
@@ -136,7 +134,7 @@ export default function SettingsPage() {
                   type="password"
                   value={securityData.confirmPass}
                   onChange={(e) => setSecurityData({...securityData, confirmPass: e.target.value})}
-                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
+                  className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-sm h-10 px-3 focus:border-blue-500 outline-none"
                 />
               </div>
             </div>
@@ -153,7 +151,7 @@ export default function SettingsPage() {
                     onChange={(e) => setSecurityData({...securityData, twoFactor: e.target.checked})}
                     className="sr-only peer"
                   />
-                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer dark:bg-gray-600 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
                 </div>
                 <span className="text-sm text-gray-600 dark:text-gray-300">
                   Giriş yaparken telefonuma SMS kodu gönder.
@@ -175,38 +173,23 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-gray-700">
                 <div>
                   <p className="font-bold text-sm text-[#333] dark:text-white">İlan Güncellemeleri (E-posta)</p>
-                  <p className="text-xs text-gray-500">Favori ilanlarınızın fiyatı düştüğünde.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Favori ilanlarınızın fiyatı düştüğünde.</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={notifData.emailAd}
-                  onChange={(e) => setNotifData({...notifData, emailAd: e.target.checked})}
-                  className="accent-blue-600 w-4 h-4"
-                />
+                <input type="checkbox" checked={notifData.emailAd} onChange={(e) => setNotifData({...notifData, emailAd: e.target.checked})} className="accent-blue-600 w-4 h-4" />
               </div>
               <div className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-gray-700">
                 <div>
                   <p className="font-bold text-sm text-[#333] dark:text-white">Kampanya ve Haberler (E-posta)</p>
-                  <p className="text-xs text-gray-500">Yeni özellikler ve fırsatlar hakkında.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Yeni özellikler ve fırsatlar hakkında.</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={notifData.emailNews}
-                  onChange={(e) => setNotifData({...notifData, emailNews: e.target.checked})}
-                  className="accent-blue-600 w-4 h-4"
-                />
+                <input type="checkbox" checked={notifData.emailNews} onChange={(e) => setNotifData({...notifData, emailNews: e.target.checked})} className="accent-blue-600 w-4 h-4" />
               </div>
               <div className="flex items-center justify-between py-3 border-b border-gray-50 dark:border-gray-700">
                 <div>
                   <p className="font-bold text-sm text-[#333] dark:text-white">İlan Mesajları (SMS)</p>
-                  <p className="text-xs text-gray-500">Biri ilanınıza mesaj attığında.</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">Biri ilanınıza mesaj attığında.</p>
                 </div>
-                <input
-                  type="checkbox"
-                  checked={notifData.smsAd}
-                  onChange={(e) => setNotifData({...notifData, smsAd: e.target.checked})}
-                  className="accent-blue-600 w-4 h-4"
-                />
+                <input type="checkbox" checked={notifData.smsAd} onChange={(e) => setNotifData({...notifData, smsAd: e.target.checked})} className="accent-blue-600 w-4 h-4" />
               </div>
             </div>
           </div>
@@ -217,7 +200,7 @@ export default function SettingsPage() {
           <button
             onClick={handleSave}
             disabled={loading}
-            className="bg-blue-700 text-white px-8 py-3 rounded-sm font-bold text-sm hover:bg-blue-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50"
+            className="bg-blue-700 text-white px-8 py-3 rounded-sm font-bold text-sm hover:bg-blue-800 transition-colors shadow-sm flex items-center gap-2 disabled:opacity-50 dark:bg-blue-600 dark:hover:bg-blue-700"
           >
             {loading ? 'Kaydediliyor...' : <><Save size={16} /> Değişiklikleri Kaydet</>}
           </button>

@@ -1,4 +1,3 @@
-
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -8,7 +7,7 @@ import MobileBottomNav from "@/components/MobileBottomNav";
 import { Providers } from "@/components/Providers";
 import CompareBar from "@/components/CompareBar";
 import ModalRoot from "@/components/ModalRoot";
-import CookieBanner from "@/components/CookieBanner"; // YENİ
+import CookieBanner from "@/components/CookieBanner";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -31,9 +30,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr">
+    <html lang="tr" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#f6f7f9] min-h-screen flex flex-col font-sans pb-[60px] md:pb-0`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased min-h-screen flex flex-col font-sans pb-[60px] md:pb-0`}
       >
         <Providers>
           <Header />

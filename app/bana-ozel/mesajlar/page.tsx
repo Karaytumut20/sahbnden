@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState } from 'react';
 import { Search, Send, MoreVertical, Phone } from 'lucide-react';
@@ -34,16 +33,16 @@ export default function MessagesPage() {
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm h-[calc(100vh-140px)] flex overflow-hidden">
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm h-[calc(100vh-140px)] flex overflow-hidden dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors">
 
       {/* SOL TARA: KONUŞMA LİSTESİ */}
-      <div className="w-[300px] border-r border-gray-200 flex flex-col">
-        <div className="p-3 border-b border-gray-200 bg-gray-50">
+      <div className="w-[300px] border-r border-gray-200 flex flex-col dark:border-gray-700">
+        <div className="p-3 border-b border-gray-200 bg-gray-50 dark:bg-[#151515] dark:border-gray-700">
           <div className="relative">
             <input
               type="text"
               placeholder="Mesajlarda ara..."
-              className="w-full border border-gray-300 rounded-full h-8 pl-8 pr-3 text-[12px] focus:outline-none focus:border-blue-500"
+              className="w-full border border-gray-300 rounded-full h-8 pl-8 pr-3 text-[12px] focus:outline-none focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
             />
             <Search size={14} className="absolute left-2.5 top-2 text-gray-400" />
           </div>
@@ -54,17 +53,17 @@ export default function MessagesPage() {
             <div
               key={chat.id}
               onClick={() => setActiveChat(chat.id)}
-              className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 transition-colors ${activeChat === chat.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''}`}
+              className={`flex items-center gap-3 p-3 cursor-pointer hover:bg-gray-50 border-b border-gray-100 transition-colors dark:border-gray-800 dark:hover:bg-gray-800 ${activeChat === chat.id ? 'bg-blue-50 border-l-4 border-l-blue-600 dark:bg-blue-900/20 dark:border-l-blue-500' : ''}`}
             >
-              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-sm shrink-0">
+              <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center text-gray-600 font-bold text-sm shrink-0 dark:bg-gray-700 dark:text-gray-300">
                 {chat.avatar}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-1">
-                  <h4 className="text-[13px] font-bold text-[#333] truncate">{chat.name}</h4>
+                  <h4 className="text-[13px] font-bold text-[#333] truncate dark:text-gray-200">{chat.name}</h4>
                   <span className="text-[10px] text-gray-400 shrink-0">{chat.time}</span>
                 </div>
-                <p className="text-[11px] text-gray-500 truncate">{chat.lastMsg}</p>
+                <p className="text-[11px] text-gray-500 truncate dark:text-gray-400">{chat.lastMsg}</p>
               </div>
               {chat.unread > 0 && (
                 <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center text-white text-[10px] font-bold">
@@ -77,45 +76,48 @@ export default function MessagesPage() {
       </div>
 
       {/* SAĞ TARAF: SOHBET PENCERESİ */}
-      <div className="flex-1 flex flex-col bg-[#efeae2] relative">
+      <div className="flex-1 flex flex-col bg-[#efeae2] relative dark:bg-[#0b141a]">
         {/* Sohbet Başlığı */}
-        <div className="h-[60px] bg-gray-100 border-b border-gray-200 flex items-center justify-between px-4 shrink-0">
+        <div className="h-[60px] bg-gray-100 border-b border-gray-200 flex items-center justify-between px-4 shrink-0 dark:bg-[#1c1c1c] dark:border-gray-700">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-bold text-sm">
+            <div className="w-9 h-9 rounded-full bg-gray-300 flex items-center justify-center text-gray-600 font-bold text-sm dark:bg-gray-700 dark:text-gray-300">
               AY
             </div>
             <div>
-              <h3 className="font-bold text-[#333] text-sm">Ahmet Yılmaz</h3>
-              <p className="text-[11px] text-gray-500">Çevrimiçi</p>
+              <h3 className="font-bold text-[#333] text-sm dark:text-white">Ahmet Yılmaz</h3>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">Çevrimiçi</p>
             </div>
           </div>
-          <div className="flex gap-4 text-gray-600">
+          <div className="flex gap-4 text-gray-600 dark:text-gray-400">
             <Phone size={20} className="cursor-pointer hover:text-blue-600" />
             <MoreVertical size={20} className="cursor-pointer hover:text-blue-600" />
           </div>
         </div>
 
         {/* Mesaj Alanı */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-95">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 relative">
+          {/* Karanlık Mod Arka Plan Deseni */}
+          <div className="absolute inset-0 bg-[url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')] bg-repeat opacity-50 dark:opacity-5 pointer-events-none"></div>
+
           {messages.map((msg) => (
-            <div key={msg.id} className={`flex ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[70%] rounded-md p-2 shadow-sm text-[13px] relative ${msg.sender === 'me' ? 'bg-[#d9fdd3] text-[#111]' : 'bg-white text-[#111]'}`}>
+            <div key={msg.id} className={`flex relative z-10 ${msg.sender === 'me' ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[70%] rounded-md p-2 shadow-sm text-[13px] relative ${msg.sender === 'me' ? 'bg-[#d9fdd3] text-[#111] dark:bg-[#005c4b] dark:text-white' : 'bg-white text-[#111] dark:bg-[#202c33] dark:text-white'}`}>
                 <p>{msg.text}</p>
-                <span className="text-[10px] text-gray-500 block text-right mt-1 ml-2">{msg.time}</span>
+                <span className="text-[10px] text-gray-500 block text-right mt-1 ml-2 dark:text-gray-400">{msg.time}</span>
               </div>
             </div>
           ))}
         </div>
 
         {/* Input Alanı */}
-        <div className="bg-gray-100 p-3 border-t border-gray-200">
+        <div className="bg-gray-100 p-3 border-t border-gray-200 dark:bg-[#1c1c1c] dark:border-gray-700">
           <form onSubmit={handleSend} className="flex gap-2">
             <input
               type="text"
               value={messageInput}
               onChange={(e) => setMessageInput(e.target.value)}
               placeholder="Bir mesaj yazın..."
-              className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-blue-500 text-sm"
+              className="flex-1 border border-gray-300 rounded-md px-4 py-2 focus:outline-none focus:border-blue-500 text-sm dark:bg-gray-800 dark:border-gray-600 dark:text-white dark:placeholder-gray-400"
             />
             <button type="submit" className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 transition-colors flex items-center justify-center">
               <Send size={18} />
