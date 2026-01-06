@@ -35,7 +35,7 @@ export default function Showcase() {
   };
 
   const handleCompareChange = (e: React.ChangeEvent<HTMLInputElement>, id: number) => {
-    e.stopPropagation(); // Linke gitmeyi engelle
+    e.stopPropagation();
     if (e.target.checked) {
       addToCompare(id);
     } else {
@@ -46,22 +46,22 @@ export default function Showcase() {
   return (
     <div className="flex-1 min-w-0">
       {/* SEKMELER */}
-      <div className="flex items-end border-b border-gray-200 mb-4 overflow-x-auto">
+      <div className="flex items-end border-b border-gray-200 mb-4 overflow-x-auto dark:border-gray-700">
         <button
           onClick={() => setActiveTab('vitrin')}
-          className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'vitrin' ? 'border-[#ffe800] text-[#333]' : 'border-transparent text-gray-500 hover:text-[#333]'}`}
+          className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'vitrin' ? 'border-[#ffe800] text-[#333] dark:text-white' : 'border-transparent text-gray-500 hover:text-[#333] dark:text-gray-400 dark:hover:text-white'}`}
         >
           Vitrindeki İlanlar
         </button>
         <button
           onClick={() => setActiveTab('acil')}
-          className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'acil' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-red-600'}`}
+          className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'acil' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-500'}`}
         >
           Acil Acil
         </button>
         <button
           onClick={() => setActiveTab('ilginç')}
-          className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'ilginç' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-blue-600'}`}
+          className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'ilginç' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-400'}`}
         >
           Sizin İçin Seçtiklerimiz
         </button>
@@ -75,24 +75,21 @@ export default function Showcase() {
           getActiveAds().map((ad) => (
             <div key={ad.id} className="block group relative">
               <Link href={`/ilan/${ad.id}`} className="block h-full">
-                <div className="bg-white border border-gray-200 rounded-sm shadow-sm hover:shadow-md transition-all cursor-pointer h-full flex flex-col relative">
+                <div className="bg-white border border-gray-200 rounded-sm shadow-sm hover:shadow-md transition-all cursor-pointer h-full flex flex-col relative dark:bg-gray-800 dark:border-gray-700">
 
                   {/* Favori Butonu */}
                   <button
                     onClick={(e) => handleFavoriteClick(e, ad.id)}
-                    className="absolute top-2 right-2 z-20 bg-white/80 p-1.5 rounded-full hover:bg-white transition-colors"
+                    className="absolute top-2 right-2 z-20 bg-white/80 p-1.5 rounded-full hover:bg-white transition-colors dark:bg-gray-900/80 dark:hover:bg-gray-900"
                   >
                     <Heart
                       size={16}
-                      className={isFavorite(ad.id) ? 'fill-red-600 text-red-600' : 'text-gray-500'}
+                      className={isFavorite(ad.id) ? 'fill-red-600 text-red-600' : 'text-gray-500 dark:text-gray-400'}
                     />
                   </button>
 
                   {/* Karşılaştırma Checkbox */}
-                  <div
-                    className="absolute top-2 left-2 z-20"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  <div className="absolute top-2 left-2 z-20" onClick={(e) => e.stopPropagation()}>
                     <input
                       type="checkbox"
                       checked={isInCompare(ad.id)}
@@ -102,7 +99,11 @@ export default function Showcase() {
                     />
                   </div>
 
-                  <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                  {activeTab === 'acil' && (
+                    <div className="absolute top-2 left-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm z-10">ACİL</div>
+                  )}
+
+                  <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 dark:bg-gray-900">
                     <img
                       src={ad.image}
                       alt={ad.title}
@@ -110,14 +111,14 @@ export default function Showcase() {
                     />
                   </div>
                   <div className="p-2 space-y-1 flex-1 flex flex-col justify-between">
-                    <p className="text-[12px] text-[#333] font-semibold leading-tight group-hover:underline line-clamp-2 h-[2.4em] overflow-hidden">
+                    <p className="text-[12px] text-[#333] font-semibold leading-tight group-hover:underline line-clamp-2 h-[2.4em] overflow-hidden dark:text-gray-200">
                       {ad.title}
                     </p>
                     <div className="pt-2">
-                       <p className={`text-[13px] font-bold ${activeTab === 'acil' ? 'text-red-600' : 'text-blue-900'}`}>
+                       <p className={`text-[13px] font-bold ${activeTab === 'acil' ? 'text-red-600' : 'text-blue-900 dark:text-blue-400'}`}>
                          {ad.price} {ad.currency}
                        </p>
-                       <p className="text-[10px] text-gray-500 truncate">{ad.location ? ad.location.split('/')[0] : 'Şehir Yok'}</p>
+                       <p className="text-[10px] text-gray-500 truncate dark:text-gray-400">{ad.location ? ad.location.split('/')[0] : 'Şehir Yok'}</p>
                     </div>
                   </div>
                 </div>

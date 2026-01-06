@@ -1,18 +1,39 @@
-
 @import "tailwindcss";
 
-@theme {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@plugin "tailwindcss-animate";
+
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
-  --background: #f6f7f9;
-  --foreground: #333333;
+  /* Açık Mod Renkleri (Light Mode) */
+  --background: #ffffff;
+  --foreground: #171717;
+  --card: #ffffff;
+  --card-foreground: #09090b;
+  --border: #e5e7eb;
 }
 
+.dark {
+  /* Koyu Mod Renkleri (Dark Mode) - Arka planı koyulaştıran kısım burası */
+  --background: #0a0a0a; /* Burası bembeyaz kalmış sende, şimdi düzelecek */
+  --foreground: #ededed;
+  --card: #1c1c1c; /* Kartların arka planı */
+  --card-foreground: #ededed;
+  --border: #27272a;
+}
+
+/* Body elementine bu değişkenleri atıyoruz */
 body {
-  background: var(--background);
+  background-color: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease; /* Geçişleri yumuşatır */
+}
+
+/* Kartlar ve diğer alanlar için yardımcı sınıflar (isteğe bağlı ama önerilir) */
+@layer utilities {
+  .bg-card {
+    background-color: var(--card);
+    color: var(--card-foreground);
+  }
 }

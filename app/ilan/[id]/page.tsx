@@ -9,7 +9,8 @@ import RelatedAds from '@/components/RelatedAds';
 import AdActionButtons from '@/components/AdActionButtons';
 import HistoryTracker from '@/components/HistoryTracker';
 import StickyAdHeader from '@/components/StickyAdHeader';
-import SellerSidebar from '@/components/SellerSidebar'; // YENİ
+import SellerSidebar from '@/components/SellerSidebar';
+import PriceHistoryChart from '@/components/PriceHistoryChart'; // YENİ
 
 export default async function AdDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -34,8 +35,12 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
       <div className="flex flex-col lg:flex-row gap-4 mb-20 md:mb-0">
         <div className="lg:w-[500px] shrink-0">
           <Gallery mainImage={ad.image} />
-          {/* AdActionButtons'a seller ve image bilgilerini de geçiyoruz */}
           <AdActionButtons id={ad.id} title={ad.title} image={ad.image} sellerName={sellerName} />
+
+          {/* YENİ FİYAT GRAFİĞİ */}
+          <div className="mt-6">
+            <PriceHistoryChart currentPrice={ad.price} />
+          </div>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -61,7 +66,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* SAĞ KOLON (Client Component) */}
         <div className="lg:w-[260px] shrink-0 hidden md:block">
            <SellerSidebar
              sellerId={sellerId}
@@ -69,6 +73,8 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
              adId={ad.id}
              adTitle={ad.title}
              adImage={ad.image}
+             price={ad.price} // YENİ
+             currency={ad.currency} // YENİ
            />
         </div>
       </div>

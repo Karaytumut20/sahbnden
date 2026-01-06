@@ -2,10 +2,11 @@
 "use client";
 import React from 'react';
 import Link from 'next/link';
-import { Phone, User, ShieldCheck, ChevronRight } from 'lucide-react';
+import { Phone, User, ShieldCheck, ChevronRight, HandCoins } from 'lucide-react';
 import { useMessage } from '@/context/MessageContext';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { useModal } from '@/context/ModalContext'; // YENİ
 
 type Props = {
   sellerId: number;
@@ -13,10 +14,13 @@ type Props = {
   adId: number;
   adTitle: string;
   adImage: string;
+  price: string; // YENİ
+  currency: string; // YENİ
 };
 
-export default function SellerSidebar({ sellerId, sellerName, adId, adTitle, adImage }: Props) {
+export default function SellerSidebar({ sellerId, sellerName, adId, adTitle, adImage, price, currency }: Props) {
   const { startConversation } = useMessage();
+  const { openModal } = useModal(); // YENİ
   const { user } = useAuth();
   const { addToast } = useToast();
 
@@ -26,6 +30,14 @@ export default function SellerSidebar({ sellerId, sellerName, adId, adTitle, adI
       return;
     }
     startConversation(adId, adTitle, adImage, sellerName);
+  };
+
+  const handleOffer = () => { // YENİ
+    if (!user) {
+      addToast('Teklif vermek için giriş yapmalısınız.', 'error');
+      return;
+    }
+    openModal('OFFER', { price, currency });
   };
 
   return (
@@ -53,6 +65,13 @@ export default function SellerSidebar({ sellerId, sellerName, adId, adTitle, adI
           className="w-full border border-gray-300 bg-gray-50 hover:bg-gray-100 text-[#333] font-bold py-2 rounded-sm text-sm"
         >
             Mesaj Gönder
+        </button>
+        {/* YENİ TEKLİF BUTONU */}
+        <button
+          onClick={handleOffer}
+          className="w-full border border-gray-300 bg-white hover:bg-green-50 text-green-700 font-bold py-2 rounded-sm text-sm flex items-center justify-center gap-2"
+        >
+            <HandCoins size={16} /> Teklif Ver
         </button>
       </div>
 
