@@ -1,6 +1,5 @@
-import { Suspense } from 'react';
-
 "use client";
+import { Suspense } from 'react';
 import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Lock, ShieldCheck } from 'lucide-react';
