@@ -1,31 +1,17 @@
 const fs = require("fs");
 const path = require("path");
-const { execSync } = require("child_process");
 
-console.log("\x1b[36m%s\x1b[0m", "🚀 Sahibinden Clone Setup Başlatılıyor...");
+console.log("\x1b[36m%s\x1b[0m", "🚀 Hata Düzeltme ve Kurulum Başlatılıyor...");
 
-// 1. Gerekli Paketlerin Yüklenmesi
-console.log("\n📦 Supabase ve gerekli paketler kontrol ediliyor...");
-try {
-  // Supabase'i kuruyoruz (Backend servisi olarak)
-  execSync("npm install @supabase/supabase-js", { stdio: "inherit" });
-  console.log("✅ Paketler yüklendi.");
-} catch (error) {
-  console.log(
-    "⚠️ Paket yüklemede hata oluştu veya zaten yüklü, devam ediliyor...",
-  );
-}
+// ---------------------------------------------------------
+// ADIM 1: next.config.ts Düzenlemesi (ESLint uyarısını kaldırır)
+// ---------------------------------------------------------
+console.log("\n🔧 next.config.ts güncelleniyor...");
 
-// 2. Next.js Config Güncellemesi (Build hatalarını engellemek için KRİTİK ADIM)
-// Bu ayar, TypeScript veya ESLint hataları olsa bile projenin Vercel'de çalışmasını sağlar.
 const nextConfigContent = `
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    // Build sırasında eslint hatalarını görmezden gel (Deployun yarıda kesilmemesi için)
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // Build sırasında tip hatalarını görmezden gel
     ignoreBuildErrors: true,
@@ -37,7 +23,7 @@ const nextConfig: NextConfig = {
         hostname: '**',
       },
     ],
-    // Resim optimizasyon kotasını doldurmamak için (Masrafsız olması için):
+    // Resim optimizasyon kotasını doldurmamak için:
     unoptimized: true,
   },
 };
@@ -45,61 +31,87 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 `;
 
-// Config dosyasını yazma işlemi
 try {
-  // Önce .ts uzantılı config var mı bakalım
-  const configPath = path.join(__dirname, "next.config.ts");
-  fs.writeFileSync(configPath, nextConfigContent.trim());
-  console.log(
-    "✅ next.config.ts güncellendi (Build hataları devre dışı bırakıldı).",
+  fs.writeFileSync(
+    path.join(__dirname, "next.config.ts"),
+    nextConfigContent.trim(),
   );
+  console.log("✅ next.config.ts Next.js 16 uyumlu hale getirildi.");
 } catch (error) {
   console.error("❌ Config dosyası güncellenemedi:", error.message);
 }
 
-// 3. Supabase İstemcisi Oluşturma
-const supabaseContent = `
-import { createClient } from '@supabase/supabase-js';
+// ---------------------------------------------------------
+// ADIM 2: Ödeme Sayfası "Suspense" Hatası Düzeltmesi
+// ---------------------------------------------------------
+console.log("\n🔧 app/ilan-ver/odeme/page.tsx kontrol ediliyor...");
 
-// Eğer env dosyası yoksa boş string döner, uygulama patlamaz.
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+const odemePagePath = path.join(
+  __dirname,
+  "app",
+  "ilan-ver",
+  "odeme",
+  "page.tsx",
+);
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
-`;
+if (fs.existsSync(odemePagePath)) {
+  let content = fs.readFileSync(odemePagePath, "utf8");
 
-const libDir = path.join(__dirname, "lib");
-if (!fs.existsSync(libDir)) {
-  fs.mkdirSync(libDir);
+  // Zaten Suspense eklenmiş mi bakalım
+  if (content.includes("<Suspense")) {
+    console.log("ℹ️ Ödeme sayfası zaten Suspense içeriyor, işlem yapılmadı.");
+  } else {
+    // 1. Suspense importunu ekle
+    if (!content.includes("import { Suspense }")) {
+      content = "import { Suspense } from 'react';\n" + content;
+    }
+
+    // 2. Ana bileşeni bul ve sarmala
+    // Genellikle "export default function OdemePage" şeklinde olur.
+    // Bunu "function OdemeContent" yapıp, altına yeni bir export default ekleyeceğiz.
+
+    const regex = /export\s+default\s+function\s+([a-zA-Z0-9_]+)\s*\(/;
+    const match = content.match(regex);
+
+    if (match) {
+      const functionName = match[1]; // Örn: OdemePage
+      const contentName = `${functionName}Content`; // Örn: OdemePageContent
+
+      // Orijinal fonksiyonu ismini değiştirerek normal fonksiyona çevir
+      content = content.replace(regex, `function ${contentName}(`);
+
+      // Dosyanın en altına sarmalayıcı (Wrapper) bileşeni ekle
+      const wrapperCode = `
+export default function ${functionName}() {
+  return (
+    <Suspense fallback={<div className="flex justify-center p-10">Yükleniyor...</div>}>
+      <${contentName} />
+    </Suspense>
+  );
 }
-
-try {
-  fs.writeFileSync(path.join(libDir, "supabase.ts"), supabaseContent.trim());
-  console.log("✅ lib/supabase.ts oluşturuldu.");
-} catch (error) {
-  console.log("⚠️ lib/supabase.ts oluşturulamadı, devam ediliyor.");
-}
-
-// 4. Örnek .env Dosyası Oluşturma
-const envContent = `
-# Supabase Ayarları (Zorunlu değil, boş bırakılırsa mock çalışır)
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
 `;
+      content += wrapperCode;
 
-const envPath = path.join(__dirname, ".env.local");
-if (!fs.existsSync(envPath)) {
-  fs.writeFileSync(envPath, envContent.trim());
-  console.log("✅ .env.local oluşturuldu.");
+      fs.writeFileSync(odemePagePath, content, "utf8");
+      console.log(
+        "✅ Ödeme sayfasına Suspense sarmalayıcısı (Wrapper) eklendi.",
+      );
+    } else {
+      console.log(
+        "⚠️ Sayfa yapısı otomatik düzeltmeye uygun değil. Manuel kontrol gerekebilir.",
+      );
+    }
+  }
 } else {
-  console.log("ℹ️ .env.local zaten var, dokunulmadı.");
+  console.log("⚠️ Ödeme sayfası dosyası bulunamadı:", odemePagePath);
 }
 
 console.log("\n-------------------------------------------------------------");
-console.log("🎉 KURULUM TAMAMLANDI!");
+console.log("🎉 DÜZELTME TAMAMLANDI!");
 console.log("-------------------------------------------------------------");
-console.log("Şimdi sırasıyla şu komutları çalıştırıp canlıya alabilirsin:");
-console.log("1. git add .");
-console.log('2. git commit -m "Fix deployment config"');
-console.log("3. git push");
+console.log("Lütfen şu komutları sırasıyla çalıştır:");
+console.log("1. node setup.js");
+console.log("2. git add .");
+console.log('3. git commit -m "Fix suspense error and config"');
+console.log("4. git push");
 console.log("-------------------------------------------------------------");

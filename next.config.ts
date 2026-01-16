@@ -1,10 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    // Build sırasında eslint hatalarını görmezden gel (Deployun yarıda kesilmemesi için)
-    ignoreDuringBuilds: true,
-  },
   typescript: {
     // Build sırasında tip hatalarını görmezden gel
     ignoreBuildErrors: true,
@@ -16,7 +12,7 @@ const nextConfig: NextConfig = {
         hostname: '**',
       },
     ],
-    // Resim optimizasyon kotasını doldurmamak için (Masrafsız olması için):
+    // Resim optimizasyon kotasını doldurmamak için:
     unoptimized: true,
   },
 };

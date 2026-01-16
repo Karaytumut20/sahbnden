@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 
 "use client";
 import React, { useState } from 'react';
@@ -6,7 +7,7 @@ import { Lock, ShieldCheck } from 'lucide-react';
 import CreditCardForm from '@/components/CreditCardForm';
 import { useToast } from '@/context/ToastContext';
 
-export default function PaymentPage() {
+function PaymentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToast } = useToast();
@@ -74,5 +75,13 @@ export default function PaymentPage() {
 
       </div>
     </div>
+  );
+}
+
+export default function PaymentPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center p-10">Yükleniyor...</div>}>
+      <PaymentPageContent />
+    </Suspense>
   );
 }
