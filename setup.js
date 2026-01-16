@@ -3,55 +3,78 @@ const path = require("path");
 
 console.log(
   "\x1b[36m%s\x1b[0m",
-  "🚀 Hata Düzeltme (Use Client Fix) Başlatılıyor...",
+  "🚀 Dark Mode Projeden Tamamen Kaldırılıyor...",
 );
 
-const odemePagePath = path.join(
-  __dirname,
-  "app",
-  "ilan-ver",
-  "odeme",
-  "page.tsx",
-);
+// 1. Providers.tsx: Temayı "Light" Olarak Kilitle
+// "forcedTheme" özelliği sayesinde kullanıcı istese de dark mode'a geçemez.
+const providersPath = path.join(__dirname, "components", "Providers.tsx");
 
-if (fs.existsSync(odemePagePath)) {
-  let content = fs.readFileSync(odemePagePath, "utf8");
+if (fs.existsSync(providersPath)) {
+  let content = fs.readFileSync(providersPath, "utf8");
 
-  // Önce dosyadaki satırları ayıralım
-  let lines = content.split("\n");
+  // ThemeProvider'ı bul ve zorunlu light mod ekle
+  if (content.includes("ThemeProvider")) {
+    const regex = /<ThemeProvider\s+([^>]*)>/;
+    const match = content.match(regex);
 
-  // Temizlik: Var olan "use client" ve benim eklediğim "Suspense" satırlarını silelim
-  // (Bunları temizleyip en başa düzgün sırayla ekleyeceğiz)
-  lines = lines.filter(
-    (line) =>
-      !line.trim().includes('"use client"') &&
-      !line.trim().includes("'use client'") &&
-      !line.trim().includes("import { Suspense } from 'react';"),
-  );
+    if (match) {
+      const oldTag = match[0];
+      // forcedTheme="light" -> Temayı kilitler
+      // enableSystem={false} -> Cihaz ayarını görmezden gelir
+      const newTag =
+        '<ThemeProvider attribute="class" forcedTheme="light" enableSystem={false} disableTransitionOnChange>';
 
-  // Dosya içeriğini tekrar birleştir (başındaki boşlukları alarak)
-  let cleanContent = lines.join("\n").trim();
-
-  // KRİTİK ADIM: Next.js kurallarına uygun sıralama
-  // 1. "use client" en başta
-  // 2. Importlar sonra gelir
-  const newHeader = `"use client";
-import { Suspense } from 'react';
-`;
-
-  const finalContent = newHeader + cleanContent;
-
-  fs.writeFileSync(odemePagePath, finalContent, "utf8");
-  console.log('✅ Ödeme sayfası düzeltildi: "use client" en başa taşındı.');
+      content = content.replace(oldTag, newTag);
+      fs.writeFileSync(providersPath, content, "utf8");
+      console.log(
+        '✅ components/Providers.tsx: Tema "Light" moduna kilitlendi.',
+      );
+    }
+  }
 } else {
-  console.log("❌ Hata: Dosya bulunamadı!");
+  console.log("⚠️ Providers.tsx bulunamadı.");
+}
+
+// 2. ThemeToggle.tsx: Butonu Görünmez Yap (Silme, İçini Boşalt)
+// Dosyayı silersek import hatası alırız. O yüzden "null" döndüren boş bir bileşen yapıyoruz.
+const togglePath = path.join(__dirname, "components", "ThemeToggle.tsx");
+
+if (fs.existsSync(togglePath)) {
+  const nullComponent = `
+export default function ThemeToggle() {
+  // Dark mode kaldırıldığı için bu buton artık hiçbir şey göstermiyor.
+  return null;
+}
+`;
+  fs.writeFileSync(togglePath, nullComponent.trim(), "utf8");
+  console.log(
+    "✅ components/ThemeToggle.tsx: Tema değiştirme butonu koddan gizlendi.",
+  );
+} else {
+  console.log("ℹ️ ThemeToggle.tsx bulunamadı.");
+}
+
+// 3. Tailwind Config: Dark Mode Ayarını Sil
+// Artık dark class'ına ihtiyacımız yok.
+const tailwindPath = path.join(__dirname, "tailwind.config.ts");
+if (fs.existsSync(tailwindPath)) {
+  let twContent = fs.readFileSync(tailwindPath, "utf8");
+
+  // "darkMode: 'class'" satırını siliyoruz
+  if (twContent.includes("darkMode:")) {
+    twContent = twContent.replace(/darkMode:\s*['"][^'"]*['"],?/, "");
+    fs.writeFileSync(tailwindPath, twContent, "utf8");
+    console.log("✅ tailwind.config.ts: Dark mode ayarı temizlendi.");
+  }
 }
 
 console.log("\n-------------------------------------------------------------");
-console.log("🎉 İŞLEM TAMAM!");
-console.log("Lütfen şu komutları sırasıyla çalıştır:");
+console.log("🎉 İŞLEM TAMAM: Dark Mode Kaldırıldı!");
+console.log("-------------------------------------------------------------");
+console.log("Değişiklikleri uygulamak için sırasıyla şunları yap:");
 console.log("1. node setup.js");
 console.log("2. git add .");
-console.log('3. git commit -m "Fix use client order"');
+console.log('3. git commit -m "Remove dark mode completely"');
 console.log("4. git push");
 console.log("-------------------------------------------------------------");

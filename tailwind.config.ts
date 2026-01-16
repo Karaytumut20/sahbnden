@@ -2,7 +2,7 @@
 import type { Config } from "tailwindcss";
 
 export default {
-  darkMode: 'class', // BU SATIR KRİTİK: Class tabanlı karanlık modu açar
+   // BU SATIR KRİTİK: Class tabanlı karanlık modu açar
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
