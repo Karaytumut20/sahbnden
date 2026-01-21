@@ -26,7 +26,6 @@ export default async function PostAdCategory() {
                   <ChevronRight size={18} className="text-gray-400" />
                 </div>
 
-                {/* Alt Kategori */}
                 {cat.subs && cat.subs.length > 0 && (
                     <div className="bg-gray-50 pl-12 pr-4 py-2 hidden group-hover:block border-t border-gray-100 dark:bg-gray-800 dark:border-gray-700">
                         <p className="text-[11px] text-gray-500 mb-2 font-semibold dark:text-gray-400">ALT KATEGORİ SEÇİNİZ:</p>

@@ -1,13 +1,14 @@
 "use client";
-import React from 'react';
-import { FavoritesProvider } from '@/context/FavoritesContext';
-import { AuthProvider } from '@/context/AuthContext';
-import { ToastProvider } from '@/context/ToastContext';
-import { CompareProvider } from '@/context/CompareContext';
-import { HistoryProvider } from '@/context/HistoryContext';
-import { NotificationProvider } from '@/context/NotificationContext';
-import { ModalProvider } from '@/context/ModalContext';
-import { ThemeProvider } from '@/context/ThemeContext';
+import React from "react";
+import { FavoritesProvider } from "@/context/FavoritesContext";
+import { AuthProvider } from "@/context/AuthContext";
+import { ToastProvider } from "@/context/ToastContext";
+import { CompareProvider } from "@/context/CompareContext";
+import { HistoryProvider } from "@/context/HistoryContext";
+import { NotificationProvider } from "@/context/NotificationContext";
+import { ModalProvider } from "@/context/ModalContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { MessageProvider } from "@/context/MessageContext"; // Added this import
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +20,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
               <FavoritesProvider>
                 <CompareProvider>
                   <HistoryProvider>
-                    {children}
+                    <MessageProvider>
+                      {" "}
+                      {/* Wrapped children with MessageProvider */}
+                      {children}
+                    </MessageProvider>
                   </HistoryProvider>
                 </CompareProvider>
               </FavoritesProvider>

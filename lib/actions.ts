@@ -3,16 +3,6 @@ import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
 // --- KATEGORİLER ---
-export async function getCategoriesServer() {
-  const supabase = await createClient()
-  // Alt kategorileriyle birlikte çekmek için self-join veya recursive query gerekebilir.
-  // Basitlik için tüm kategorileri çekip client tarafında tree yapabiliriz veya
-  // burada sadece ana kategorileri çekip altlarını lazy load yapabiliriz.
-  // Şimdilik düz liste çekiyoruz.
-  const { data } = await supabase.from('categories').select('*').order('title');
-  return data || [];
-}
-
 export async function getCategoryTreeServer() {
   const supabase = await createClient();
   const { data } = await supabase.from('categories').select('*').order('title');
@@ -27,9 +17,10 @@ export async function getCategoryTreeServer() {
   }));
 }
 
-// --- İLANLAR ---
+// --- İLANLAR (AKILLI FİLTRELEME EKLENDİ) ---
 export async function getAdsServer(searchParams?: any) {
   const supabase = await createClient()
+
   let query = supabase.from('ads').select('*, profiles(full_name), categories(title)').eq('status', 'yayinda')
 
   // Filtreler
@@ -38,14 +29,42 @@ export async function getAdsServer(searchParams?: any) {
   if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice)
   if (searchParams?.city) query = query.eq('city', searchParams.city)
 
-  // Kategori Filtresi (Slug veya ID ile)
+  // --- AKILLI KATEGORİ FİLTRESİ ---
+  // Seçilen kategori bir "Ana Kategori" ise, altındaki tüm kategorilerin ilanlarını da getirir.
   if (searchParams?.category) {
-      // Eğer kategori ID ise direkt, slug ise join ile bakmak lazım.
-      // Basitlik için category sütununun slug tuttuğunu varsayalım veya join yapalım.
-      // Veritabanı tasarımında ads tablosunda category_slug veya category_id olması gerek.
-      // Şimdilik 'category' kolonu slug tutuyor varsayıyoruz.
-      query = query.eq('category', searchParams.category)
+      // 1. Seçilen kategorinin ID'sini ve Slug'ını bul
+      const { data: selectedCat } = await supabase
+        .from('categories')
+        .select('id, slug')
+        .eq('slug', searchParams.category)
+        .single();
+
+      if (selectedCat) {
+        // 2. Bu kategorinin alt kategorilerini bul (parent_id = selectedCat.id)
+        const { data: subCats } = await supabase
+          .from('categories')
+          .select('slug')
+          .eq('parent_id', selectedCat.id);
+
+        // 3. Filtre listesi oluştur: [Seçilen Kategori, ...Alt Kategoriler]
+        const categoriesToFilter = [selectedCat.slug];
+        if (subCats && subCats.length > 0) {
+            subCats.forEach(c => categoriesToFilter.push(c.slug));
+        }
+
+        // 4. "IN" operatörü ile bu listedeki herhangi bir kategoriye sahip ilanları getir
+        query = query.in('category', categoriesToFilter);
+      } else {
+        // Kategori veritabanında bulunamadıysa düz mantık devam et (boş döner)
+        query = query.eq('category', searchParams.category);
+      }
   }
+
+  // Detaylı Filtreler
+  if (searchParams?.room) query = query.eq('room', searchParams.room)
+  if (searchParams?.minYear) query = query.gte('year', searchParams.minYear)
+  if (searchParams?.maxYear) query = query.lte('year', searchParams.maxYear)
+  if (searchParams?.maxKm) query = query.lte('km', searchParams.maxKm)
 
   // Sıralama
   if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true })
@@ -104,11 +123,10 @@ export async function getHelpContentServer() {
 export async function getAdminStatsServer() {
     const supabase = await createClient();
 
-    // Paralel sorgular
     const [users, ads, payments] = await Promise.all([
         supabase.from('profiles').select('*', { count: 'exact', head: true }),
         supabase.from('ads').select('*', { count: 'exact', head: true }).eq('status', 'yayinda'),
-        supabase.from('payments').select('amount') // Ciro hesabı için
+        supabase.from('payments').select('amount')
     ]);
 
     const totalRevenue = payments.data?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
@@ -136,9 +154,6 @@ export async function createAdAction(formData: any) {
 
 export async function activateDopingAction(adId: number, dopingTypes: string[]) {
   const supabase = await createClient();
-
-  // Ödeme kaydı oluştur (Opsiyonel ama iyi olur)
-  // const { error: payError } = await supabase.from('payments').insert(...)
 
   const updates: any = {};
   if (dopingTypes.includes('1')) updates.is_vitrin = true;

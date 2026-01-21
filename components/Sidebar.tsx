@@ -7,8 +7,6 @@ const iconMap: any = {
   Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer
 };
 
-// Sidebar artık bir Server Component olarak kullanılacaksa props alabilir veya içinde fetch yapabilir.
-// Ancak Sidebar genelde layout veya page içinde çağrılır. Veriyi prop olarak alması en temizidir.
 export default function Sidebar({ categories }: { categories: any[] }) {
 
   return (
