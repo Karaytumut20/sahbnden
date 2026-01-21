@@ -1,21 +1,12 @@
+"use client";
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { MapPin, Calendar, Heart } from 'lucide-react';
 import Badge from '@/components/ui/Badge';
 import { Ad } from '@/types';
-
-// Tarih Formatlayıcı (Bugün, Dün, vs.)
-const formatDate = (dateString: string) => {
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffTime = Math.abs(now.getTime() - date.getTime());
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
-
-  if (diffDays === 0) return 'Bugün';
-  if (diffDays === 1) return 'Dün';
-  return date.toLocaleDateString('tr-TR');
-};
+import { formatPrice, formatDate, cn } from '@/lib/utils';
+import { useFavorites } from '@/context/FavoritesContext';
 
 type AdCardProps = {
   ad: Ad;
@@ -23,12 +14,21 @@ type AdCardProps = {
 };
 
 export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
-  const formattedPrice = ad.price != null ? ad.price.toLocaleString('tr-TR') : '0';
-  const priceDisplay = `${formattedPrice} ${ad.currency || 'TL'}`;
+  const { isFavorite, toggleFavorite } = useFavorites();
+  const liked = isFavorite(ad.id);
+
+  const priceDisplay = formatPrice(ad.price, ad.currency);
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const dateDisplay = formatDate(ad.created_at);
   const imageUrl = ad.image || 'https://via.placeholder.com/300x200?text=Resim+Yok';
 
+  const handleFavorite = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    toggleFavorite(ad.id);
+  };
+
+  // --- TABLO GÖRÜNÜMÜ ---
   if (viewMode === 'table') {
     return (
       <tr className="border-b border-gray-100 hover:bg-[#fff9e1] transition-colors group">
@@ -41,8 +41,8 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
           </Link>
         </td>
         <td className="p-3 align-middle">
-          <Link href={`/ilan/${ad.id}`} className="block">
-            <span className="text-[#333] text-[13px] font-bold group-hover:underline block mb-1 line-clamp-1">
+          <Link href={`/ilan/${ad.id}`} className="block relative">
+            <span className="text-[#333] text-[13px] font-bold group-hover:underline block mb-1 line-clamp-1 pr-6">
               {ad.title}
             </span>
             <div className="flex gap-2 items-center">
@@ -60,6 +60,7 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
     );
   }
 
+  // --- LİSTE GÖRÜNÜMÜ ---
   if (viewMode === 'list') {
     return (
       <div className="flex bg-white border border-gray-200 rounded-sm overflow-hidden hover:shadow-md transition-shadow group h-[160px]">
@@ -73,6 +74,9 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
                 <Link href={`/ilan/${ad.id}`} className="text-[#333] text-base font-bold group-hover:underline line-clamp-1">
                     {ad.title}
                 </Link>
+                <button onClick={handleFavorite} className="text-gray-300 hover:text-red-500 transition-colors">
+                    <Heart size={20} className={cn("transition-colors", liked && "fill-red-500 text-red-500")} />
+                </button>
              </div>
              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{ad.description?.substring(0, 150)}...</p>
            </div>
@@ -88,16 +92,27 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
     );
   }
 
-  // Grid Görünümü (Varsayılan)
+  // --- GRID GÖRÜNÜMÜ (VİTRİN) ---
   return (
     <Link href={`/ilan/${ad.id}`} className="block group h-full">
       <div className="bg-white border border-gray-200 rounded-sm shadow-sm hover:shadow-lg transition-all cursor-pointer h-full flex flex-col relative">
+        {/* Etiketler */}
         {ad.is_urgent && <div className="absolute top-2 left-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm z-10 shadow-sm">ACİL</div>}
         {ad.is_vitrin && <div className="absolute top-2 right-2 bg-yellow-400 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm z-10 shadow-sm">VİTRİN</div>}
+
+        {/* Favori Butonu (Overlay) */}
+        <button
+            onClick={handleFavorite}
+            className="absolute bottom-2 right-2 z-20 bg-white/80 p-1.5 rounded-full text-gray-400 hover:text-red-500 hover:bg-white transition-all opacity-0 group-hover:opacity-100"
+            title={liked ? "Favorilerden Çıkar" : "Favorilere Ekle"}
+        >
+            <Heart size={16} className={cn("transition-colors", liked && "fill-red-500 text-red-500")} />
+        </button>
 
         <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 rounded-t-sm">
           <Image src={imageUrl} alt={ad.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
         </div>
+
         <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
           <p className="text-[13px] text-[#333] font-semibold leading-tight group-hover:underline line-clamp-2 h-[2.4em] overflow-hidden">
             {ad.title}

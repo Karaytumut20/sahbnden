@@ -8,8 +8,7 @@ import RealEstateFields from '@/components/form/RealEstateFields';
 import VehicleFields from '@/components/form/VehicleFields';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { createAdAction } from '@/lib/actions';
-import { validateAdForm } from '@/lib/validation';
-import { AdFormData } from '@/types';
+import { adSchema } from '@/lib/schemas'; // Zod şeması
 import { cities, getDistricts } from '@/lib/locations';
 
 function PostAdFormContent() {
@@ -26,31 +25,28 @@ function PostAdFormContent() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [districts, setDistricts] = useState<string[]>([]);
 
-  const [formData, setFormData] = useState<AdFormData>({
+  const [formData, setFormData] = useState<any>({
     title: '', description: '', price: '', currency: 'TL', city: '', district: '',
     m2: '', room: '', floor: '', heating: '',
     brand: '', year: '', km: '', gear: '', fuel: ''
   });
 
   const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri') || categorySlug.includes('arsa');
-  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv');
+  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv') || categorySlug.includes('moto');
 
-  // İl değişince ilçeleri güncelle
   useEffect(() => {
     if (formData.city) {
       setDistricts(getDistricts(formData.city));
-      setFormData(prev => ({ ...prev, district: '' })); // İlçe sıfırla
+      setFormData(prev => ({ ...prev, district: '' }));
     }
   }, [formData.city]);
 
   const handleInputChange = (e: any) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
     if (errors[e.target.name]) {
-        setErrors(prev => {
-            const newErrors = { ...prev };
-            delete newErrors[e.target.name];
-            return newErrors;
-        });
+        const newErrors = { ...errors };
+        delete newErrors[e.target.name];
+        setErrors(newErrors);
     }
   };
 
@@ -62,28 +58,36 @@ function PostAdFormContent() {
     e.preventDefault();
     if (!user) { router.push('/login'); return; }
 
-    const validation = validateAdForm(formData, categorySlug);
-    if (!validation.isValid) {
-        setErrors(validation.errors);
-        addToast('Lütfen formdaki hataları düzeltiniz.', 'error');
+    // 1. Veri Hazırlığı
+    const rawData = {
+        ...formData,
+        category: categorySlug,
+        image: images[0] || null,
+        price: Number(formData.price),
+        year: isVehicle || isRealEstate ? Number(formData.year) : undefined,
+        km: isVehicle ? Number(formData.km) : undefined,
+        m2: isRealEstate ? Number(formData.m2) : undefined,
+        floor: isRealEstate ? Number(formData.floor) : undefined,
+    };
+
+    // 2. Client-Side Validasyon (ZOD)
+    const result = adSchema.safeParse(rawData);
+
+    if (!result.success) {
+        const fieldErrors: any = {};
+        result.error.issues.forEach(issue => {
+            fieldErrors[issue.path[0]] = issue.message;
+        });
+        setErrors(fieldErrors);
+        addToast('Lütfen hatalı alanları düzeltiniz.', 'error');
         window.scrollTo({ top: 0, behavior: 'smooth' });
         return;
     }
 
     setIsSubmitting(true);
 
-    const finalData = {
-        ...formData,
-        category: categorySlug,
-        image: images[0] || null,
-        price: Number(formData.price),
-        year: isVehicle || isRealEstate ? Number(formData.year) : null,
-        km: isVehicle ? Number(formData.km) : null,
-        m2: isRealEstate ? Number(formData.m2) : null,
-        floor: isRealEstate ? Number(formData.floor) : null,
-    };
-
-    const res = await createAdAction(finalData);
+    // 3. Server Action Çağrısı
+    const res = await createAdAction(rawData);
 
     if (res.error) {
         addToast(res.error, 'error');
@@ -115,7 +119,7 @@ function PostAdFormContent() {
             <div className="bg-red-50 border border-red-200 p-4 rounded-sm text-red-700 text-sm flex items-start gap-2">
                 <AlertCircle size={18} className="mt-0.5 shrink-0"/>
                 <div>
-                    <p className="font-bold">Lütfen hatalı alanları düzeltin:</p>
+                    <p className="font-bold">Lütfen aşağıdaki alanları kontrol ediniz:</p>
                     <ul className="list-disc pl-4 mt-1 space-y-1 text-xs">
                         {Object.values(errors).map((err, i) => <li key={i}>{err}</li>)}
                     </ul>

@@ -5,12 +5,42 @@ import MapView from '@/components/MapView';
 import SearchHeader from '@/components/SearchHeader';
 import AdCard from '@/components/AdCard';
 import ViewToggle from '@/components/ViewToggle';
+import SearchLoading from './loading';
+import { Metadata } from 'next';
+import { categories } from '@/lib/data';
 
-export default async function SearchPage({
-  searchParams
-}: {
-  searchParams: Promise<{ q?: string; category?: string; minPrice?: string; maxPrice?: string; city?: string; sort?: string; view?: string }>
-}) {
+type Props = {
+  searchParams: Promise<{ q?: string; category?: string; minPrice?: string; maxPrice?: string; city?: string; sort?: string; view?: string }>;
+};
+
+// DİNAMİK SEO (Senior Move)
+export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
+  const params = await searchParams;
+  let title = "Tüm İlanlar";
+  let desc = "Binlerce satılık ve kiralık ilan seçeneği sahibinden.com klon'da.";
+
+  if (params.q) {
+    title = `"${params.q}" Arama Sonuçları`;
+    desc = `${params.q} için en uygun ilan fiyatlarını ve özelliklerini inceleyin.`;
+  } else if (params.category) {
+    // Kategoriyi bulmaya çalış
+    const catSlug = params.category;
+    const catName = categories.flatMap(c => [c, ...(c.subs || [])]).find(x => x.slug === catSlug)?.title || 'Kategori';
+    title = `${catName} İlanları`;
+    desc = `En güncel ${catName} ilanları, fiyatları ve özellikleri.`;
+  }
+
+  if (params.city) {
+    title += ` - ${params.city}`;
+  }
+
+  return {
+    title: `${title} | sahibinden.com Klon`,
+    description: desc,
+  };
+}
+
+export default async function SearchPage({ searchParams }: Props) {
   const params = await searchParams;
   const ads = await getAdsServer(params);
   const viewMode = (params.view || 'table') as 'grid' | 'list' | 'table' | 'map';

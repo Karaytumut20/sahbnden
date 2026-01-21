@@ -1,19 +1,24 @@
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, User, Heart, LogOut, ChevronDown, Menu, Bell, Settings } from 'lucide-react';
+import { Search, Plus, Heart, LogOut, ChevronDown, Menu, Bell, Settings } from 'lucide-react';
 import { useFavorites } from '@/context/FavoritesContext';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import MobileMenu from '@/components/MobileMenu';
 import ThemeToggle from '@/components/ThemeToggle';
 import { getAdsClient } from '@/lib/services';
+import { useDebounce } from '@/hooks/useDebounce'; // Senior Optimization
 
 export default function Header() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+
+  // Performans: Her tuşa basışta değil, yazma bitince (300ms sonra) istek at
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const router = useRouter();
   const { favorites } = useFavorites();
@@ -28,7 +33,6 @@ export default function Header() {
   const notifRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
 
-  // Dışarı tıklama kontrolü
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -45,17 +49,17 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Arama önerileri (Debounce eklenebilir ama şimdilik basit tutuyoruz)
+  // Optimized Search Effect
   useEffect(() => {
-    if (searchTerm.length >= 2) {
-      getAdsClient({ q: searchTerm }).then(data => {
+    if (debouncedSearchTerm.length >= 2) {
+      getAdsClient({ q: debouncedSearchTerm }).then(data => {
         setSuggestions(data.slice(0, 5));
         setShowSuggestions(true);
       });
     } else {
       setShowSuggestions(false);
     }
-  }, [searchTerm]);
+  }, [debouncedSearchTerm]);
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,7 +96,7 @@ export default function Header() {
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                onFocus={() => searchTerm.length >= 2 && setShowSuggestions(true)}
+                onFocus={() => debouncedSearchTerm.length >= 2 && setShowSuggestions(true)}
                 placeholder="Kelime, ilan no veya mağaza adı ile ara"
                 className="w-full h-[34px] px-3 text-black rounded-sm focus:outline-none placeholder:text-gray-500 text-[13px]"
               />
@@ -165,8 +169,8 @@ export default function Header() {
                 {/* Kullanıcı Menüsü */}
                 <div className="relative hidden sm:block" ref={userMenuRef}>
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 hover:text-[#ffe800] focus:outline-none">
-                    <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20 overflow-hidden">
-                      {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : (user.name?.charAt(0) || 'U')}
+                    <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20 overflow-hidden relative">
+                       {user.avatar ? <Image src={user.avatar} alt="Avatar" fill className="object-cover" /> : (user.name?.charAt(0) || 'U')}
                     </div>
                     <span>{user.name}</span>
                     <ChevronDown size={12} />
