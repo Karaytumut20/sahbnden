@@ -1,5 +1,6 @@
 "use client";
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import { Eye, Edit, Trash2, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getUserAdsClient, updateAdStatusClient } from '@/lib/services';
@@ -49,9 +50,16 @@ export default function MyAdsPage() {
                   <td className="p-3 font-semibold">{ad.title} <span className="block text-gray-400 text-[10px] font-normal">#{ad.id}</span></td>
                   <td className="p-3 text-blue-900 font-bold dark:text-blue-400">{ad.price.toLocaleString()} {ad.currency}</td>
                   <td className="p-3 text-gray-600 dark:text-gray-400">{new Date(ad.created_at).toLocaleDateString()}</td>
-                  <td className="p-3"><span className="px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700">{ad.status}</span></td>
+                  <td className="p-3"><span className={`px-2 py-1 rounded-full text-[10px] font-bold bg-gray-100 text-gray-700`}>{ad.status}</span></td>
                   <td className="p-3 text-center">
-                    <button onClick={() => { if(confirm('Silmek istiyor musunuz?')) handleStatusChange(ad.id, 'pasif'); }} className="text-red-600 hover:underline"><Trash2 size={14} /></button>
+                    <div className="flex justify-center gap-2">
+                      <Link href={`/ilan-duzenle/${ad.id}`} className="p-1.5 border border-gray-300 rounded hover:bg-blue-50 text-blue-600" title="Düzenle">
+                        <Edit size={14} />
+                      </Link>
+                      <button onClick={() => { if(confirm('Silmek istiyor musunuz?')) handleStatusChange(ad.id, 'pasif'); }} className="p-1.5 border border-gray-300 rounded hover:bg-red-50 text-red-600" title="Kaldır">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

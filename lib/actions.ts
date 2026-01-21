@@ -57,3 +57,80 @@ export async function getStoreAdsServer(userId: string) {
   const { data } = await supabase.from('ads').select('*').eq('user_id', userId).eq('status', 'yayinda')
   return data || []
 }
+
+export async function updateAdAction(id: number, formData: any) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Giriş yapmalısınız' }
+
+  const { data: existingAd } = await supabase.from('ads').select('user_id').eq('id', id).single()
+  if (!existingAd || existingAd.user_id !== user.id) {
+    return { error: 'Bu ilanı düzenleme yetkiniz yok.' }
+  }
+
+  const updates = {
+    ...formData,
+    status: 'onay_bekliyor'
+  }
+
+  const { error } = await supabase.from('ads').update(updates).eq('id', id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/ilan/' + id)
+  revalidatePath('/bana-ozel/ilanlarim')
+  return { success: true }
+}
+
+
+// --- MAĞAZA YÖNETİMİ ---
+
+export async function createStoreAction(formData: any) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Giriş yapmalısınız' }
+
+  // 1. Mağazayı oluştur
+  const storeData = { ...formData, user_id: user.id }
+  const { error: storeError } = await supabase.from('stores').insert([storeData])
+
+  if (storeError) {
+    // Unique hatası kontrolü (Slug çakışması)
+    if (storeError.code === '23505') return { error: 'Bu mağaza adı/linki zaten kullanılıyor.' }
+    return { error: storeError.message }
+  }
+
+  // 2. Kullanıcı rolünü güncelle (store yap)
+  await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id)
+
+  revalidatePath('/bana-ozel/magazam')
+  return { success: true }
+}
+
+export async function updateStoreAction(formData: any) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+
+  if (!user) return { error: 'Giriş yapmalısınız' }
+
+  const { error } = await supabase
+    .from('stores')
+    .update(formData)
+    .eq('user_id', user.id)
+
+  if (error) return { error: error.message }
+
+  revalidatePath('/bana-ozel/magazam')
+  return { success: true }
+}
+
+export async function getMyStoreServer() {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+
+  const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).single()
+  return data
+}
