@@ -1,20 +1,19 @@
-
 import { supabase } from './supabase';
 
 export async function uploadImage(file: File) {
   const fileExt = file.name.split('.').pop();
-  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`;
-  const filePath = `ads/${fileName}`;
+  const cleanFileName = Math.random().toString(36).substring(2, 15);
+  const fileName = `${Date.now()}-${cleanFileName}.${fileExt}`;
 
   const { error: uploadError } = await supabase.storage
-    .from('images')
-    .upload(filePath, file);
+    .from('ads')
+    .upload(fileName, file);
 
   if (uploadError) {
     console.error('Yükleme hatası:', uploadError);
     throw uploadError;
   }
 
-  const { data } = supabase.storage.from('images').getPublicUrl(filePath);
+  const { data } = supabase.storage.from('ads').getPublicUrl(fileName);
   return data.publicUrl;
 }

@@ -1,12 +1,12 @@
 "use client";
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Save, Loader2 } from 'lucide-react';
+import { Loader2, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import RealEstateFields from '@/components/form/RealEstateFields';
 import VehicleFields from '@/components/form/VehicleFields';
-import ImageUploader from '@/components/ui/ImageUploader'; // YENİ
+import ImageUploader from '@/components/ui/ImageUploader';
 import { createAdAction } from '@/lib/actions';
 
 function PostAdFormContent() {
@@ -15,11 +15,15 @@ function PostAdFormContent() {
   const { addToast } = useToast();
   const { user } = useAuth();
 
-  const category = searchParams.get('cat') || 'genel';
+  const categorySlug = searchParams.get('cat') || '';
+  const categoryPath = searchParams.get('path') || 'Kategori Seçilmedi';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [images, setImages] = useState<string[]>([]);
   const [formData, setFormData] = useState<any>({});
+
+  const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri') || categorySlug.includes('arsa') || categorySlug.includes('bina');
+  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv') || categorySlug.includes('moto');
 
   const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
   const handleDynamicChange = (name: string, value: string) => setFormData({ ...formData, [name]: value });
@@ -28,13 +32,14 @@ function PostAdFormContent() {
     e.preventDefault();
     if (!user) { router.push('/login'); return; }
 
+    // GÖRSEL ZORUNLULUĞU KALDIRILDI
+
     setIsSubmitting(true);
 
     const finalData = {
         ...formData,
-        category,
-        image: images[0] || null, // İlk resmi kapak resmi yap
-        // İleride 'images' array sütunu eklenebilir veritabanına
+        category: categorySlug,
+        image: images[0] || null, // Görsel yoksa null
         price: Number(formData.price),
         year: Number(formData.year),
         km: Number(formData.km),
@@ -47,8 +52,7 @@ function PostAdFormContent() {
     if (res.error) {
         addToast(res.error, 'error');
     } else {
-        addToast('İlan başarıyla oluşturuldu! Doping sayfasına yönlendiriliyorsunuz...', 'success');
-        // İlan ID'si ile doping sayfasına git
+        addToast('İlan başarıyla oluşturuldu!', 'success');
         router.push(`/ilan-ver/doping?adId=${res.adId}`);
     }
     setIsSubmitting(false);
@@ -56,71 +60,105 @@ function PostAdFormContent() {
 
   return (
     <div className="max-w-[800px] mx-auto py-8 px-4">
-      <h1 className="text-xl font-bold text-[#333] mb-4">İlan Oluştur: {category.toUpperCase()}</h1>
-      <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-6">
 
-        {/* 1. Temel Bilgiler */}
+      <div className="bg-blue-50 border border-blue-100 p-4 rounded-sm mb-6 flex items-center justify-between">
         <div>
-            <h3 className="font-bold text-sm text-gray-700 mb-3 border-b pb-1">Temel Bilgiler</h3>
-            <div className="space-y-4">
+            <p className="text-xs text-blue-600 font-bold uppercase mb-1">Seçilen Kategori</p>
+            <h1 className="text-lg font-bold text-[#333] flex items-center gap-2">
+                {categoryPath} <CheckCircle size={16} className="text-green-500"/>
+            </h1>
+        </div>
+        <button onClick={() => router.push('/ilan-ver')} className="text-xs font-bold text-gray-500 hover:text-blue-700 underline">
+            Değiştir
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-8">
+
+        <section>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">1</span>
+                İlan Detayları
+            </h3>
+            <div className="space-y-4 px-2">
                 <div>
-                    <label className="block text-xs font-bold mb-1">İlan Başlığı</label>
-                    <input name="title" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm outline-none focus:border-blue-500" required placeholder="Örn: Sahibinden temiz aile aracı" />
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">İlan Başlığı <span className="text-red-500">*</span></label>
+                    <input name="title" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm outline-none focus:border-blue-500 transition-colors text-sm" required placeholder="Örn: Sahibinden temiz aile evi" />
+                </div>
+                <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Açıklama <span className="text-red-500">*</span></label>
+                    <textarea name="description" onChange={handleInputChange} className="w-full border border-gray-300 p-3 rounded-sm h-32 resize-none focus:border-blue-500 outline-none text-sm" required placeholder="İlanınızla ilgili tüm detayları buraya yazın..."></textarea>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                     <div>
-                        <label className="block text-xs font-bold mb-1">Fiyat</label>
-                        <input name="price" type="number" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm outline-none focus:border-blue-500" required />
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Fiyat <span className="text-red-500">*</span></label>
+                        <input name="price" type="number" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm outline-none focus:border-blue-500 text-sm" required placeholder="0" />
                     </div>
                     <div>
-                        <label className="block text-xs font-bold mb-1">Para Birimi</label>
-                        <select name="currency" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm bg-white outline-none">
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label>
+                        <select name="currency" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm bg-white outline-none text-sm">
                             <option>TL</option><option>USD</option><option>EUR</option>
                         </select>
                     </div>
                 </div>
             </div>
-        </div>
+        </section>
 
-        {/* 2. Kategori Özellikleri */}
-        {category === 'emlak' && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
-        {category === 'vasita' && <VehicleFields data={formData} onChange={handleDynamicChange} />}
+        {(isRealEstate || isVehicle) && (
+            <section>
+                <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                    <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">2</span>
+                    Özellikler
+                </h3>
+                <div className="px-2">
+                    {isRealEstate && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
+                    {isVehicle && <VehicleFields data={formData} onChange={handleDynamicChange} />}
+                </div>
+            </section>
+        )}
 
-        {/* 3. Fotoğraflar (YENİ BİLEŞEN) */}
-        <div>
-            <h3 className="font-bold text-sm text-gray-700 mb-3 border-b pb-1">Fotoğraflar</h3>
-            <ImageUploader onImagesChange={setImages} />
-        </div>
+        <section>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">3</span>
+                Fotoğraflar (Opsiyonel)
+            </h3>
+            <div className="px-2">
+                <ImageUploader onImagesChange={setImages} />
+            </div>
+        </section>
 
-        {/* 4. Açıklama ve Adres */}
-        <div>
-            <h3 className="font-bold text-sm text-gray-700 mb-3 border-b pb-1">Detaylar</h3>
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold mb-1">İl</label>
-                        <select name="city" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm bg-white outline-none">
-                            <option value="">Seçiniz</option>
-                            <option value="İstanbul">İstanbul</option>
-                            <option value="Ankara">Ankara</option>
-                            <option value="İzmir">İzmir</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold mb-1">İlçe</label>
-                        <input name="district" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm outline-none" placeholder="Örn: Kadıköy"/>
-                    </div>
+        <section>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">4</span>
+                Adres Bilgileri
+            </h3>
+            <div className="px-2 grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">İl <span className="text-red-500">*</span></label>
+                    <select name="city" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm bg-white outline-none text-sm" required>
+                        <option value="">Seçiniz</option>
+                        <option value="İstanbul">İstanbul</option>
+                        <option value="Ankara">Ankara</option>
+                        <option value="İzmir">İzmir</option>
+                        <option value="Antalya">Antalya</option>
+                        <option value="Bursa">Bursa</option>
+                    </select>
                 </div>
                 <div>
-                    <label className="block text-xs font-bold mb-1">Açıklama</label>
-                    <textarea name="description" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm h-32 resize-none focus:border-blue-500 outline-none" required placeholder="İlanınızla ilgili detaylı bilgi verin..."></textarea>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">İlçe <span className="text-red-500">*</span></label>
+                    <input name="district" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm outline-none text-sm" required placeholder="Örn: Kadıköy"/>
                 </div>
             </div>
-        </div>
+        </section>
 
-        <button disabled={isSubmitting} className="w-full bg-[#ffe800] py-3 font-bold text-sm rounded-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
-            {isSubmitting ? <><Loader2 className="animate-spin" size={18}/> Kaydediliyor...</> : 'Devam Et'}
-        </button>
+        <div className="pt-4 flex items-center gap-4">
+            <button type="button" onClick={() => router.back()} className="px-6 py-3 border border-gray-300 rounded-sm font-bold text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2">
+                <ArrowLeft size={16}/> Geri Dön
+            </button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 bg-[#ffe800] py-3 font-bold text-sm rounded-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2 text-black shadow-sm transition-colors">
+                {isSubmitting ? <><Loader2 className="animate-spin" size={18}/> Kaydediliyor...</> : 'Kaydet ve Devam Et'}
+            </button>
+        </div>
 
       </form>
     </div>

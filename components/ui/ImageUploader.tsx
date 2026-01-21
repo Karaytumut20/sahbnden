@@ -1,6 +1,6 @@
 "use client";
 import React, { useRef, useState } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
+import { Upload, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { uploadImageClient } from '@/lib/services';
 import { useToast } from '@/context/ToastContext';
 
@@ -9,101 +9,148 @@ type ImageUploaderProps = {
   initialImages?: string[];
 };
 
+type UploadItem = {
+  id: string;
+  url: string;        // Local preview veya Remote URL
+  file?: File;        // Yükleniyorsa dosya objesi
+  status: 'pending' | 'uploading' | 'success' | 'error';
+  remoteUrl?: string; // Başarılı yükleme sonrası gelen URL
+};
+
 export default function ImageUploader({ onImagesChange, initialImages = [] }: ImageUploaderProps) {
-  const [images, setImages] = useState<string[]>(initialImages);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { addToast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Başlangıç resimleri
+  const [items, setItems] = useState<UploadItem[]>(
+    initialImages.map((url, i) => ({
+      id: `init-${i}`,
+      url: url,
+      status: 'success',
+      remoteUrl: url
+    }))
+  );
+
+  const [isGlobalUploading, setIsGlobalUploading] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
 
-    setUploading(true);
-    const newUrls: string[] = [];
+    const files = Array.from(e.target.files);
 
-    // Çoklu yükleme döngüsü
-    for (let i = 0; i < e.target.files.length; i++) {
-      const file = e.target.files[i];
+    // 1. Önce "Yükleniyor" durumunda listeye ekle (ANLIK ÖNİZLEME İÇİN)
+    const newItems: UploadItem[] = files.map(file => ({
+      id: Math.random().toString(36).substr(2, 9),
+      url: URL.createObjectURL(file), // Local blob URL ile hemen göster
+      file: file,
+      status: 'uploading'
+    }));
+
+    setItems(prev => [...prev, ...newItems]);
+    setIsGlobalUploading(true);
+
+    // 2. Arka planda tek tek yükle
+    for (const item of newItems) {
+      if (!item.file) continue;
+
       try {
-        const url = await uploadImageClient(file);
-        newUrls.push(url);
+        const publicUrl = await uploadImageClient(item.file);
+
+        // Başarılı olursa remoteUrl'i güncelle
+        setItems(prev => prev.map(i =>
+          i.id === item.id ? { ...i, status: 'success', remoteUrl: publicUrl } : i
+        ));
       } catch (error) {
-        console.error(error);
-        addToast(`${file.name} yüklenirken hata oluştu.`, 'error');
+        console.error("Yükleme hatası:", error);
+        // Hatalı olursa durumu güncelle
+        setItems(prev => prev.map(i =>
+          i.id === item.id ? { ...i, status: 'error' } : i
+        ));
+        addToast(`${item.file.name} yüklenemedi.`, 'error');
       }
     }
 
-    const updatedList = [...images, ...newUrls];
-    setImages(updatedList);
-    onImagesChange(updatedList);
-    setUploading(false);
-
-    // Input'u temizle ki aynı dosyayı tekrar seçebilsin
+    setIsGlobalUploading(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  const removeImage = (index: number) => {
-    const updatedList = images.filter((_, i) => i !== index);
-    setImages(updatedList);
-    onImagesChange(updatedList);
+  // Üst bileşene sadece başarılı URL'leri gönder
+  React.useEffect(() => {
+    const successUrls = items
+      .filter(i => i.status === 'success' && i.remoteUrl)
+      .map(i => i.remoteUrl as string);
+
+    onImagesChange(successUrls);
+  }, [items, onImagesChange]);
+
+  const removeImage = (id: string) => {
+    setItems(prev => prev.filter(i => i.id !== id));
   };
 
   return (
     <div className="space-y-4">
-      <div
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        className={`border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors ${uploading ? 'bg-gray-50 cursor-wait' : 'hover:bg-blue-50 hover:border-blue-400'}`}
-      >
-        {uploading ? (
-          <div className="text-center">
-            <Loader2 size={32} className="animate-spin text-blue-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-500 font-bold">Fotoğraflar Yükleniyor...</p>
-          </div>
-        ) : (
-          <div className="text-center">
-            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Upload size={24} />
+      <div className="flex flex-wrap gap-4">
+
+        {/* Yükleme Butonu */}
+        <div
+          onClick={() => !isGlobalUploading && fileInputRef.current?.click()}
+          className={`w-28 h-28 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer transition-colors hover:bg-blue-50 hover:border-blue-400 ${isGlobalUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          {isGlobalUploading ? (
+            <Loader2 size={24} className="animate-spin text-blue-600" />
+          ) : (
+            <>
+              <Upload size={24} className="text-gray-400 mb-2" />
+              <span className="text-xs text-gray-500 font-bold">Fotoğraf Ekle</span>
+            </>
+          )}
+          <input
+            type="file"
+            ref={fileInputRef}
+            onChange={handleFileChange}
+            className="hidden"
+            multiple
+            accept="image/*"
+            disabled={isGlobalUploading}
+          />
+        </div>
+
+        {/* Resim Listesi */}
+        {items.map((item, idx) => (
+          <div key={item.id} className="relative w-28 h-28 bg-gray-100 rounded-md border border-gray-200 overflow-hidden group">
+            <img src={item.url} alt="preview" className="w-full h-full object-cover" />
+
+            {/* Durum İkonları */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              {item.status === 'uploading' && (
+                <div className="bg-white/80 p-2 rounded-full shadow"><Loader2 size={20} className="animate-spin text-blue-600" /></div>
+              )}
+              {item.status === 'error' && (
+                <div className="bg-red-100 p-2 rounded-full shadow text-red-600"><AlertCircle size={20} /></div>
+              )}
             </div>
-            <p className="text-sm font-bold text-gray-700">Fotoğraf Yüklemek İçin Tıklayın</p>
-            <p className="text-xs text-gray-400 mt-1">veya sürükleyip bırakın (Max 10 Adet)</p>
+
+            {/* Vitrin Etiketi (İlk başarılı resim) */}
+            {idx === 0 && item.status === 'success' && (
+              <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10">
+                VİTRİN
+              </div>
+            )}
+
+            {/* Sil Butonu */}
+            <button
+              onClick={() => removeImage(item.id)}
+              className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-20 cursor-pointer"
+              title="Kaldır"
+            >
+              <X size={12} />
+            </button>
           </div>
-        )}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          multiple
-          accept="image/*"
-          disabled={uploading}
-        />
+        ))}
       </div>
 
-      {/* Önizleme Alanı */}
-      {images.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 animate-in fade-in slide-in-from-bottom-2">
-          {images.map((url, idx) => (
-            <div key={idx} className="relative group aspect-square bg-gray-100 rounded-md border border-gray-200 overflow-hidden">
-              <img src={url} alt={`Yüklenen ${idx}`} className="w-full h-full object-cover" />
-
-              {/* Vitrin Etiketi (İlk Resim) */}
-              {idx === 0 && (
-                <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10">
-                  VİTRİN
-                </div>
-              )}
-
-              {/* Sil Butonu */}
-              <button
-                onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
-                title="Fotoğrafı Kaldır"
-              >
-                <X size={12} />
-              </button>
-            </div>
-          ))}
-        </div>
+      {items.length === 0 && (
+        <p className="text-xs text-gray-400">Henüz fotoğraf yüklenmedi. (İsteğe bağlı)</p>
       )}
     </div>
   );

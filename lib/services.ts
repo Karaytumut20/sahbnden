@@ -2,17 +2,37 @@ import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
 
-// --- GENEL & UPLOAD ---
+// --- RESİM YÜKLEME (Geliştirilmiş Hata Yönetimi) ---
 export async function uploadImageClient(file: File) {
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-  const filePath = `ads/${fileName}`
+  try {
+    const fileExt = file.name.split('.').pop();
+    // Türkçe karakterleri ve boşlukları temizleyerek dosya adı oluştur
+    const cleanFileName = Math.random().toString(36).substring(2, 15);
+    const fileName = `${Date.now()}-${cleanFileName}.${fileExt}`;
 
-  const { error } = await supabase.storage.from('images').upload(filePath, file)
-  if (error) throw error
+    // 'ads' bucket'ına yükle
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from('ads')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: false
+      });
 
-  const { data } = supabase.storage.from('images').getPublicUrl(filePath)
-  return data.publicUrl
+    if (uploadError) {
+      console.error("Supabase Storage Hatası:", uploadError);
+      throw uploadError;
+    }
+
+    // Public URL al
+    const { data: urlData } = supabase.storage
+      .from('ads')
+      .getPublicUrl(fileName);
+
+    return urlData.publicUrl;
+  } catch (error) {
+    console.error("Resim yükleme servisinde hata:", error);
+    throw error;
+  }
 }
 
 // Header'daki arama önerileri için
@@ -88,25 +108,21 @@ export async function markMessagesAsReadClient(conversationId: number, userId: s
   return await supabase.from('messages').update({ is_read: true }).eq('conversation_id', conversationId).neq('sender_id', userId)
 }
 
-// --- FAVORİLER (İyileştirilmiş) ---
+// --- FAVORİLER ---
 export async function toggleFavoriteClient(userId: string, adId: number) {
   const { data } = await supabase.from('favorites').select('id').eq('user_id', userId).eq('ad_id', adId).single()
   if (data) {
     await supabase.from('favorites').delete().eq('id', data.id)
-    return false // Çıkarıldı
+    return false
   } else {
     await supabase.from('favorites').insert([{ user_id: userId, ad_id: adId }])
-    return true // Eklendi
+    return true
   }
 }
 
 export async function getFavoritesClient(userId: string) {
-    // ads tablosuyla ilişki kur, eğer ilan silindiyse null gelebilir
     const { data } = await supabase.from('favorites').select('ad_id, ads(*)').eq('user_id', userId)
-
-    // Silinmiş ilanları (ads: null) temizle
     if (!data) return [];
-
     return data
       .filter((item: any) => item.ads !== null)
       .map((f: any) => f.ads);
