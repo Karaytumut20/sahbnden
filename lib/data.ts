@@ -1,6 +1,5 @@
-
-// Rastgele ilan üretici (Genişletilmiş Veri Seti - 120 İlan)
-const generateAds = (count, prefix, startPrice) => {
+// Rastgele ilan üretici
+const generateAds = (count: number, prefix: string, startPrice: number) => {
   return Array.from({ length: count }).map((_, i) => {
     const cityIndex = i % 5;
     const city = ['İstanbul', 'Ankara', 'İzmir', 'Antalya', 'Bursa'][cityIndex];
@@ -17,15 +16,14 @@ const generateAds = (count, prefix, startPrice) => {
       city: city,
       district: district,
       location: `${city} / ${district}`,
-      dateRaw: new Date(2025, 0, 24).getTime() - (i * 3600000), // Her ilanı 1 saat arayla
+      dateRaw: new Date(2025, 0, 24).getTime() - (i * 3600000),
       date: '25 Ocak 2025',
-      category: i < 60 ? 'emlak' : 'vasita', // İlk 60 emlak, kalanı vasıta
+      category: i < 60 ? 'emlak' : 'vasita',
       attributes: [
         { label: 'İlan No', value: `102938${i}` },
         { label: 'Kimden', value: 'Sahibinden' },
       ],
       description: '<p>Bu ilan sahibinden.com klon projesi için oluşturulmuş örnek bir veridir.</p>',
-      // Emlak/Vasıta filtreleri için dummy datalar
       room: ['1+1', '2+1', '3+1'][i % 3],
       year: 2015 + (i % 10),
       km: 10000 * (i % 20)
@@ -33,30 +31,111 @@ const generateAds = (count, prefix, startPrice) => {
   });
 };
 
-// Veri Setleri
-export const ads = generateAds(120, 'İlan', 1000000); // Ana havuz
+export const ads = generateAds(120, 'İlan', 1000000);
 export const urgentAds = generateAds(10, 'Acil', 750000);
 export const interestingAds = generateAds(10, 'İlginç', 5000000);
 
-export function getAdById(id) {
+export function getAdById(id: any) {
   const allAds = [...ads, ...urgentAds, ...interestingAds];
   return allAds.find(ad => ad.id === Number(id));
 }
 
+// --- FULL KATEGORİ YAPISI ---
 export const categories = [
-  { id: 'emlak', name: 'Emlak', icon: 'Home', subs: ['Konut', 'İş Yeri', 'Arsa'] },
-  { id: 'vasita', name: 'Vasıta', icon: 'Car', subs: ['Otomobil', 'SUV', 'Motosiklet'] },
-  { id: 'alisveris', name: 'İkinci El ve Sıfır Alışveriş', icon: 'Monitor', subs: ['Bilgisayar', 'Telefon'] },
+  {
+    id: 'emlak',
+    name: 'Emlak',
+    icon: 'Home',
+    slug: 'emlak',
+    subs: [
+      {
+        id: 'konut',
+        title: 'Konut',
+        slug: 'konut',
+        // İŞTE BURASI: Konut'un alt seçenekleri
+        subs: [
+            { id: 'tum-konut', title: 'Tüm Konut İlanları', slug: 'konut' },
+            { id: 'satilik', title: 'Satılık', slug: 'konut-satilik' },
+            { id: 'kiralik', title: 'Kiralık', slug: 'konut-kiralik' },
+            { id: 'gunluk', title: 'Turistik Günlük Kiralık', slug: 'gunluk-kiralik' },
+            { id: 'devren', title: 'Devren Satılık Konut', slug: 'devren-satilik-konut' }
+        ]
+      },
+      { id: 'isyeri', title: 'İş Yeri', slug: 'is-yeri', subs: [{id:'tum-is', title:'Tüm İş Yeri İlanları', slug:'is-yeri'}] },
+      { id: 'arsa', title: 'Arsa', slug: 'arsa', subs: [{id:'tum-arsa', title:'Tüm Arsa İlanları', slug:'arsa'}] },
+      { id: 'bina', title: 'Bina', slug: 'bina' },
+      { id: 'devremulk', title: 'Devre Mülk', slug: 'devre-mulk' },
+      { id: 'turistik', title: 'Turistik Tesis', slug: 'turistik-tesis' }
+    ]
+  },
+  {
+    id: 'vasita',
+    name: 'Vasıta',
+    icon: 'Car',
+    slug: 'vasita',
+    subs: [
+      { id: 'oto', title: 'Otomobil', slug: 'otomobil' },
+      { id: 'suv', title: 'Arazi, SUV & Pickup', slug: 'arazi-suv-pickup' },
+      { id: 'electric', title: 'Elektrikli Araçlar', slug: 'elektrikli-araclar' },
+      { id: 'moto', title: 'Motosiklet', slug: 'motosiklet' },
+      { id: 'minivan', title: 'Minivan & Panelvan', slug: 'minivan-panelvan' },
+      { id: 'commercial', title: 'Ticari Araçlar', slug: 'ticari-araclar' },
+      { id: 'rental', title: 'Kiralık Araçlar', slug: 'kiralik-araclar' },
+      { id: 'marine', title: 'Deniz Araçları', slug: 'deniz-araclari' },
+      { id: 'damaged', title: 'Hasarlı Araçlar', slug: 'hasarli-araclar' },
+      { id: 'caravan', title: 'Karavan', slug: 'karavan' },
+      { id: 'classic', title: 'Klasik Araçlar', slug: 'klasik-araclar' },
+      { id: 'air', title: 'Hava Araçları', slug: 'hava-araclari' },
+      { id: 'atv', title: 'ATV', slug: 'atv' },
+      { id: 'utv', title: 'UTV', slug: 'utv' },
+      { id: 'disabled', title: 'Engelli Plakalı Araçlar', slug: 'engelli-plakali-araclar' }
+    ]
+  },
+  {
+    id: 'alisveris',
+    name: 'İkinci El ve Sıfır Alışveriş',
+    icon: 'ShoppingCart',
+    slug: 'alisveris',
+    subs: [
+      { id: 'pc', title: 'Bilgisayar', slug: 'bilgisayar' },
+      { id: 'phone', title: 'Cep Telefonu & Aksesuar', slug: 'cep-telefonu-ve-aksesuar' },
+      { id: 'camera', title: 'Fotoğraf & Kamera', slug: 'fotograf-ve-kamera' },
+      { id: 'home-deco', title: 'Ev Dekorasyon', slug: 'ev-dekorasyon' },
+      { id: 'home-elec', title: 'Ev Elektroniği', slug: 'ev-elektronigi' },
+      { id: 'elec-app', title: 'Elektrikli Ev Aletleri', slug: 'elektrikli-ev-aletleri' },
+      { id: 'clothing', title: 'Giyim & Aksesuar', slug: 'giyim-ve-aksesuar' },
+      { id: 'watch', title: 'Saat', slug: 'saat' },
+      { id: 'baby', title: 'Anne & Bebek', slug: 'anne-ve-bebek' },
+      { id: 'cosmetic', title: 'Kişisel Bakım & Kozmetik', slug: 'kisisel-bakim-ve-kozmetik' },
+      { id: 'hobby', title: 'Hobi & Oyuncak', slug: 'hobi-ve-oyuncak' },
+      { id: 'gaming', title: 'Oyunculara Özel', slug: 'oyunculara-ozel' },
+      { id: 'books', title: 'Kitap, Dergi & Film', slug: 'kitap-dergi-ve-film' },
+      { id: 'music', title: 'Müzik', slug: 'muzik' },
+      { id: 'sports', title: 'Spor', slug: 'spor' },
+      { id: 'jewelry', title: 'Takı & Mücevher', slug: 'taki-ve-mucevher' },
+      { id: 'collection', title: 'Koleksiyon', slug: 'koleksiyon' },
+      { id: 'antique', title: 'Antika', slug: 'antika' },
+      { id: 'garden', title: 'Bahçe & Yapı Market', slug: 'bahce-ve-yapi-market' },
+      { id: 'technical', title: 'Teknik Elektronik', slug: 'teknik-elektronik' },
+      { id: 'office', title: 'Ofis & Kırtasiye', slug: 'ofis-ve-kirtasiye' },
+      { id: 'food', title: 'Yiyecek & İçecek', slug: 'yiyecek-ve-icecek' },
+      { id: 'other', title: 'Diğer Her Şey', slug: 'diger-her-sey' }
+    ]
+  },
+  { id: 'is-makineleri', name: 'İş Makineleri & Sanayi', icon: 'Hammer', slug: 'is-makineleri', subs: [] },
+  { id: 'usta-hizmet', name: 'Ustalar ve Hizmetler', icon: 'Briefcase', slug: 'ustalar-ve-hizmetler', subs: [] },
+  { id: 'ozel-ders', name: 'Özel Ders Verenler', icon: 'BookOpen', slug: 'ozel-ders-verenler', subs: [] },
+  { id: 'is-ilanlari', name: 'İş İlanları', icon: 'Briefcase', slug: 'is-ilanlari', subs: [] },
+  { id: 'yardimci-arayanlar', name: 'Yardımcı Arayanlar', icon: 'User', slug: 'yardimci-arayanlar', subs: [] },
+  { id: 'hayvanlar-alemi', name: 'Hayvanlar Alemi', icon: 'Dog', slug: 'hayvanlar-alemi', subs: [] }
 ];
 
-export function getSellerById(id) { return { id, name: 'Ahmet Yılmaz', avatar: 'AY', rating: 4.5, joined: '2020', lastSeen: 'Bugün', isVerified: true, reviews: [] }; }
-export function getAdsBySeller(id) { return ads.slice(0, 5); }
+export function getSellerById(id: any) { return { id, name: 'Ahmet Yılmaz', avatar: 'AY', rating: 4.5, joined: '2020', lastSeen: 'Bugün', isVerified: true, reviews: [] }; }
+export function getAdsBySeller(id: any) { return ads.slice(0, 5); }
 
-// GELİŞMİŞ ARAMA VE SAYFALAMA
-export function searchAds(params) {
+export function searchAds(params: any) {
   let filtered = [...ads, ...urgentAds, ...interestingAds];
 
-  // Filtreleme Mantığı
   if (params.q) {
     const q = params.q.toLowerCase();
     filtered = filtered.filter(ad => ad.title.toLowerCase().includes(q));
@@ -66,7 +145,6 @@ export function searchAds(params) {
   if (params.minPrice) filtered = filtered.filter(ad => ad.rawPrice >= Number(params.minPrice));
   if (params.maxPrice) filtered = filtered.filter(ad => ad.rawPrice <= Number(params.maxPrice));
 
-  // Sıralama
   if (params.sort) {
     switch (params.sort) {
       case 'price_asc': filtered.sort((a, b) => a.rawPrice - b.rawPrice); break;
@@ -76,9 +154,8 @@ export function searchAds(params) {
     }
   }
 
-  // SAYFALAMA (Pagination)
   const page = Number(params.page) || 1;
-  const limit = 15; // Sayfa başına 15 ilan
+  const limit = 15;
   const startIndex = (page - 1) * limit;
   const endIndex = startIndex + limit;
 

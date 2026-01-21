@@ -4,16 +4,14 @@ const path = require("path");
 const colors = {
   reset: "\x1b[0m",
   green: "\x1b[32m",
-  yellow: "\x1b[33m",
   cyan: "\x1b[36m",
   bold: "\x1b[1m",
-  magenta: "\x1b[35m",
 };
 
 console.log(
   colors.cyan +
     colors.bold +
-    "\n🚀 SAHİBİNDEN CLONE - GELİŞTİRME PAKETİ 9 (AKILLI KATEGORİ SİSTEMİ)\n" +
+    "\n🚀 SAHİBİNDEN CLONE - DATA DOSYASI ONARILIYOR...\n" +
     colors.reset,
 );
 
@@ -22,242 +20,190 @@ function writeFile(filePath, content) {
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, content.trim());
-  console.log(`${colors.green}✔ Güncellendi:${colors.reset} ${filePath}`);
+  console.log(`${colors.green}✔ Dosya oluşturuldu:${colors.reset} ${filePath}`);
 }
 
 // -------------------------------------------------------------------------
-// LIB/ACTIONS.TS (Gelişmiş Kategori Sorgusu ile Güncellendi)
+// LIB/DATA.TS İÇERİĞİ (Tüm Kategoriler Dahil)
 // -------------------------------------------------------------------------
-const actionsPath = "lib/actions.ts";
-const newActionsContent = `
-'use server'
-import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
-
-// --- KATEGORİLER ---
-export async function getCategoryTreeServer() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('categories').select('*').order('title');
-
-  if (!data) return [];
-
-  // Parent-Child ilişkisini kur
-  const parents = data.filter(c => !c.parent_id);
-  return parents.map(p => ({
-    ...p,
-    subs: data.filter(c => c.parent_id === p.id)
-  }));
-}
-
-// --- İLANLAR (AKILLI FİLTRELEME EKLENDİ) ---
-export async function getAdsServer(searchParams?: any) {
-  const supabase = await createClient()
-
-  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)').eq('status', 'yayinda')
-
-  // Filtreler
-  if (searchParams?.q) query = query.ilike('title', \`%\${searchParams.q}%\`)
-  if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice)
-  if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice)
-  if (searchParams?.city) query = query.eq('city', searchParams.city)
-
-  // --- AKILLI KATEGORİ FİLTRESİ ---
-  // Seçilen kategori bir "Ana Kategori" ise, altındaki tüm kategorilerin ilanlarını da getirir.
-  if (searchParams?.category) {
-      // 1. Seçilen kategorinin ID'sini ve Slug'ını bul
-      const { data: selectedCat } = await supabase
-        .from('categories')
-        .select('id, slug')
-        .eq('slug', searchParams.category)
-        .single();
-
-      if (selectedCat) {
-        // 2. Bu kategorinin alt kategorilerini bul (parent_id = selectedCat.id)
-        const { data: subCats } = await supabase
-          .from('categories')
-          .select('slug')
-          .eq('parent_id', selectedCat.id);
-
-        // 3. Filtre listesi oluştur: [Seçilen Kategori, ...Alt Kategoriler]
-        const categoriesToFilter = [selectedCat.slug];
-        if (subCats && subCats.length > 0) {
-            subCats.forEach(c => categoriesToFilter.push(c.slug));
-        }
-
-        // 4. "IN" operatörü ile bu listedeki herhangi bir kategoriye sahip ilanları getir
-        query = query.in('category', categoriesToFilter);
-      } else {
-        // Kategori veritabanında bulunamadıysa düz mantık devam et (boş döner)
-        query = query.eq('category', searchParams.category);
-      }
-  }
-
-  // Detaylı Filtreler
-  if (searchParams?.room) query = query.eq('room', searchParams.room)
-  if (searchParams?.minYear) query = query.gte('year', searchParams.minYear)
-  if (searchParams?.maxYear) query = query.lte('year', searchParams.maxYear)
-  if (searchParams?.maxKm) query = query.lte('km', searchParams.maxKm)
-
-  // Sıralama
-  if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true })
-  else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false })
-  else query = query.order('created_at', { ascending: false })
-
-  const { data } = await query
-  return data || []
-}
-
-export async function getAdDetailServer(id: number) {
-  const supabase = await createClient()
-  const { data } = await supabase.from('ads').select('*, profiles(*), categories(title)').eq('id', id).single()
-  return data
-}
-
-export async function getRelatedAdsServer(category: string, currentId: number) {
-    const supabase = await createClient();
-    const { data } = await supabase.from('ads')
-        .select('*')
-        .eq('category', category)
-        .eq('status', 'yayinda')
-        .neq('id', currentId)
-        .limit(5);
-    return data || [];
-}
-
-export async function getShowcaseAdsServer() {
-  const supabase = await createClient()
-  const { data } = await supabase.from('ads').select('*').eq('status', 'yayinda').order('is_vitrin', { ascending: false }).limit(20)
-  return data || []
-}
-
-export async function getAdsByIds(ids: number[]) {
-    if (!ids || ids.length === 0) return [];
-    const supabase = await createClient();
-    const { data } = await supabase.from('ads').select('*, profiles(full_name)').in('id', ids);
-    return data || [];
-}
-
-// --- İÇERİK (CMS) ---
-export async function getPageBySlugServer(slug: string) {
-    const supabase = await createClient();
-    const { data } = await supabase.from('pages').select('*').eq('slug', slug).single();
-    return data;
-}
-
-export async function getHelpContentServer() {
-    const supabase = await createClient();
-    const { data: categories } = await supabase.from('faq_categories').select('*');
-    const { data: faqs } = await supabase.from('faqs').select('*');
-    return { categories: categories || [], faqs: faqs || [] };
-}
-
-// --- ADMIN STATS ---
-export async function getAdminStatsServer() {
-    const supabase = await createClient();
-
-    const [users, ads, payments] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('ads').select('*', { count: 'exact', head: true }).eq('status', 'yayinda'),
-        supabase.from('payments').select('amount')
-    ]);
-
-    const totalRevenue = payments.data?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+const dataTsContent = `
+// Rastgele ilan üretici
+const generateAds = (count: number, prefix: string, startPrice: number) => {
+  return Array.from({ length: count }).map((_, i) => {
+    const cityIndex = i % 5;
+    const city = ['İstanbul', 'Ankara', 'İzmir', 'Antalya', 'Bursa'][cityIndex];
+    const district = ['Merkez', 'Çankaya', 'Karşıyaka', 'Muratpaşa', 'Nilüfer'][cityIndex];
+    const priceValue = startPrice + (i * 12500) + (cityIndex * 5000);
 
     return {
-        totalUsers: users.count || 0,
-        activeAds: ads.count || 0,
-        totalRevenue
+      id: 100000 + i + (startPrice / 1000),
+      title: \`\${prefix} - Fırsat İlan \${i + 1} \${i % 2 === 0 ? 'Sahibinden' : 'Emlakçıdan'}\`,
+      image: \`https://picsum.photos/seed/\${prefix}\${i}/300/200\`,
+      price: priceValue.toLocaleString('tr-TR', { maximumFractionDigits: 0 }),
+      rawPrice: priceValue,
+      currency: 'TL',
+      city: city,
+      district: district,
+      location: \`\${city} / \${district}\`,
+      dateRaw: new Date(2025, 0, 24).getTime() - (i * 3600000),
+      date: '25 Ocak 2025',
+      category: i < 60 ? 'emlak' : 'vasita',
+      attributes: [
+        { label: 'İlan No', value: \`102938\${i}\` },
+        { label: 'Kimden', value: 'Sahibinden' },
+      ],
+      description: '<p>Bu ilan sahibinden.com klon projesi için oluşturulmuş örnek bir veridir.</p>',
+      room: ['1+1', '2+1', '3+1'][i % 3],
+      year: 2015 + (i % 10),
+      km: 10000 * (i % 20)
     };
+  });
+};
+
+export const ads = generateAds(120, 'İlan', 1000000);
+export const urgentAds = generateAds(10, 'Acil', 750000);
+export const interestingAds = generateAds(10, 'İlginç', 5000000);
+
+export function getAdById(id: any) {
+  const allAds = [...ads, ...urgentAds, ...interestingAds];
+  return allAds.find(ad => ad.id === Number(id));
 }
 
-// --- İŞLEMLER ---
-export async function createAdAction(formData: any) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Giriş yapmalısınız' }
+// --- FULL KATEGORİ YAPISI ---
+export const categories = [
+  {
+    id: 'emlak',
+    name: 'Emlak',
+    icon: 'Home',
+    slug: 'emlak',
+    subs: [
+      {
+        id: 'konut',
+        title: 'Konut',
+        slug: 'konut',
+        // İŞTE BURASI: Konut'un alt seçenekleri
+        subs: [
+            { id: 'tum-konut', title: 'Tüm Konut İlanları', slug: 'konut' },
+            { id: 'satilik', title: 'Satılık', slug: 'konut-satilik' },
+            { id: 'kiralik', title: 'Kiralık', slug: 'konut-kiralik' },
+            { id: 'gunluk', title: 'Turistik Günlük Kiralık', slug: 'gunluk-kiralik' },
+            { id: 'devren', title: 'Devren Satılık Konut', slug: 'devren-satilik-konut' }
+        ]
+      },
+      { id: 'isyeri', title: 'İş Yeri', slug: 'is-yeri', subs: [{id:'tum-is', title:'Tüm İş Yeri İlanları', slug:'is-yeri'}] },
+      { id: 'arsa', title: 'Arsa', slug: 'arsa', subs: [{id:'tum-arsa', title:'Tüm Arsa İlanları', slug:'arsa'}] },
+      { id: 'bina', title: 'Bina', slug: 'bina' },
+      { id: 'devremulk', title: 'Devre Mülk', slug: 'devre-mulk' },
+      { id: 'turistik', title: 'Turistik Tesis', slug: 'turistik-tesis' }
+    ]
+  },
+  {
+    id: 'vasita',
+    name: 'Vasıta',
+    icon: 'Car',
+    slug: 'vasita',
+    subs: [
+      { id: 'oto', title: 'Otomobil', slug: 'otomobil' },
+      { id: 'suv', title: 'Arazi, SUV & Pickup', slug: 'arazi-suv-pickup' },
+      { id: 'electric', title: 'Elektrikli Araçlar', slug: 'elektrikli-araclar' },
+      { id: 'moto', title: 'Motosiklet', slug: 'motosiklet' },
+      { id: 'minivan', title: 'Minivan & Panelvan', slug: 'minivan-panelvan' },
+      { id: 'commercial', title: 'Ticari Araçlar', slug: 'ticari-araclar' },
+      { id: 'rental', title: 'Kiralık Araçlar', slug: 'kiralik-araclar' },
+      { id: 'marine', title: 'Deniz Araçları', slug: 'deniz-araclari' },
+      { id: 'damaged', title: 'Hasarlı Araçlar', slug: 'hasarli-araclar' },
+      { id: 'caravan', title: 'Karavan', slug: 'karavan' },
+      { id: 'classic', title: 'Klasik Araçlar', slug: 'klasik-araclar' },
+      { id: 'air', title: 'Hava Araçları', slug: 'hava-araclari' },
+      { id: 'atv', title: 'ATV', slug: 'atv' },
+      { id: 'utv', title: 'UTV', slug: 'utv' },
+      { id: 'disabled', title: 'Engelli Plakalı Araçlar', slug: 'engelli-plakali-araclar' }
+    ]
+  },
+  {
+    id: 'alisveris',
+    name: 'İkinci El ve Sıfır Alışveriş',
+    icon: 'ShoppingCart',
+    slug: 'alisveris',
+    subs: [
+      { id: 'pc', title: 'Bilgisayar', slug: 'bilgisayar' },
+      { id: 'phone', title: 'Cep Telefonu & Aksesuar', slug: 'cep-telefonu-ve-aksesuar' },
+      { id: 'camera', title: 'Fotoğraf & Kamera', slug: 'fotograf-ve-kamera' },
+      { id: 'home-deco', title: 'Ev Dekorasyon', slug: 'ev-dekorasyon' },
+      { id: 'home-elec', title: 'Ev Elektroniği', slug: 'ev-elektronigi' },
+      { id: 'elec-app', title: 'Elektrikli Ev Aletleri', slug: 'elektrikli-ev-aletleri' },
+      { id: 'clothing', title: 'Giyim & Aksesuar', slug: 'giyim-ve-aksesuar' },
+      { id: 'watch', title: 'Saat', slug: 'saat' },
+      { id: 'baby', title: 'Anne & Bebek', slug: 'anne-ve-bebek' },
+      { id: 'cosmetic', title: 'Kişisel Bakım & Kozmetik', slug: 'kisisel-bakim-ve-kozmetik' },
+      { id: 'hobby', title: 'Hobi & Oyuncak', slug: 'hobi-ve-oyuncak' },
+      { id: 'gaming', title: 'Oyunculara Özel', slug: 'oyunculara-ozel' },
+      { id: 'books', title: 'Kitap, Dergi & Film', slug: 'kitap-dergi-ve-film' },
+      { id: 'music', title: 'Müzik', slug: 'muzik' },
+      { id: 'sports', title: 'Spor', slug: 'spor' },
+      { id: 'jewelry', title: 'Takı & Mücevher', slug: 'taki-ve-mucevher' },
+      { id: 'collection', title: 'Koleksiyon', slug: 'koleksiyon' },
+      { id: 'antique', title: 'Antika', slug: 'antika' },
+      { id: 'garden', title: 'Bahçe & Yapı Market', slug: 'bahce-ve-yapi-market' },
+      { id: 'technical', title: 'Teknik Elektronik', slug: 'teknik-elektronik' },
+      { id: 'office', title: 'Ofis & Kırtasiye', slug: 'ofis-ve-kirtasiye' },
+      { id: 'food', title: 'Yiyecek & İçecek', slug: 'yiyecek-ve-icecek' },
+      { id: 'other', title: 'Diğer Her Şey', slug: 'diger-her-sey' }
+    ]
+  },
+  { id: 'is-makineleri', name: 'İş Makineleri & Sanayi', icon: 'Hammer', slug: 'is-makineleri', subs: [] },
+  { id: 'usta-hizmet', name: 'Ustalar ve Hizmetler', icon: 'Briefcase', slug: 'ustalar-ve-hizmetler', subs: [] },
+  { id: 'ozel-ders', name: 'Özel Ders Verenler', icon: 'BookOpen', slug: 'ozel-ders-verenler', subs: [] },
+  { id: 'is-ilanlari', name: 'İş İlanları', icon: 'Briefcase', slug: 'is-ilanlari', subs: [] },
+  { id: 'yardimci-arayanlar', name: 'Yardımcı Arayanlar', icon: 'User', slug: 'yardimci-arayanlar', subs: [] },
+  { id: 'hayvanlar-alemi', name: 'Hayvanlar Alemi', icon: 'Dog', slug: 'hayvanlar-alemi', subs: [] }
+];
 
-  const adData = { ...formData, user_id: user.id, status: 'onay_bekliyor' }
-  const { data, error } = await supabase.from('ads').insert([adData]).select('id').single()
+export function getSellerById(id: any) { return { id, name: 'Ahmet Yılmaz', avatar: 'AY', rating: 4.5, joined: '2020', lastSeen: 'Bugün', isVerified: true, reviews: [] }; }
+export function getAdsBySeller(id: any) { return ads.slice(0, 5); }
 
-  if (error) return { error: error.message }
-  revalidatePath('/')
-  return { success: true, adId: data.id }
-}
+export function searchAds(params: any) {
+  let filtered = [...ads, ...urgentAds, ...interestingAds];
 
-export async function activateDopingAction(adId: number, dopingTypes: string[]) {
-  const supabase = await createClient();
+  if (params.q) {
+    const q = params.q.toLowerCase();
+    filtered = filtered.filter(ad => ad.title.toLowerCase().includes(q));
+  }
+  if (params.category) filtered = filtered.filter(ad => ad.category === params.category);
+  if (params.city) filtered = filtered.filter(ad => ad.city === params.city);
+  if (params.minPrice) filtered = filtered.filter(ad => ad.rawPrice >= Number(params.minPrice));
+  if (params.maxPrice) filtered = filtered.filter(ad => ad.rawPrice <= Number(params.maxPrice));
 
-  const updates: any = {};
-  if (dopingTypes.includes('1')) updates.is_vitrin = true;
-  if (dopingTypes.includes('2')) updates.is_urgent = true;
-  if (dopingTypes.includes('3')) updates.is_bold = true;
+  if (params.sort) {
+    switch (params.sort) {
+      case 'price_asc': filtered.sort((a, b) => a.rawPrice - b.rawPrice); break;
+      case 'price_desc': filtered.sort((a, b) => b.rawPrice - a.rawPrice); break;
+      case 'date_desc': filtered.sort((a, b) => b.dateRaw - a.dateRaw); break;
+      case 'date_asc': filtered.sort((a, b) => a.dateRaw - b.dateRaw); break;
+    }
+  }
 
-  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
-  if (error) return { error: error.message };
+  const page = Number(params.page) || 1;
+  const limit = 15;
+  const startIndex = (page - 1) * limit;
+  const endIndex = startIndex + limit;
 
-  revalidatePath('/');
-  return { success: true };
-}
+  const paginatedData = filtered.slice(startIndex, endIndex);
+  const total = filtered.length;
+  const totalPages = Math.ceil(total / limit);
 
-export async function updateAdAction(id: number, formData: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Giriş yapmalısınız' }
-
-    const { error } = await supabase.from('ads').update({ ...formData, status: 'onay_bekliyor' }).eq('id', id).eq('user_id', user.id)
-    if (error) return { error: error.message }
-
-    revalidatePath('/bana-ozel/ilanlarim')
-    return { success: true }
-}
-
-// --- MAĞAZA ---
-export async function getStoreBySlugServer(slug: string) {
-    const supabase = await createClient()
-    const { data } = await supabase.from('stores').select('*').eq('slug', slug).single()
-    return data
-}
-
-export async function getStoreAdsServer(userId: string) {
-    const supabase = await createClient()
-    const { data } = await supabase.from('ads').select('*').eq('user_id', userId).eq('status', 'yayinda')
-    return data || []
-}
-
-export async function createStoreAction(formData: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Giriş yapmalısınız' }
-
-    const { error } = await supabase.from('stores').insert([{ ...formData, user_id: user.id }])
-    if (error) return { error: error.message }
-
-    await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id)
-    revalidatePath('/bana-ozel/magazam')
-    return { success: true }
-}
-export async function updateStoreAction(formData: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Giriş yapmalısınız' }
-    const { error } = await supabase.from('stores').update(formData).eq('user_id', user.id)
-    if (error) return { error: error.message }
-    revalidatePath('/bana-ozel/magazam')
-    return { success: true }
-}
-export async function getMyStoreServer() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if(!user) return null
-    const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).single()
-    return data
+  return {
+    data: paginatedData,
+    meta: {
+      total,
+      page,
+      limit,
+      totalPages
+    }
+  };
 }
 `;
-writeFile(actionsPath, newActionsContent);
 
-console.log(colors.bold + "\n🎉 AKILLI FİLTRELEME AKTİF!" + colors.reset);
-console.log("1. Terminalde `node setup.js` komutunu çalıştırın.");
-console.log("2. Siteyi yenileyin.");
-console.log(
-  "3. 'İkinci El ve Sıfır Alışveriş' kategorisine tıkladığınızda artık altındaki Bilgisayar, Telefon vb. tüm ilanlar listelenecek.",
-);
+writeFile("lib/data.ts", dataTsContent);
+
+console.log(colors.bold + "\\n🎉 DATA GÜNCELLENDİ!" + colors.reset);
