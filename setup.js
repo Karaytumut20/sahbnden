@@ -26,7 +26,7 @@ function writeFile(filePath, content) {
 }
 
 // =============================================================================
-// 1. TYPES/INDEX.TS (Merkezi Tip Tanımları - Type Safety)
+// 1. TYPES/INDEX.TS (MERKEZİ TİP TANIMLARI - TYPE SAFETY)
 // =============================================================================
 const typesContent = `
 export interface Profile {
@@ -77,15 +77,38 @@ export interface Ad {
   // İlişkiler
   profiles?: Profile;
 }
+
+// Form Verisi İçin Tip
+export interface AdFormData {
+  title: string;
+  description: string;
+  price: string | number;
+  currency: string;
+  city: string;
+  district: string;
+  category?: string;
+  // Emlak
+  m2?: string | number;
+  room?: string;
+  floor?: string | number;
+  heating?: string;
+  // Vasıta
+  brand?: string;
+  year?: string | number;
+  km?: string | number;
+  gear?: string;
+  fuel?: string;
+  status_vehicle?: string;
+}
 `;
 writeFile("types/index.ts", typesContent);
 
 // =============================================================================
-// 2. LIB/LOCATIONS.TS (Türkiye İl-İlçe Verisi)
+// 2. LIB/LOCATIONS.TS (GERÇEKÇİ İL-İLÇE VERİSİ)
 // =============================================================================
 const locationsContent = `
 export const cities = [
-  { name: 'İstanbul', districts: ['Kadıköy', 'Beşiktaş', 'Üsküdar', 'Şişli', 'Maltepe', 'Kartal', 'Pendik', 'Ümraniye', 'Ataşehir', 'Beylikdüzü', 'Esenyurt'] },
+  { name: 'İstanbul', districts: ['Kadıköy', 'Beşiktaş', 'Üsküdar', 'Şişli', 'Maltepe', 'Kartal', 'Pendik', 'Ümraniye', 'Ataşehir', 'Beylikdüzü', 'Esenyurt', 'Fatih', 'Bakırköy'] },
   { name: 'Ankara', districts: ['Çankaya', 'Keçiören', 'Yenimahalle', 'Mamak', 'Etimesgut', 'Sincan', 'Altındağ', 'Pursaklar', 'Gölbaşı'] },
   { name: 'İzmir', districts: ['Karşıyaka', 'Konak', 'Bornova', 'Buca', 'Çiğli', 'Gaziemir', 'Balçova', 'Narlıdere', 'Urla', 'Çeşme'] },
   { name: 'Antalya', districts: ['Muratpaşa', 'Kepez', 'Konyaaltı', 'Alanya', 'Manavgat', 'Serik', 'Kemer', 'Kaş'] },
@@ -100,13 +123,7 @@ export const cities = [
   { name: 'Kayseri', districts: ['Melikgazi', 'Kocasinan', 'Talas'] },
   { name: 'Sakarya', districts: ['Adapazarı', 'Serdivan', 'Erenler'] },
   { name: 'Muğla', districts: ['Bodrum', 'Fethiye', 'Marmaris', 'Menteşe', 'Milas'] },
-  { name: 'Trabzon', districts: ['Ortahisar', 'Akçaabat', 'Yomra'] },
-  { name: 'Tekirdağ', districts: ['Süleymanpaşa', 'Çorlu', 'Çerkezköy'] },
-  { name: 'Hatay', districts: ['Antakya', 'İskenderun', 'Defne'] },
-  { name: 'Manisa', districts: ['Yunusemre', 'Şehzadeler', 'Akhisar', 'Turgutlu'] },
-  { name: 'Balıkesir', districts: ['Altıeylül', 'Karesi', 'Edremit', 'Bandırma'] },
-  { name: 'Diyarbakır', districts: ['Bağlar', 'Kayapınar', 'Yenişehir'] },
-  { name: 'Şanlıurfa', districts: ['Haliliye', 'Eyyübiye', 'Karaköprü'] }
+  { name: 'Trabzon', districts: ['Ortahisar', 'Akçaabat', 'Yomra'] }
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 export const getDistricts = (cityName: string) => {
@@ -117,7 +134,7 @@ export const getDistricts = (cityName: string) => {
 writeFile("lib/locations.ts", locationsContent);
 
 // =============================================================================
-// 3. NEXT.CONFIG.TS (Image Optimizasyonu İçin Domain İzni)
+// 3. NEXT.CONFIG.TS (IMAGE OPTIMIZATION AYARLARI)
 // =============================================================================
 const nextConfigContent = `
 import type { NextConfig } from "next";
@@ -136,7 +153,7 @@ const nextConfig: NextConfig = {
         hostname: '**', // Tüm dış kaynaklara izin ver (Geliştirme için)
       },
     ],
-    // Supabase ve Picsum gibi kaynaklar için optimizasyonu açıyoruz
+    // SVG ve güvenlik ayarları
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
@@ -148,7 +165,61 @@ export default nextConfig;
 writeFile("next.config.ts", nextConfigContent);
 
 // =============================================================================
-// 4. COMPONENTS/ADCARD.TSX (Tarih Formatı ve Next Image)
+// 4. LIB/VALIDATION.TS (FORM DOĞRULAMA MOTORU)
+// =============================================================================
+const validationContent = `
+import { AdFormData } from '@/types';
+
+type ValidationResult = {
+  isValid: boolean;
+  errors: Record<string, string>;
+};
+
+export function validateAdForm(data: AdFormData, categorySlug: string): ValidationResult {
+  const errors: Record<string, string> = {};
+  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv') || categorySlug.includes('moto');
+  const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri') || categorySlug.includes('arsa');
+
+  // 1. Temel Kontroller
+  if (!data.title || data.title.length < 5) {
+    errors.title = "İlan başlığı en az 5 karakter olmalıdır.";
+  }
+  if (!data.description || data.description.length < 10) {
+    errors.description = "Açıklama çok kısa (en az 10 karakter).";
+  }
+  if (!data.price || Number(data.price) <= 0) {
+    errors.price = "Geçerli bir fiyat giriniz.";
+  }
+  if (!data.city) errors.city = "Lütfen il seçiniz.";
+  if (!data.district) errors.district = "Lütfen ilçe giriniz.";
+
+  // 2. Emlak Kontrolleri
+  if (isRealEstate) {
+    if (!data.m2 || Number(data.m2) <= 0) errors.m2 = "Metrekare bilgisi zorunludur.";
+    if (!data.room) errors.room = "Oda sayısı seçiniz.";
+  }
+
+  // 3. Vasıta Kontrolleri
+  if (isVehicle) {
+    const currentYear = new Date().getFullYear();
+    if (!data.year || Number(data.year) < 1900 || Number(data.year) > currentYear) {
+      errors.year = "Geçerli bir model yılı giriniz.";
+    }
+    if (data.km === undefined || data.km === null || Number(data.km) < 0) {
+      errors.km = "Kilometre giriniz.";
+    }
+  }
+
+  return {
+    isValid: Object.keys(errors).length === 0,
+    errors
+  };
+}
+`;
+writeFile("lib/validation.ts", validationContent);
+
+// =============================================================================
+// 5. COMPONENTS/ADCARD.TSX (NEXT/IMAGE VE TARİH FORMATI)
 // =============================================================================
 const adCardContent = `
 import React from 'react';
@@ -271,7 +342,221 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
 writeFile("components/AdCard.tsx", adCardContent);
 
 // =============================================================================
-// 5. COMPONENTS/FILTERSIDEBAR.TSX (Yeni Şehir Verisi Entegre)
+// 6. APP/ILAN-VER/DETAY/PAGE.TSX (İL-İLÇE SEÇİMİ VE VALIDASYON ENTEGRASYONU)
+// =============================================================================
+const postAdFormContent = `
+"use client";
+import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { Loader2, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
+import { useAuth } from '@/context/AuthContext';
+import RealEstateFields from '@/components/form/RealEstateFields';
+import VehicleFields from '@/components/form/VehicleFields';
+import ImageUploader from '@/components/ui/ImageUploader';
+import { createAdAction } from '@/lib/actions';
+import { validateAdForm } from '@/lib/validation';
+import { AdFormData } from '@/types';
+import { cities, getDistricts } from '@/lib/locations';
+
+function PostAdFormContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { addToast } = useToast();
+  const { user } = useAuth();
+
+  const categorySlug = searchParams.get('cat') || '';
+  const categoryPath = searchParams.get('path') || 'Kategori Seçilmedi';
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [images, setImages] = useState<string[]>([]);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [districts, setDistricts] = useState<string[]>([]);
+
+  const [formData, setFormData] = useState<AdFormData>({
+    title: '', description: '', price: '', currency: 'TL', city: '', district: '',
+    m2: '', room: '', floor: '', heating: '',
+    brand: '', year: '', km: '', gear: '', fuel: ''
+  });
+
+  const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri') || categorySlug.includes('arsa');
+  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv');
+
+  // İl değişince ilçeleri güncelle
+  useEffect(() => {
+    if (formData.city) {
+      setDistricts(getDistricts(formData.city));
+      setFormData(prev => ({ ...prev, district: '' })); // İlçe sıfırla
+    }
+  }, [formData.city]);
+
+  const handleInputChange = (e: any) => {
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+    if (errors[e.target.name]) {
+        setErrors(prev => {
+            const newErrors = { ...prev };
+            delete newErrors[e.target.name];
+            return newErrors;
+        });
+    }
+  };
+
+  const handleDynamicChange = (name: string, value: string) => {
+    setFormData(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) { router.push('/login'); return; }
+
+    const validation = validateAdForm(formData, categorySlug);
+    if (!validation.isValid) {
+        setErrors(validation.errors);
+        addToast('Lütfen formdaki hataları düzeltiniz.', 'error');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        return;
+    }
+
+    setIsSubmitting(true);
+
+    const finalData = {
+        ...formData,
+        category: categorySlug,
+        image: images[0] || null,
+        price: Number(formData.price),
+        year: isVehicle || isRealEstate ? Number(formData.year) : null,
+        km: isVehicle ? Number(formData.km) : null,
+        m2: isRealEstate ? Number(formData.m2) : null,
+        floor: isRealEstate ? Number(formData.floor) : null,
+    };
+
+    const res = await createAdAction(finalData);
+
+    if (res.error) {
+        addToast(res.error, 'error');
+    } else {
+        addToast('İlan başarıyla oluşturuldu!', 'success');
+        router.push(\`/ilan-ver/doping?adId=\${res.adId}\`);
+    }
+    setIsSubmitting(false);
+  };
+
+  return (
+    <div className="max-w-[800px] mx-auto py-8 px-4">
+
+      <div className="bg-blue-50 border border-blue-100 p-4 rounded-sm mb-6 flex items-center justify-between">
+        <div>
+            <p className="text-xs text-blue-600 font-bold uppercase mb-1">Seçilen Kategori</p>
+            <h1 className="text-lg font-bold text-[#333] flex items-center gap-2">
+                {categoryPath} <CheckCircle size={16} className="text-green-500"/>
+            </h1>
+        </div>
+        <button onClick={() => router.push('/ilan-ver')} className="text-xs font-bold text-gray-500 hover:text-blue-700 underline">
+            Değiştir
+        </button>
+      </div>
+
+      <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-8">
+
+        {Object.keys(errors).length > 0 && (
+            <div className="bg-red-50 border border-red-200 p-4 rounded-sm text-red-700 text-sm flex items-start gap-2">
+                <AlertCircle size={18} className="mt-0.5 shrink-0"/>
+                <div>
+                    <p className="font-bold">Lütfen hatalı alanları düzeltin:</p>
+                    <ul className="list-disc pl-4 mt-1 space-y-1 text-xs">
+                        {Object.values(errors).map((err, i) => <li key={i}>{err}</li>)}
+                    </ul>
+                </div>
+            </div>
+        )}
+
+        <section>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">1</span> İlan Detayları
+            </h3>
+            <div className="space-y-4 px-2">
+                <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">İlan Başlığı <span className="text-red-500">*</span></label>
+                    <input name="title" onChange={handleInputChange} className={\`w-full border \${errors.title ? 'border-red-500 bg-red-50' : 'border-gray-300'} h-10 px-3 rounded-sm outline-none focus:border-blue-500 text-sm\`} placeholder="Örn: Sahibinden temiz aile evi" />
+                </div>
+                <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">Açıklama <span className="text-red-500">*</span></label>
+                    <textarea name="description" onChange={handleInputChange} className={\`w-full border \${errors.description ? 'border-red-500 bg-red-50' : 'border-gray-300'} p-3 rounded-sm h-32 resize-none focus:border-blue-500 outline-none text-sm\`} placeholder="İlan detayları..."></textarea>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Fiyat <span className="text-red-500">*</span></label>
+                        <input name="price" type="number" onChange={handleInputChange} className={\`w-full border \${errors.price ? 'border-red-500 bg-red-50' : 'border-gray-300'} h-10 px-3 rounded-sm outline-none focus:border-blue-500 text-sm\`} placeholder="0" />
+                    </div>
+                    <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label>
+                        <select name="currency" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm bg-white outline-none text-sm"><option>TL</option><option>USD</option><option>EUR</option></select>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        {(isRealEstate || isVehicle) && (
+            <section>
+                <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                    <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">2</span> Özellikler
+                </h3>
+                <div className="px-2">
+                    {isRealEstate && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
+                    {isVehicle && <VehicleFields data={formData} onChange={handleDynamicChange} />}
+                </div>
+            </section>
+        )}
+
+        <section>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">3</span> Fotoğraflar
+            </h3>
+            <div className="px-2"><ImageUploader onImagesChange={setImages} /></div>
+        </section>
+
+        <section>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2">
+                <span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">4</span> Adres Bilgileri
+            </h3>
+            <div className="px-2 grid grid-cols-2 gap-4">
+                <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">İl <span className="text-red-500">*</span></label>
+                    <select name="city" onChange={handleInputChange} className={\`w-full border \${errors.city ? 'border-red-500 bg-red-50' : 'border-gray-300'} h-10 px-3 rounded-sm bg-white outline-none text-sm\`}>
+                        <option value="">Seçiniz</option>
+                        {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                    </select>
+                </div>
+                <div>
+                    <label className="block text-[11px] font-bold text-gray-600 mb-1">İlçe <span className="text-red-500">*</span></label>
+                    <select name="district" value={formData.district} onChange={handleInputChange} className={\`w-full border \${errors.district ? 'border-red-500 bg-red-50' : 'border-gray-300'} h-10 px-3 rounded-sm bg-white outline-none text-sm\`} disabled={!formData.city}>
+                        <option value="">Seçiniz</option>
+                        {districts.map(d => <option key={d} value={d}>{d}</option>)}
+                    </select>
+                </div>
+            </div>
+        </section>
+
+        <div className="pt-4 flex items-center gap-4">
+            <button type="button" onClick={() => router.back()} className="px-6 py-3 border border-gray-300 rounded-sm font-bold text-sm text-gray-600 hover:bg-gray-50 flex items-center gap-2"><ArrowLeft size={16}/> Geri Dön</button>
+            <button type="submit" disabled={isSubmitting} className="flex-1 bg-[#ffe800] py-3 font-bold text-sm rounded-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2 text-black shadow-sm transition-colors">
+                {isSubmitting ? <><Loader2 className="animate-spin" size={18}/> Kaydediliyor...</> : 'Kaydet ve Devam Et'}
+            </button>
+        </div>
+
+      </form>
+    </div>
+  );
+}
+
+export default function PostAdPage() {
+    return <Suspense fallback={<div className="p-10 text-center">Yükleniyor...</div>}><PostAdFormContent /></Suspense>
+}
+`;
+writeFile("app/ilan-ver/detay/page.tsx", postAdFormContent);
+
+// =============================================================================
+// 7. COMPONENTS/FILTERSIDEBAR.TSX (YENİ LOKASYON YAPISINA GÖRE GÜNCELLEME)
 // =============================================================================
 const filterSidebarContent = `
 "use client";
@@ -279,7 +564,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, Check, RotateCcw, ChevronLeft } from 'lucide-react';
 import { categories } from '@/lib/data';
-import { cities } from '@/lib/locations'; // Yeni lokasyon dosyasından
+import { cities } from '@/lib/locations';
 
 export default function FilterSidebar() {
   const router = useRouter();
@@ -435,6 +720,6 @@ writeFile("components/FilterSidebar.tsx", filterSidebarContent);
 
 console.log(
   colors.yellow +
-    "\\n⚠️ GÜNCELLEME TAMAMLANDI: 'npm run dev' ile projeyi başlatın." +
+    "\\n⚠️ SENIOR DEVELOPER GÜNCELLEMESİ TAMAMLANDI! 'npm run dev' ile başlatın." +
     colors.reset,
 );

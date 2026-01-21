@@ -3,7 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Filter, Check, RotateCcw, ChevronLeft } from 'lucide-react';
 import { categories } from '@/lib/data';
-import { cities } from '@/lib/locations'; // Yeni lokasyon dosyasından
+import { cities } from '@/lib/locations';
 
 export default function FilterSidebar() {
   const router = useRouter();

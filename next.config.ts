@@ -14,7 +14,7 @@ const nextConfig: NextConfig = {
         hostname: '**', // Tüm dış kaynaklara izin ver (Geliştirme için)
       },
     ],
-    // Supabase ve Picsum gibi kaynaklar için optimizasyonu açıyoruz
+    // SVG ve güvenlik ayarları
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",

@@ -46,3 +46,26 @@ export interface Ad {
   // İlişkiler
   profiles?: Profile;
 }
+
+// Form Verisi İçin Tip
+export interface AdFormData {
+  title: string;
+  description: string;
+  price: string | number;
+  currency: string;
+  city: string;
+  district: string;
+  category?: string;
+  // Emlak
+  m2?: string | number;
+  room?: string;
+  floor?: string | number;
+  heating?: string;
+  // Vasıta
+  brand?: string;
+  year?: string | number;
+  km?: string | number;
+  gear?: string;
+  fuel?: string;
+  status_vehicle?: string;
+}

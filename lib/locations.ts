@@ -1,5 +1,5 @@
 export const cities = [
-  { name: 'İstanbul', districts: ['Kadıköy', 'Beşiktaş', 'Üsküdar', 'Şişli', 'Maltepe', 'Kartal', 'Pendik', 'Ümraniye', 'Ataşehir', 'Beylikdüzü', 'Esenyurt'] },
+  { name: 'İstanbul', districts: ['Kadıköy', 'Beşiktaş', 'Üsküdar', 'Şişli', 'Maltepe', 'Kartal', 'Pendik', 'Ümraniye', 'Ataşehir', 'Beylikdüzü', 'Esenyurt', 'Fatih', 'Bakırköy'] },
   { name: 'Ankara', districts: ['Çankaya', 'Keçiören', 'Yenimahalle', 'Mamak', 'Etimesgut', 'Sincan', 'Altındağ', 'Pursaklar', 'Gölbaşı'] },
   { name: 'İzmir', districts: ['Karşıyaka', 'Konak', 'Bornova', 'Buca', 'Çiğli', 'Gaziemir', 'Balçova', 'Narlıdere', 'Urla', 'Çeşme'] },
   { name: 'Antalya', districts: ['Muratpaşa', 'Kepez', 'Konyaaltı', 'Alanya', 'Manavgat', 'Serik', 'Kemer', 'Kaş'] },
@@ -14,13 +14,7 @@ export const cities = [
   { name: 'Kayseri', districts: ['Melikgazi', 'Kocasinan', 'Talas'] },
   { name: 'Sakarya', districts: ['Adapazarı', 'Serdivan', 'Erenler'] },
   { name: 'Muğla', districts: ['Bodrum', 'Fethiye', 'Marmaris', 'Menteşe', 'Milas'] },
-  { name: 'Trabzon', districts: ['Ortahisar', 'Akçaabat', 'Yomra'] },
-  { name: 'Tekirdağ', districts: ['Süleymanpaşa', 'Çorlu', 'Çerkezköy'] },
-  { name: 'Hatay', districts: ['Antakya', 'İskenderun', 'Defne'] },
-  { name: 'Manisa', districts: ['Yunusemre', 'Şehzadeler', 'Akhisar', 'Turgutlu'] },
-  { name: 'Balıkesir', districts: ['Altıeylül', 'Karesi', 'Edremit', 'Bandırma'] },
-  { name: 'Diyarbakır', districts: ['Bağlar', 'Kayapınar', 'Yenişehir'] },
-  { name: 'Şanlıurfa', districts: ['Haliliye', 'Eyyübiye', 'Karaköprü'] }
+  { name: 'Trabzon', districts: ['Ortahisar', 'Akçaabat', 'Yomra'] }
 ].sort((a, b) => a.name.localeCompare(b.name));
 
 export const getDistricts = (cityName: string) => {
