@@ -1,16 +1,21 @@
-
 "use client";
-import React, { useState } from 'react';
-import { Search, User, Edit, Zap, Shield, ChevronDown, ChevronUp } from 'lucide-react';
-import { helpCategories, faqItems } from '@/lib/contentData';
+import React, { useState, useEffect } from 'react';
+import { Search, ChevronDown, ChevronUp, CircleHelp } from 'lucide-react';
+import { getHelpContentServer } from '@/lib/actions';
 
-const iconMap: any = { User, Edit, Zap, Shield };
+// Client Component olduğu için veriyi useEffect ile çekeceğiz veya server component wrapper kullanacağız.
+// Bu örnekte Server Action'ı client'tan çağırıyoruz.
 
 export default function HelpPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [data, setData] = useState<{ categories: any[], faqs: any[] }>({ categories: [], faqs: [] });
 
-  const filteredFaqs = faqItems.filter(item =>
+  useEffect(() => {
+    getHelpContentServer().then(setData);
+  }, []);
+
+  const filteredFaqs = data.faqs.filter((item: any) =>
     item.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.answer.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -18,7 +23,6 @@ export default function HelpPage() {
   return (
     <div className="bg-[#f6f7f9] min-h-screen pb-10">
 
-      {/* Hero Arama Alanı */}
       <div className="bg-[#2d405a] text-white py-12 px-4 text-center">
         <h1 className="text-2xl font-bold mb-4">Size nasıl yardımcı olabiliriz?</h1>
         <div className="max-w-[600px] mx-auto relative">
@@ -37,18 +41,15 @@ export default function HelpPage() {
 
         {/* Kategoriler */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          {helpCategories.map(cat => {
-            const Icon = iconMap[cat.icon];
-            return (
-              <div key={cat.id} className="bg-white p-6 rounded-sm shadow-sm border border-gray-200 hover:shadow-md transition-shadow text-center cursor-pointer">
-                <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Icon size={24} />
-                </div>
-                <h3 className="font-bold text-[#333] mb-1">{cat.title}</h3>
-                <p className="text-xs text-gray-500">{cat.desc}</p>
+          {data.categories.map((cat: any) => (
+            <div key={cat.id} className="bg-white p-6 rounded-sm shadow-sm border border-gray-200 hover:shadow-md transition-shadow text-center cursor-pointer">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <CircleHelp size={24}/>
               </div>
-            );
-          })}
+              <h3 className="font-bold text-[#333] mb-1">{cat.title}</h3>
+              <p className="text-xs text-gray-500">{cat.description}</p>
+            </div>
+          ))}
         </div>
 
         {/* Sıkça Sorulan Sorular */}
@@ -59,7 +60,7 @@ export default function HelpPage() {
 
           <div className="space-y-2">
             {filteredFaqs.length > 0 ? (
-              filteredFaqs.map(item => (
+              filteredFaqs.map((item: any) => (
                 <div key={item.id} className="border border-gray-100 rounded-sm overflow-hidden">
                   <button
                     onClick={() => setOpenFaq(openFaq === item.id ? null : item.id)}

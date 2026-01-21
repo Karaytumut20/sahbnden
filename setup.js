@@ -13,7 +13,7 @@ const colors = {
 console.log(
   colors.cyan +
     colors.bold +
-    "\n🚀 SAHİBİNDEN CLONE - GELİŞTİRME PAKETİ 6 (ADVANCED UX & TOOLS)\n" +
+    "\n🚀 SAHİBİNDEN CLONE - GELİŞTİRME PAKETİ 7 (TAM DİNAMİK YAPI)\n" +
     colors.reset,
 );
 
@@ -22,611 +22,727 @@ function writeFile(filePath, content) {
   const dir = path.dirname(absolutePath);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(absolutePath, content.trim());
-  console.log(
-    `${colors.green}✔ Oluşturuldu/Güncellendi:${colors.reset} ${filePath}`,
-  );
+  console.log(`${colors.green}✔ Güncellendi:${colors.reset} ${filePath}`);
 }
 
 // -------------------------------------------------------------------------
-// 1. COMPONENTS/UI/IMAGEUPLOADER.TSX (Yeni Profesyonel Yükleyici)
+// 1. LIB/ACTIONS.TS (Tüm Veri Çekme Fonksiyonları)
 // -------------------------------------------------------------------------
-const imageUploaderPath = "components/ui/ImageUploader.tsx";
-const imageUploaderContent = `
-"use client";
-import React, { useRef, useState } from 'react';
-import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react';
-import { uploadImageClient } from '@/lib/services';
-import { useToast } from '@/context/ToastContext';
+const actionsPath = "lib/actions.ts";
+const newActionsContent = `
+'use server'
+import { createClient } from '@/lib/supabase/server'
+import { revalidatePath } from 'next/cache'
 
-type ImageUploaderProps = {
-  onImagesChange: (urls: string[]) => void;
-  initialImages?: string[];
+// --- KATEGORİLER ---
+export async function getCategoriesServer() {
+  const supabase = await createClient()
+  // Alt kategorileriyle birlikte çekmek için self-join veya recursive query gerekebilir.
+  // Basitlik için tüm kategorileri çekip client tarafında tree yapabiliriz veya
+  // burada sadece ana kategorileri çekip altlarını lazy load yapabiliriz.
+  // Şimdilik düz liste çekiyoruz.
+  const { data } = await supabase.from('categories').select('*').order('title');
+  return data || [];
+}
+
+export async function getCategoryTreeServer() {
+  const supabase = await createClient();
+  const { data } = await supabase.from('categories').select('*').order('title');
+
+  if (!data) return [];
+
+  // Parent-Child ilişkisini kur
+  const parents = data.filter(c => !c.parent_id);
+  return parents.map(p => ({
+    ...p,
+    subs: data.filter(c => c.parent_id === p.id)
+  }));
+}
+
+// --- İLANLAR ---
+export async function getAdsServer(searchParams?: any) {
+  const supabase = await createClient()
+  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)').eq('status', 'yayinda')
+
+  // Filtreler
+  if (searchParams?.q) query = query.ilike('title', \`%\${searchParams.q}%\`)
+  if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice)
+  if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice)
+  if (searchParams?.city) query = query.eq('city', searchParams.city)
+
+  // Kategori Filtresi (Slug veya ID ile)
+  if (searchParams?.category) {
+      // Eğer kategori ID ise direkt, slug ise join ile bakmak lazım.
+      // Basitlik için category sütununun slug tuttuğunu varsayalım veya join yapalım.
+      // Veritabanı tasarımında ads tablosunda category_slug veya category_id olması gerek.
+      // Şimdilik 'category' kolonu slug tutuyor varsayıyoruz.
+      query = query.eq('category', searchParams.category)
+  }
+
+  // Sıralama
+  if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true })
+  else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false })
+  else query = query.order('created_at', { ascending: false })
+
+  const { data } = await query
+  return data || []
+}
+
+export async function getAdDetailServer(id: number) {
+  const supabase = await createClient()
+  const { data } = await supabase.from('ads').select('*, profiles(*), categories(title)').eq('id', id).single()
+  return data
+}
+
+export async function getRelatedAdsServer(category: string, currentId: number) {
+    const supabase = await createClient();
+    const { data } = await supabase.from('ads')
+        .select('*')
+        .eq('category', category)
+        .eq('status', 'yayinda')
+        .neq('id', currentId)
+        .limit(5);
+    return data || [];
+}
+
+export async function getShowcaseAdsServer() {
+  const supabase = await createClient()
+  const { data } = await supabase.from('ads').select('*').eq('status', 'yayinda').order('is_vitrin', { ascending: false }).limit(20)
+  return data || []
+}
+
+export async function getAdsByIds(ids: number[]) {
+    if (!ids || ids.length === 0) return [];
+    const supabase = await createClient();
+    const { data } = await supabase.from('ads').select('*, profiles(full_name)').in('id', ids);
+    return data || [];
+}
+
+// --- İÇERİK (CMS) ---
+export async function getPageBySlugServer(slug: string) {
+    const supabase = await createClient();
+    const { data } = await supabase.from('pages').select('*').eq('slug', slug).single();
+    return data;
+}
+
+export async function getHelpContentServer() {
+    const supabase = await createClient();
+    const { data: categories } = await supabase.from('faq_categories').select('*');
+    const { data: faqs } = await supabase.from('faqs').select('*');
+    return { categories: categories || [], faqs: faqs || [] };
+}
+
+// --- ADMIN STATS ---
+export async function getAdminStatsServer() {
+    const supabase = await createClient();
+
+    // Paralel sorgular
+    const [users, ads, payments] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('ads').select('*', { count: 'exact', head: true }).eq('status', 'yayinda'),
+        supabase.from('payments').select('amount') // Ciro hesabı için
+    ]);
+
+    const totalRevenue = payments.data?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+
+    return {
+        totalUsers: users.count || 0,
+        activeAds: ads.count || 0,
+        totalRevenue
+    };
+}
+
+// --- İŞLEMLER ---
+export async function createAdAction(formData: any) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Giriş yapmalısınız' }
+
+  const adData = { ...formData, user_id: user.id, status: 'onay_bekliyor' }
+  const { data, error } = await supabase.from('ads').insert([adData]).select('id').single()
+
+  if (error) return { error: error.message }
+  revalidatePath('/')
+  return { success: true, adId: data.id }
+}
+
+export async function activateDopingAction(adId: number, dopingTypes: string[]) {
+  const supabase = await createClient();
+
+  // Ödeme kaydı oluştur (Opsiyonel ama iyi olur)
+  // const { error: payError } = await supabase.from('payments').insert(...)
+
+  const updates: any = {};
+  if (dopingTypes.includes('1')) updates.is_vitrin = true;
+  if (dopingTypes.includes('2')) updates.is_urgent = true;
+  if (dopingTypes.includes('3')) updates.is_bold = true;
+
+  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
+  if (error) return { error: error.message };
+
+  revalidatePath('/');
+  return { success: true };
+}
+
+export async function updateAdAction(id: number, formData: any) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Giriş yapmalısınız' }
+
+    const { error } = await supabase.from('ads').update({ ...formData, status: 'onay_bekliyor' }).eq('id', id).eq('user_id', user.id)
+    if (error) return { error: error.message }
+
+    revalidatePath('/bana-ozel/ilanlarim')
+    return { success: true }
+}
+
+// --- MAĞAZA ---
+export async function getStoreBySlugServer(slug: string) {
+    const supabase = await createClient()
+    const { data } = await supabase.from('stores').select('*').eq('slug', slug).single()
+    return data
+}
+
+export async function getStoreAdsServer(userId: string) {
+    const supabase = await createClient()
+    const { data } = await supabase.from('ads').select('*').eq('user_id', userId).eq('status', 'yayinda')
+    return data || []
+}
+
+export async function createStoreAction(formData: any) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Giriş yapmalısınız' }
+
+    const { error } = await supabase.from('stores').insert([{ ...formData, user_id: user.id }])
+    if (error) return { error: error.message }
+
+    await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id)
+    revalidatePath('/bana-ozel/magazam')
+    return { success: true }
+}
+export async function updateStoreAction(formData: any) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { error: 'Giriş yapmalısınız' }
+    const { error } = await supabase.from('stores').update(formData).eq('user_id', user.id)
+    if (error) return { error: error.message }
+    revalidatePath('/bana-ozel/magazam')
+    return { success: true }
+}
+export async function getMyStoreServer() {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if(!user) return null
+    const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).single()
+    return data
+}
+`;
+writeFile(actionsPath, newActionsContent);
+
+// -------------------------------------------------------------------------
+// 2. COMPONENTS/SIDEBAR.TSX (Dinamik Kategori)
+// -------------------------------------------------------------------------
+const sidebarPath = "components/Sidebar.tsx";
+const sidebarContent = `
+import React from 'react';
+import Link from 'next/link';
+import { Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer, ChevronRight } from 'lucide-react';
+import RecentAdsWidget from '@/components/RecentAdsWidget';
+
+const iconMap: any = {
+  Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer
 };
 
-export default function ImageUploader({ onImagesChange, initialImages = [] }: ImageUploaderProps) {
-  const [images, setImages] = useState<string[]>(initialImages);
-  const [uploading, setUploading] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { addToast } = useToast();
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-
-    setUploading(true);
-    const newUrls: string[] = [];
-
-    // Çoklu yükleme döngüsü
-    for (let i = 0; i < e.target.files.length; i++) {
-      const file = e.target.files[i];
-      try {
-        const url = await uploadImageClient(file);
-        newUrls.push(url);
-      } catch (error) {
-        console.error(error);
-        addToast(\`\${file.name} yüklenirken hata oluştu.\`, 'error');
-      }
-    }
-
-    const updatedList = [...images, ...newUrls];
-    setImages(updatedList);
-    onImagesChange(updatedList);
-    setUploading(false);
-
-    // Input'u temizle ki aynı dosyayı tekrar seçebilsin
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const removeImage = (index: number) => {
-    const updatedList = images.filter((_, i) => i !== index);
-    setImages(updatedList);
-    onImagesChange(updatedList);
-  };
+// Sidebar artık bir Server Component olarak kullanılacaksa props alabilir veya içinde fetch yapabilir.
+// Ancak Sidebar genelde layout veya page içinde çağrılır. Veriyi prop olarak alması en temizidir.
+export default function Sidebar({ categories }: { categories: any[] }) {
 
   return (
-    <div className="space-y-4">
-      <div
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        className={\`border-2 border-dashed border-gray-300 rounded-lg p-8 flex flex-col items-center justify-center cursor-pointer transition-colors \${uploading ? 'bg-gray-50 cursor-wait' : 'hover:bg-blue-50 hover:border-blue-400'}\`}
-      >
-        {uploading ? (
-          <div className="text-center">
-            <Loader2 size={32} className="animate-spin text-blue-600 mx-auto mb-2" />
-            <p className="text-sm text-gray-500 font-bold">Fotoğraflar Yükleniyor...</p>
-          </div>
-        ) : (
-          <div className="text-center">
-            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Upload size={24} />
+    <aside className="w-[220px] shrink-0 hidden md:block py-4 relative z-40">
+      <ul className="border border-gray-200 bg-white shadow-sm rounded-sm dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors">
+        {categories.map((cat) => {
+          const IconComponent = iconMap[cat.icon] || Home;
+          return (
+            <li key={cat.id} className="group border-b border-gray-100 last:border-0 relative dark:border-gray-700">
+              <Link href={\`/search?category=\${cat.slug}\`} className="flex items-center justify-between px-3 py-2.5 text-[13px] text-[#333] hover:bg-blue-50 hover:text-blue-700 transition-colors dark:text-gray-200 dark:hover:bg-blue-900/30 dark:hover:text-blue-400">
+                <span className="flex items-center gap-2.5 font-medium">
+                  <IconComponent size={15} className="text-gray-400 group-hover:text-blue-700 dark:text-gray-500 dark:group-hover:text-blue-400" />
+                  {cat.title}
+                </span>
+                <ChevronRight size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 dark:text-gray-500" />
+              </Link>
+              {/* Alt Kategoriler (Hover Menu) */}
+              {cat.subs && cat.subs.length > 0 && (
+                <div className="hidden group-hover:block absolute left-[100%] top-0 w-[600px] min-h-full bg-white border border-gray-200 shadow-lg p-6 z-50 rounded-r-sm -ml-[1px] dark:bg-[#1c1c1c] dark:border-gray-700">
+                    <h3 className="font-bold text-[#333] text-lg border-b border-gray-200 pb-2 mb-4 dark:text-white dark:border-gray-700">{cat.title}</h3>
+                    <div className="grid grid-cols-3 gap-y-2 gap-x-8">
+                    {cat.subs.map((sub: any) => (
+                        <Link key={sub.id} href={\`/search?category=\${sub.slug}\`} className="text-[13px] text-gray-600 hover:text-blue-700 hover:underline flex items-center gap-1 dark:text-gray-400 dark:hover:text-blue-400">
+                        <span className="w-1 h-1 bg-gray-300 rounded-full dark:bg-gray-600"></span>
+                        {sub.title}
+                        </Link>
+                    ))}
+                    </div>
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      <div className="mt-4 p-3 bg-blue-50 border border-blue-100 rounded-sm text-center dark:bg-[#111827] dark:border-gray-700">
+         <p className="text-[12px] font-bold text-blue-900 dark:text-blue-400">Reklam Alanı</p>
+         <div className="h-[200px] bg-gray-200 mt-2 flex items-center justify-center text-gray-400 text-[10px] dark:bg-gray-800 dark:text-gray-500">
+            Google Ads
+         </div>
+      </div>
+      <RecentAdsWidget />
+    </aside>
+  );
+}
+`;
+writeFile(sidebarPath, sidebarContent);
+
+// -------------------------------------------------------------------------
+// 3. APP/PAGE.TSX (Ana Sayfa - Verileri Çek ve Dağıt)
+// -------------------------------------------------------------------------
+const homePagePath = "app/page.tsx";
+const homePageContent = `
+import Sidebar from "@/components/Sidebar";
+import Showcase from "@/components/Showcase";
+import { getShowcaseAdsServer, getCategoryTreeServer } from "@/lib/actions";
+
+export const revalidate = 60; // 60 saniyede bir verileri tazele
+
+export default async function Home() {
+  // Paralel veri çekme
+  const [vitrinAds, categories] = await Promise.all([
+    getShowcaseAdsServer(),
+    getCategoryTreeServer()
+  ]);
+
+  // Acil ilanlar (örnek olarak fiyatı düşük olanları veya is_urgent olanları alabiliriz)
+  // Backend'den is_urgent: true olanları ayrı çekmek daha performanslıdır ama şimdilik filter kullanıyoruz.
+  const urgentAds = vitrinAds.filter((ad: any) => ad.is_urgent) || [];
+
+  return (
+    <div className="flex gap-4">
+      {/* Kategorileri Sidebar'a prop olarak geçiyoruz */}
+      <Sidebar categories={categories} />
+      <Showcase vitrinAds={vitrinAds} urgentAds={urgentAds} />
+    </div>
+  );
+}
+`;
+writeFile(homePagePath, homePageContent);
+
+// -------------------------------------------------------------------------
+// 4. APP/ILAN-VER/PAGE.TSX (Dinamik Kategori Seçimi)
+// -------------------------------------------------------------------------
+const postAdPagePath = "app/ilan-ver/page.tsx";
+const postAdPageContent = `
+import React from 'react';
+import Link from 'next/link';
+import { Home, Car, Monitor, ChevronRight, Briefcase, Shirt, BookOpen, Dog, Hammer } from 'lucide-react';
+import { getCategoryTreeServer } from '@/lib/actions';
+
+const iconMap: any = { Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer };
+
+export default async function PostAdCategory() {
+  const categories = await getCategoryTreeServer();
+
+  return (
+    <div className="max-w-[800px] mx-auto py-8">
+      <h1 className="text-xl font-bold text-[#333] mb-6 border-b pb-2 dark:text-white dark:border-gray-700">Adım 1: Kategori Seçimi</h1>
+
+      <div className="bg-white border border-gray-200 shadow-sm rounded-sm dark:bg-[#1c1c1c] dark:border-gray-700">
+        <ul className="divide-y divide-gray-100 dark:divide-gray-700">
+          {categories.map((cat: any) => {
+            const Icon = iconMap[cat.icon] || Home;
+            return (
+              <li key={cat.id} className="group">
+                <div className="p-4 flex items-center justify-between cursor-pointer hover:bg-blue-50 transition-colors dark:hover:bg-blue-900/20">
+                  <div className="flex items-center gap-3">
+                    <Icon size={20} className="text-gray-500 dark:text-gray-400" />
+                    <span className="font-bold text-[#333] dark:text-gray-100">{cat.title}</span>
+                  </div>
+                  <ChevronRight size={18} className="text-gray-400" />
+                </div>
+
+                {/* Alt Kategori */}
+                {cat.subs && cat.subs.length > 0 && (
+                    <div className="bg-gray-50 pl-12 pr-4 py-2 hidden group-hover:block border-t border-gray-100 dark:bg-gray-800 dark:border-gray-700">
+                        <p className="text-[11px] text-gray-500 mb-2 font-semibold dark:text-gray-400">ALT KATEGORİ SEÇİNİZ:</p>
+                        <div className="grid grid-cols-2 gap-2">
+                        {cat.subs.map((sub: any) => (
+                            <Link
+                            key={sub.id}
+                            href={\`/ilan-ver/detay?cat=\${cat.slug}&sub=\${sub.slug}\`}
+                            className="text-[13px] text-blue-800 hover:underline hover:text-blue-900 flex items-center dark:text-blue-400 dark:hover:text-blue-300"
+                            >
+                            <span className="w-1 h-1 bg-blue-500 rounded-full mr-2"></span>
+                            {sub.title}
+                            </Link>
+                        ))}
+                        </div>
+                    </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </div>
+  );
+}
+`;
+writeFile(postAdPagePath, postAdPageContent);
+
+// -------------------------------------------------------------------------
+// 5. COMPONENTS/RELATEDADS.TSX (Gerçek Benzer İlanlar)
+// -------------------------------------------------------------------------
+const relatedAdsPath = "components/RelatedAds.tsx";
+const relatedAdsContent = `
+import React from 'react';
+import Link from 'next/link';
+import { getRelatedAdsServer } from '@/lib/actions';
+
+// Server Component olarak çalışacak
+export default async function RelatedAds({ category, currentId }: { category: string, currentId: number }) {
+  const related = await getRelatedAdsServer(category, currentId);
+
+  if (!related || related.length === 0) return null;
+
+  return (
+    <div className="mt-8 border-t border-gray-200 pt-6">
+      <h3 className="font-bold text-[#333] text-md mb-4">Benzer İlanlar</h3>
+
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        {related.map((ad: any) => (
+          <Link href={\`/ilan/\${ad.id}\`} key={ad.id} className="block group">
+            <div className="bg-white border border-gray-200 rounded-sm shadow-sm hover:shadow-md transition-all cursor-pointer h-full flex flex-col">
+              <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+                <img
+                  src={ad.image || 'https://via.placeholder.com/300x200'}
+                  alt={ad.title}
+                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                />
+              </div>
+              <div className="p-2 space-y-1 flex-1 flex flex-col justify-between">
+                <p className="text-[11px] text-[#333] font-semibold leading-tight group-hover:underline line-clamp-2">
+                  {ad.title}
+                </p>
+                <div className="pt-2">
+                   <p className="text-[13px] font-bold text-blue-900">
+                     {ad.price?.toLocaleString()} {ad.currency}
+                   </p>
+                   <p className="text-[9px] text-gray-500 truncate">{ad.city} / {ad.district}</p>
+                </div>
+              </div>
             </div>
-            <p className="text-sm font-bold text-gray-700">Fotoğraf Yüklemek İçin Tıklayın</p>
-            <p className="text-xs text-gray-400 mt-1">veya sürükleyip bırakın (Max 10 Adet)</p>
-          </div>
-        )}
-        <input
-          type="file"
-          ref={fileInputRef}
-          onChange={handleFileChange}
-          className="hidden"
-          multiple
-          accept="image/*"
-          disabled={uploading}
+          </Link>
+        ))}
+      </div>
+    </div>
+  );
+}
+`;
+writeFile(relatedAdsPath, relatedAdsContent);
+
+// -------------------------------------------------------------------------
+// 6. APP/KURUMSAL/[SLUG]/PAGE.TSX (Dinamik Sayfa)
+// -------------------------------------------------------------------------
+const corporatePath = "app/kurumsal/[slug]/page.tsx";
+const corporateContent = `
+import React from 'react';
+import { notFound } from 'next/navigation';
+import { getPageBySlugServer } from '@/lib/actions';
+import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
+
+export default async function CorporatePage({ params }: { params: Promise<{ slug: string }> }) {
+  const { slug } = await params;
+  const page = await getPageBySlugServer(slug);
+
+  if (!page) return notFound();
+
+  return (
+    <div className="container max-w-[1000px] mx-auto py-8 px-4 flex flex-col md:flex-row gap-8">
+
+      {/* Sol Menü - İdealde burası da dinamik bir liste olabilir */}
+      <div className="w-full md:w-[250px] shrink-0">
+        <div className="bg-white border border-gray-200 rounded-sm shadow-sm">
+          <div className="p-4 border-b border-gray-100 font-bold text-[#333]">Kurumsal</div>
+          <ul>
+            {['hakkimizda', 'kullanim-kosullari', 'gizlilik-politikasi'].map(key => (
+              <li key={key}>
+                <Link
+                  href={\`/kurumsal/\${key}\`}
+                  className={\`block px-4 py-3 text-sm border-b border-gray-50 last:border-0 hover:bg-gray-50 flex items-center justify-between \${slug === key ? 'text-blue-700 font-bold bg-blue-50' : 'text-gray-600'}\`}
+                >
+                  {key.replace('-', ' ').toUpperCase()}
+                  {slug === key && <ChevronRight size={14} />}
+                </Link>
+              </li>
+            ))}
+            <li>
+              <Link href="/iletisim" className="block px-4 py-3 text-sm text-gray-600 hover:bg-gray-50">
+                İletişim
+              </Link>
+            </li>
+          </ul>
+        </div>
+      </div>
+
+      <div className="flex-1 bg-white border border-gray-200 rounded-sm shadow-sm p-8">
+        <h1 className="text-2xl font-bold text-[#333] mb-6 border-b border-gray-100 pb-4">
+          {page.title}
+        </h1>
+        <div
+          className="text-sm text-gray-700 leading-relaxed"
+          dangerouslySetInnerHTML={{ __html: page.content }}
         />
       </div>
 
-      {/* Önizleme Alanı */}
-      {images.length > 0 && (
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-4 animate-in fade-in slide-in-from-bottom-2">
-          {images.map((url, idx) => (
-            <div key={idx} className="relative group aspect-square bg-gray-100 rounded-md border border-gray-200 overflow-hidden">
-              <img src={url} alt={\`Yüklenen \${idx}\`} className="w-full h-full object-cover" />
+    </div>
+  );
+}
+`;
+writeFile(corporatePath, corporateContent);
 
-              {/* Vitrin Etiketi (İlk Resim) */}
-              {idx === 0 && (
-                <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10">
-                  VİTRİN
-                </div>
-              )}
+// -------------------------------------------------------------------------
+// 7. APP/YARDIM/PAGE.TSX (Dinamik Yardım)
+// -------------------------------------------------------------------------
+const helpPath = "app/yardim/page.tsx";
+const helpContent = `
+"use client";
+import React, { useState, useEffect } from 'react';
+import { Search, ChevronDown, ChevronUp, CircleHelp } from 'lucide-react';
+import { getHelpContentServer } from '@/lib/actions';
 
-              {/* Sil Butonu */}
-              <button
-                onClick={() => removeImage(idx)}
-                className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700"
-                title="Fotoğrafı Kaldır"
-              >
-                <X size={12} />
-              </button>
+// Client Component olduğu için veriyi useEffect ile çekeceğiz veya server component wrapper kullanacağız.
+// Bu örnekte Server Action'ı client'tan çağırıyoruz.
+
+export default function HelpPage() {
+  const [searchTerm, setSearchTerm] = useState('');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [data, setData] = useState<{ categories: any[], faqs: any[] }>({ categories: [], faqs: [] });
+
+  useEffect(() => {
+    getHelpContentServer().then(setData);
+  }, []);
+
+  const filteredFaqs = data.faqs.filter((item: any) =>
+    item.question.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    item.answer.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  return (
+    <div className="bg-[#f6f7f9] min-h-screen pb-10">
+
+      <div className="bg-[#2d405a] text-white py-12 px-4 text-center">
+        <h1 className="text-2xl font-bold mb-4">Size nasıl yardımcı olabiliriz?</h1>
+        <div className="max-w-[600px] mx-auto relative">
+          <input
+            type="text"
+            placeholder="Sorunuzu buraya yazın (Örn: Şifremi unuttum)"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full h-12 pl-12 pr-4 rounded-sm text-black focus:outline-none shadow-lg"
+          />
+          <Search className="absolute left-4 top-3.5 text-gray-400" />
+        </div>
+      </div>
+
+      <div className="container max-w-[1000px] mx-auto px-4 -mt-8 relative z-10">
+
+        {/* Kategoriler */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+          {data.categories.map((cat: any) => (
+            <div key={cat.id} className="bg-white p-6 rounded-sm shadow-sm border border-gray-200 hover:shadow-md transition-shadow text-center cursor-pointer">
+              <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                 <CircleHelp size={24}/>
+              </div>
+              <h3 className="font-bold text-[#333] mb-1">{cat.title}</h3>
+              <p className="text-xs text-gray-500">{cat.description}</p>
             </div>
           ))}
         </div>
-      )}
-    </div>
-  );
-}
-`;
-writeFile(imageUploaderPath, imageUploaderContent);
 
-// -------------------------------------------------------------------------
-// 2. COMPONENTS/TOOLS/LOANCALCULATOR.TSX (Kredi Hesaplama)
-// -------------------------------------------------------------------------
-const loanCalcPath = "components/tools/LoanCalculator.tsx";
-const loanCalcContent = `
-"use client";
-import React, { useState, useEffect } from 'react';
-import { Calculator, ArrowRight } from 'lucide-react';
+        {/* Sıkça Sorulan Sorular */}
+        <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6">
+          <h2 className="text-xl font-bold text-[#333] mb-6 border-b border-gray-100 pb-2">
+            {searchTerm ? 'Arama Sonuçları' : 'Sıkça Sorulan Sorular'}
+          </h2>
 
-export default function LoanCalculator({ price }: { price: number }) {
-  const [amount, setAmount] = useState(price ? Math.floor(price * 0.8) : 1000000); // Varsayılan %80 kredi
-  const [term, setTerm] = useState(120); // 120 Ay
-  const [rate, setRate] = useState(3.05); // Faiz Oranı
-  const [result, setResult] = useState<{ monthly: number; total: number } | null>(null);
-
-  useEffect(() => {
-    calculate();
-  }, [amount, term, rate]);
-
-  const calculate = () => {
-    const r = rate / 100;
-    const monthly = (amount * r * Math.pow(1 + r, term)) / (Math.pow(1 + r, term) - 1);
-    const total = monthly * term;
-    setResult({ monthly, total });
-  };
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-5 mt-4">
-      <h3 className="font-bold text-[#333] flex items-center gap-2 mb-4 border-b border-gray-100 pb-2">
-        <Calculator size={18} className="text-blue-600" /> Kredi Hesaplama
-      </h3>
-
-      <div className="space-y-3 mb-4">
-        <div>
-          <label className="block text-xs font-bold text-gray-500 mb-1">Kredi Tutarı (TL)</label>
-          <input
-            type="number"
-            value={amount}
-            onChange={(e) => setAmount(Number(e.target.value))}
-            className="w-full border border-gray-300 rounded-sm p-2 text-sm focus:border-blue-500 outline-none"
-          />
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">Vade (Ay)</label>
-            <select
-              value={term}
-              onChange={(e) => setTerm(Number(e.target.value))}
-              className="w-full border border-gray-300 rounded-sm p-2 text-sm bg-white outline-none"
-            >
-              {[12, 24, 36, 48, 60, 120, 180, 240].map(m => (
-                <option key={m} value={m}>{m} Ay</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-500 mb-1">Faiz Oranı (%)</label>
-            <input
-              type="number"
-              step="0.01"
-              value={rate}
-              onChange={(e) => setRate(Number(e.target.value))}
-              className="w-full border border-gray-300 rounded-sm p-2 text-sm focus:border-blue-500 outline-none"
-            />
+          <div className="space-y-2">
+            {filteredFaqs.length > 0 ? (
+              filteredFaqs.map((item: any) => (
+                <div key={item.id} className="border border-gray-100 rounded-sm overflow-hidden">
+                  <button
+                    onClick={() => setOpenFaq(openFaq === item.id ? null : item.id)}
+                    className="w-full flex justify-between items-center p-4 bg-gray-50 hover:bg-gray-100 text-left transition-colors"
+                  >
+                    <span className="font-semibold text-sm text-[#333]">{item.question}</span>
+                    {openFaq === item.id ? <ChevronUp size={16} className="text-gray-500" /> : <ChevronDown size={16} className="text-gray-500" />}
+                  </button>
+                  {openFaq === item.id && (
+                    <div className="p-4 bg-white text-sm text-gray-600 border-t border-gray-100 animate-in slide-in-from-top-2">
+                      {item.answer}
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-gray-500 py-4">Aradığınız kriterlere uygun sonuç bulunamadı.</p>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="bg-blue-50 p-3 rounded-sm border border-blue-100">
-        <div className="flex justify-between items-center mb-1">
-          <span className="text-xs text-blue-800">Aylık Taksit:</span>
-          <span className="text-sm font-bold text-blue-900">{result?.monthly.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL</span>
-        </div>
-        <div className="flex justify-between items-center">
-          <span className="text-xs text-gray-500">Toplam Geri Ödeme:</span>
-          <span className="text-xs font-bold text-gray-600">{result?.total.toLocaleString('tr-TR', { maximumFractionDigits: 0 })} TL</span>
-        </div>
       </div>
-
-      <button className="w-full mt-3 text-xs text-gray-500 hover:text-blue-700 flex items-center justify-center gap-1 font-bold">
-        Detaylı Hesaplama <ArrowRight size={12} />
-      </button>
     </div>
   );
 }
 `;
-writeFile(loanCalcPath, loanCalcContent);
+writeFile(helpPath, helpContent);
 
 // -------------------------------------------------------------------------
-// 3. CONTEXT/COMPARECONTEXT.TSX (LocalStorage Kalıcılık)
+// 8. APP/ADMIN/PAGE.TSX (Dinamik Admin Dashboard)
 // -------------------------------------------------------------------------
-const compareContextPath = "context/CompareContext.tsx";
-const compareContextContent = `
-"use client";
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import { useToast } from '@/context/ToastContext';
-
-type CompareContextType = {
-  compareList: number[];
-  addToCompare: (id: number) => void;
-  removeFromCompare: (id: number) => void;
-  clearCompare: () => void;
-  isInCompare: (id: number) => boolean;
-};
-
-const CompareContext = createContext<CompareContextType | undefined>(undefined);
-
-export function CompareProvider({ children }: { children: React.ReactNode }) {
-  const [compareList, setCompareList] = useState<number[]>([]);
-  const { addToast } = useToast();
-
-  // İlk yüklemede LocalStorage'dan oku
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('compare_list');
-      if (stored) {
-        try {
-          setCompareList(JSON.parse(stored));
-        } catch (e) {
-          console.error("Karşılaştırma listesi okunamadı", e);
-        }
-      }
-    }
-  }, []);
-
-  // State değiştiğinde LocalStorage'a yaz
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('compare_list', JSON.stringify(compareList));
-    }
-  }, [compareList]);
-
-  const addToCompare = (id: number) => {
-    if (compareList.length >= 4) {
-      addToast('En fazla 4 ilan karşılaştırabilirsiniz.', 'error');
-      return;
-    }
-    if (!compareList.includes(id)) {
-      setCompareList(prev => [...prev, id]);
-      addToast('Karşılaştırma listesine eklendi.', 'success');
-    }
-  };
-
-  const removeFromCompare = (id: number) => {
-    setCompareList(prev => prev.filter(itemId => itemId !== id));
-  };
-
-  const clearCompare = () => {
-    setCompareList([]);
-  };
-
-  const isInCompare = (id: number) => compareList.includes(id);
-
-  return (
-    <CompareContext.Provider value={{ compareList, addToCompare, removeFromCompare, clearCompare, isInCompare }}>
-      {children}
-    </CompareContext.Provider>
-  );
-}
-
-export function useCompare() {
-  const context = useContext(CompareContext);
-  if (context === undefined) {
-    throw new Error('useCompare must be used within a CompareProvider');
-  }
-  return context;
-}
-`;
-writeFile(compareContextPath, compareContextContent);
-
-// -------------------------------------------------------------------------
-// 4. APP/ILAN-VER/DETAY/PAGE.TSX (Yeni Uploader Entegrasyonu)
-// -------------------------------------------------------------------------
-const postAdDetailPath = "app/ilan-ver/detay/page.tsx";
-const postAdDetailContent = `
-"use client";
-import React, { useState, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Save, Loader2 } from 'lucide-react';
-import { useToast } from '@/context/ToastContext';
-import { useAuth } from '@/context/AuthContext';
-import RealEstateFields from '@/components/form/RealEstateFields';
-import VehicleFields from '@/components/form/VehicleFields';
-import ImageUploader from '@/components/ui/ImageUploader'; // YENİ
-import { createAdAction } from '@/lib/actions';
-
-function PostAdFormContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { addToast } = useToast();
-  const { user } = useAuth();
-
-  const category = searchParams.get('cat') || 'genel';
-
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
-  const [formData, setFormData] = useState<any>({});
-
-  const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handleDynamicChange = (name: string, value: string) => setFormData({ ...formData, [name]: value });
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) { router.push('/login'); return; }
-
-    setIsSubmitting(true);
-
-    const finalData = {
-        ...formData,
-        category,
-        image: images[0] || null, // İlk resmi kapak resmi yap
-        // İleride 'images' array sütunu eklenebilir veritabanına
-        price: Number(formData.price),
-        year: Number(formData.year),
-        km: Number(formData.km),
-        m2: Number(formData.m2),
-        floor: Number(formData.floor)
-    };
-
-    const res = await createAdAction(finalData);
-
-    if (res.error) {
-        addToast(res.error, 'error');
-    } else {
-        addToast('İlan başarıyla oluşturuldu! Doping sayfasına yönlendiriliyorsunuz...', 'success');
-        // İlan ID'si ile doping sayfasına git
-        router.push(\`/ilan-ver/doping?adId=\${res.adId}\`);
-    }
-    setIsSubmitting(false);
-  };
-
-  return (
-    <div className="max-w-[800px] mx-auto py-8 px-4">
-      <h1 className="text-xl font-bold text-[#333] mb-4">İlan Oluştur: {category.toUpperCase()}</h1>
-      <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-6">
-
-        {/* 1. Temel Bilgiler */}
-        <div>
-            <h3 className="font-bold text-sm text-gray-700 mb-3 border-b pb-1">Temel Bilgiler</h3>
-            <div className="space-y-4">
-                <div>
-                    <label className="block text-xs font-bold mb-1">İlan Başlığı</label>
-                    <input name="title" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm outline-none focus:border-blue-500" required placeholder="Örn: Sahibinden temiz aile aracı" />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold mb-1">Fiyat</label>
-                        <input name="price" type="number" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm outline-none focus:border-blue-500" required />
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold mb-1">Para Birimi</label>
-                        <select name="currency" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm bg-white outline-none">
-                            <option>TL</option><option>USD</option><option>EUR</option>
-                        </select>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        {/* 2. Kategori Özellikleri */}
-        {category === 'emlak' && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
-        {category === 'vasita' && <VehicleFields data={formData} onChange={handleDynamicChange} />}
-
-        {/* 3. Fotoğraflar (YENİ BİLEŞEN) */}
-        <div>
-            <h3 className="font-bold text-sm text-gray-700 mb-3 border-b pb-1">Fotoğraflar</h3>
-            <ImageUploader onImagesChange={setImages} />
-        </div>
-
-        {/* 4. Açıklama ve Adres */}
-        <div>
-            <h3 className="font-bold text-sm text-gray-700 mb-3 border-b pb-1">Detaylar</h3>
-            <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                    <div>
-                        <label className="block text-xs font-bold mb-1">İl</label>
-                        <select name="city" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm bg-white outline-none">
-                            <option value="">Seçiniz</option>
-                            <option value="İstanbul">İstanbul</option>
-                            <option value="Ankara">Ankara</option>
-                            <option value="İzmir">İzmir</option>
-                        </select>
-                    </div>
-                    <div>
-                        <label className="block text-xs font-bold mb-1">İlçe</label>
-                        <input name="district" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm outline-none" placeholder="Örn: Kadıköy"/>
-                    </div>
-                </div>
-                <div>
-                    <label className="block text-xs font-bold mb-1">Açıklama</label>
-                    <textarea name="description" onChange={handleInputChange} className="w-full border border-gray-300 p-2 rounded-sm h-32 resize-none focus:border-blue-500 outline-none" required placeholder="İlanınızla ilgili detaylı bilgi verin..."></textarea>
-                </div>
-            </div>
-        </div>
-
-        <button disabled={isSubmitting} className="w-full bg-[#ffe800] py-3 font-bold text-sm rounded-sm hover:bg-yellow-400 disabled:opacity-50 flex items-center justify-center gap-2">
-            {isSubmitting ? <><Loader2 className="animate-spin" size={18}/> Kaydediliyor...</> : 'Devam Et'}
-        </button>
-
-      </form>
-    </div>
-  );
-}
-
-export default function PostAdPage() {
-    return <Suspense fallback={<div className="p-10 text-center">Yükleniyor...</div>}><PostAdFormContent /></Suspense>
-}
-`;
-writeFile(postAdDetailPath, postAdDetailContent);
-
-// -------------------------------------------------------------------------
-// 5. APP/ILAN/[ID]/PAGE.TSX (Kredi Hesaplama Entegrasyonu)
-// -------------------------------------------------------------------------
-const adDetailPagePath = "app/ilan/[id]/page.tsx";
-const adDetailPageContent = `
+const adminPath = "app/admin/page.tsx";
+const adminContent = `
 import React from 'react';
-import { notFound } from 'next/navigation';
-import { getAdDetailServer } from '@/lib/actions';
-import Breadcrumb from '@/components/Breadcrumb';
-import Gallery from '@/components/Gallery';
-import MobileAdActionBar from '@/components/MobileAdActionBar';
-import AdActionButtons from '@/components/AdActionButtons';
-import StickyAdHeader from '@/components/StickyAdHeader';
-import SellerSidebar from '@/components/SellerSidebar';
-import Tabs from '@/components/AdDetail/Tabs';
-import FeaturesTab from '@/components/AdDetail/FeaturesTab';
-import LocationTab from '@/components/AdDetail/LocationTab';
-import LoanCalculator from '@/components/tools/LoanCalculator'; // YENİ
-import Badge from '@/components/ui/Badge';
-import { Calendar, Eye, Hash, MapPin } from 'lucide-react';
+import { Users, FileText, TrendingUp, AlertCircle } from 'lucide-react';
+import { getAdminStatsServer } from '@/lib/actions';
 
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const ad = await getAdDetailServer(Number(id));
-  if (!ad) return { title: 'İlan Bulunamadı' };
-  return {
-    title: \`\${ad.title} - sahibinden.com Klon\`,
-    description: \`\${ad.city} / \${ad.district} bölgesindeki bu fırsatı kaçırmayın. Fiyat: \${ad.price} \${ad.currency}\`,
-  };
-}
+export default async function AdminDashboard() {
+  const stats = await getAdminStatsServer();
 
-export default async function AdDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  const ad = await getAdDetailServer(Number(id));
-
-  if (!ad) return notFound();
-
-  const formattedPrice = ad.price?.toLocaleString('tr-TR');
-  const location = \`\${ad.city || ''} / \${ad.district || ''}\`;
-  const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '' };
-
-  const tabItems = [
-    {
-      id: 'desc',
-      label: 'İlan Açıklaması',
-      content: (
-        <div className="text-[14px] text-[#333] leading-relaxed whitespace-pre-wrap font-sans">
-          {ad.description}
-        </div>
-      )
-    },
-    {
-      id: 'features',
-      label: 'İlan Özellikleri',
-      content: <FeaturesTab ad={ad} />
-    },
-    {
-      id: 'location',
-      label: 'Konum',
-      content: <LocationTab city={ad.city} district={ad.district} />
-    }
+  const statCards = [
+    { title: 'Toplam Üye', value: stats.totalUsers, icon: Users, color: 'bg-blue-500' },
+    { title: 'Aktif İlanlar', value: stats.activeAds, icon: FileText, color: 'bg-green-500' },
+    { title: 'Toplam Ciro', value: \`\${stats.totalRevenue} TL\`, icon: TrendingUp, color: 'bg-purple-500' },
+    { title: 'Bekleyen İşler', value: '0', icon: AlertCircle, color: 'bg-orange-500' },
   ];
 
-  const attributes = [
-    { label: 'İlan No', value: ad.id, icon: Hash },
-    { label: 'İlan Tarihi', value: new Date(ad.created_at).toLocaleDateString('tr-TR'), icon: Calendar },
-    { label: 'Konum', value: location, icon: MapPin },
-    { label: 'Metrekare', value: ad.m2 ? \`\${ad.m2} m²\` : null },
-    { label: 'Oda Sayısı', value: ad.room },
-    { label: 'Bina Yaşı', value: ad.year ? \`\${2025 - ad.year} Yaşında\` : null },
-    { label: 'Bulunduğu Kat', value: ad.floor ? \`\${ad.floor}. Kat\` : null },
-    { label: 'Isıtma', value: ad.heating },
-    { label: 'Marka', value: ad.brand },
-    { label: 'Yıl', value: ad.year },
-    { label: 'KM', value: ad.km ? \`\${ad.km.toLocaleString()} KM\` : null },
-    { label: 'Vites', value: ad.gear },
-    { label: 'Yakıt', value: ad.fuel },
-  ].filter(attr => attr.value);
-
   return (
-    <div className="pb-20 relative font-sans">
-      <StickyAdHeader title={ad.title} price={formattedPrice} currency={ad.currency} />
+    <div>
+      <h1 className="text-2xl font-bold text-gray-800 mb-6">Genel Bakış</h1>
 
-      <div className="mb-4">
-        <Breadcrumb path={\`\${ad.category === 'emlak' ? 'Emlak' : 'Vasıta'} > \${location} > İlan Detayı\`} />
-      </div>
-
-      <div className="border-b border-gray-200 pb-4 mb-6">
-        <h1 className="text-[#333] font-bold text-xl mb-2">{ad.title}</h1>
-        <div className="flex gap-2">
-            {ad.is_urgent && <Badge variant="danger">Acil Satılık</Badge>}
-            {ad.is_vitrin && <Badge variant="warning">Vitrinde</Badge>}
-            {ad.price < 2000000 && <Badge variant="success">Fırsat Ürünü</Badge>}
-        </div>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="lg:w-[600px] shrink-0">
-          <Gallery mainImage={ad.image || 'https://via.placeholder.com/800x600?text=Resim+Yok'} />
-
-          <div className="mt-4 hidden md:block">
-             <AdActionButtons id={ad.id} title={ad.title} image={ad.image} sellerName={sellerInfo.full_name} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {statCards.map((stat, index) => (
+          <div key={index} className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+            <div className="flex items-center justify-between mb-4">
+              <div className={\`p-3 rounded-full text-white \${stat.color}\`}>
+                <stat.icon size={24} />
+              </div>
+            </div>
+            <h3 className="text-gray-500 text-sm font-medium">{stat.title}</h3>
+            <p className="text-2xl font-bold text-gray-800 mt-1">{stat.value}</p>
           </div>
-
-          <Tabs items={tabItems} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="mb-6">
-            <span className="block text-blue-700 font-bold text-2xl">{formattedPrice} {ad.currency}</span>
-            <span className="block text-gray-500 text-xs mt-1 flex items-center gap-1">
-                <MapPin size={12}/> {location}
-            </span>
-          </div>
-
-          <div className="bg-white border-t border-gray-200">
-             {attributes.map((attr, idx) => (
-               <div key={idx} className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2 transition-colors">
-                 <span className="font-bold text-[#333] flex items-center gap-2">
-                    {attr.icon && <attr.icon size={14} className="text-gray-400"/>}
-                    {attr.label}
-                 </span>
-                 <span className={\`\${attr.label === 'İlan No' ? 'text-red-600 font-bold' : 'text-[#333]'}\`}>
-                    {attr.value}
-                 </span>
-               </div>
-             ))}
-             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm px-2">
-                <span className="font-bold text-[#333] flex items-center gap-2"><Eye size={14} className="text-gray-400"/> Görüntülenme</span>
-                <span>1.245</span>
-             </div>
-          </div>
-        </div>
-
-        <div className="lg:w-[280px] shrink-0 hidden md:block">
-           <SellerSidebar
-             sellerId={ad.user_id}
-             sellerName={sellerInfo.full_name || 'Kullanıcı'}
-             sellerPhone={sellerInfo.phone || 'Telefon yok'}
-             adId={ad.id}
-             adTitle={ad.title}
-             adImage={ad.image}
-             price={formattedPrice}
-             currency={ad.currency}
-           />
-
-           {/* Kredi Hesaplama Aracı Sadece Emlakta Göster */}
-           {ad.category === 'emlak' && <LoanCalculator price={ad.price} />}
-
-           <div className="mt-4 bg-yellow-50 p-4 border border-yellow-200 rounded-sm text-xs text-yellow-800">
-              <strong>Güvenlik İpucu:</strong> Tanımadığınız kişilere kesinlikle para göndermeyin, kapora yatırmayın.
-           </div>
-        </div>
+        ))}
       </div>
-
-      <MobileAdActionBar price={\`\${formattedPrice} \${ad.currency}\`} />
+      <div className="text-sm text-gray-500">
+        * Veriler gerçek zamanlı olarak veritabanından çekilmektedir.
+      </div>
     </div>
   );
 }
 `;
-writeFile(adDetailPagePath, adDetailPageContent);
+writeFile(adminPath, adminContent);
 
 console.log(
-  colors.bold + "\n🎉 GELİŞTİRME PAKETİ 6 TAMAMLANDI!" + colors.reset,
+  colors.magenta +
+    "\n------------------------------------------------------------------" +
+    colors.reset,
 );
 console.log(
-  "1. 'ImageUploader': Çoklu fotoğraf yükleme, önizleme ve silme özelliği eklendi.",
+  "ÖNEMLİ: Supabase'de aşağıdaki tabloları ve verileri oluşturmalısınız:",
+);
+console.log("Bu SQL komutunu SQL Editor'de çalıştırın:");
+console.log(
+  colors.yellow +
+    `
+-- 1. Kategoriler Tablosu
+create table public.categories (
+  id bigint generated by default as identity primary key,
+  title text not null,
+  slug text not null unique,
+  icon text,
+  parent_id bigint references public.categories(id),
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. İçerik Sayfaları Tablosu
+create table public.pages (
+  slug text primary key,
+  title text not null,
+  content text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 3. SSS Kategorileri
+create table public.faq_categories (
+  id bigint generated by default as identity primary key,
+  title text not null,
+  description text,
+  icon text,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 4. SSS Maddeleri
+create table public.faqs (
+  id bigint generated by default as identity primary key,
+  category_id bigint references public.faq_categories(id),
+  question text not null,
+  answer text not null,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 5. Ödemeler Tablosu (Admin Ciro için)
+create table public.payments (
+  id bigint generated by default as identity primary key,
+  user_id uuid references auth.users(id),
+  amount decimal not null,
+  description text,
+  status text default 'success',
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- Halka Açık Okuma İzinleri (RLS)
+alter table public.categories enable row level security;
+create policy "Public read categories" on public.categories for select using (true);
+
+alter table public.pages enable row level security;
+create policy "Public read pages" on public.pages for select using (true);
+
+alter table public.faq_categories enable row level security;
+create policy "Public read faq_categories" on public.faq_categories for select using (true);
+
+alter table public.faqs enable row level security;
+create policy "Public read faqs" on public.faqs for select using (true);
+
+-- Örnek Veri (Başlangıç için)
+insert into public.categories (title, slug, icon) values
+('Emlak', 'emlak', 'Home'),
+('Vasıta', 'vasita', 'Car'),
+('İkinci El ve Sıfır Alışveriş', 'alisveris', 'Monitor');
+
+insert into public.pages (slug, title, content) values
+('hakkimizda', 'Hakkımızda', '<p>Biz Türkiye\\'nin en büyük ilan platformuyuz.</p>');
+
+` +
+    colors.reset,
 );
 console.log(
-  "2. 'LoanCalculator': Emlak ilanları için kredi hesaplama aracı eklendi.",
+  colors.magenta +
+    "------------------------------------------------------------------" +
+    colors.reset,
 );
+
+console.log(colors.bold + "\n🎉 TAM DİNAMİK YAPI KURULDU!" + colors.reset);
+console.log("1. Terminalde `npm run dev` komutunu çalıştırın.");
+console.log("2. Supabase SQL Editor'de yukarıdaki SQL kodunu çalıştırın.");
 console.log(
-  "3. 'CompareContext': Karşılaştırma listesi artık tarayıcı belleğinde saklanıyor.",
+  "3. Artık menüler, yardım sayfaları ve admin paneli veritabanından besleniyor.",
 );

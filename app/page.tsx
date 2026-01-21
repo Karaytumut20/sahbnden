@@ -1,19 +1,24 @@
 import Sidebar from "@/components/Sidebar";
 import Showcase from "@/components/Showcase";
-import { getShowcaseAdsServer } from "@/lib/actions";
+import { getShowcaseAdsServer, getCategoryTreeServer } from "@/lib/actions";
 
-// Next.js 15 Caching stratejisi
-export const revalidate = 60; // 60 saniyede bir yenile
+export const revalidate = 60; // 60 saniyede bir verileri tazele
 
 export default async function Home() {
-  const vitrinAds = await getShowcaseAdsServer();
+  // Paralel veri çekme
+  const [vitrinAds, categories] = await Promise.all([
+    getShowcaseAdsServer(),
+    getCategoryTreeServer()
+  ]);
 
-  // Urgent için ayrı fonksiyon yazmaya gerek yok, sıralama ile hallediyoruz şimdilik
-  const urgentAds = [...vitrinAds].sort((a,b) => a.price - b.price);
+  // Acil ilanlar (örnek olarak fiyatı düşük olanları veya is_urgent olanları alabiliriz)
+  // Backend'den is_urgent: true olanları ayrı çekmek daha performanslıdır ama şimdilik filter kullanıyoruz.
+  const urgentAds = vitrinAds.filter((ad: any) => ad.is_urgent) || [];
 
   return (
     <div className="flex gap-4">
-      <Sidebar />
+      {/* Kategorileri Sidebar'a prop olarak geçiyoruz */}
+      <Sidebar categories={categories} />
       <Showcase vitrinAds={vitrinAds} urgentAds={urgentAds} />
     </div>
   );
