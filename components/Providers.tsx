@@ -4,10 +4,9 @@ import { FavoritesProvider } from '@/context/FavoritesContext';
 import { AuthProvider } from '@/context/AuthContext';
 import { ToastProvider } from '@/context/ToastContext';
 import { CompareProvider } from '@/context/CompareContext';
+import { HistoryProvider } from '@/context/HistoryContext';
 import { NotificationProvider } from '@/context/NotificationContext';
 import { ModalProvider } from '@/context/ModalContext';
-import { HistoryProvider } from '@/context/HistoryContext';
-import { MessageProvider } from '@/context/MessageContext';
 import { ThemeProvider } from '@/context/ThemeContext';
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -15,19 +14,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
-          <ModalProvider>
-            <FavoritesProvider>
-              <CompareProvider>
-                <NotificationProvider>
+          <NotificationProvider>
+            <ModalProvider>
+              <FavoritesProvider>
+                <CompareProvider>
                   <HistoryProvider>
-                    <MessageProvider>
-                      {children}
-                    </MessageProvider>
+                    {children}
                   </HistoryProvider>
-                </NotificationProvider>
-              </CompareProvider>
-            </FavoritesProvider>
-          </ModalProvider>
+                </CompareProvider>
+              </FavoritesProvider>
+            </ModalProvider>
+          </NotificationProvider>
         </AuthProvider>
       </ToastProvider>
     </ThemeProvider>

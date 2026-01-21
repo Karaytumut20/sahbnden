@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState } from 'react';
 import { X, Tag, CheckCircle } from 'lucide-react';
@@ -12,7 +11,7 @@ export default function OfferModal() {
   const [percent, setPercent] = useState<number | null>(null);
   const [customPrice, setCustomPrice] = useState('');
 
-  // Fiyatı sayıya çevir
+  // Fiyatı sayıya çevir (Örn: "1.250.000 TL")
   const currentPriceRaw = parseFloat(modalProps.price.replace(/\./g, '').replace(',', '.'));
 
   const handleSubmit = (e: React.FormEvent) => {

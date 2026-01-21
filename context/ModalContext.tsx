@@ -1,8 +1,7 @@
-
 "use client";
 import React, { createContext, useContext, useState } from 'react';
 
-type ModalType = 'SHARE' | 'REPORT' | null;
+type ModalType = 'SHARE' | 'REPORT' | 'OFFER' | null;
 type ModalProps = Record<string, any>;
 
 type ModalContextType = {

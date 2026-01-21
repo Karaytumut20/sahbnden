@@ -14,19 +14,18 @@ function EditAdFormContent() {
   const params = useParams();
   const { addToast } = useToast();
   const { user } = useAuth();
-  const fileInputRef = useRef(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [images, setImages] = useState([]);
-  const [formData, setFormData] = useState({});
+  const [images, setImages] = useState<string[]>([]);
+  const [formData, setFormData] = useState<any>({});
   const [category, setCategory] = useState('');
 
   useEffect(() => {
     const fetchAd = async () => {
         if(!params.id) return;
-
         try {
             const ad = await getAdDetailServer(Number(params.id));
             if (!ad) {
@@ -34,13 +33,11 @@ function EditAdFormContent() {
                 router.push('/bana-ozel/ilanlarim');
                 return;
             }
-
             if (user && ad.user_id !== user.id) {
                  addToast('Bu ilanı düzenleyemezsiniz.', 'error');
                  router.push('/');
                  return;
             }
-
             setCategory(ad.category);
             setImages(ad.image ? [ad.image] : []);
             setFormData({
@@ -66,14 +63,13 @@ function EditAdFormContent() {
             setIsLoading(false);
         }
     };
-
     if(user) fetchAd();
   }, [user, params.id]);
 
-  const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handleDynamicChange = (name, value) => setFormData({ ...formData, [name]: value });
+  const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleDynamicChange = (name: string, value: string) => setFormData({ ...formData, [name]: value });
 
-  const handleFileChange = async (e) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     setIsUploading(true);
     try {
@@ -87,10 +83,9 @@ function EditAdFormContent() {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
-
     const finalData = {
         ...formData,
         category,
@@ -101,9 +96,7 @@ function EditAdFormContent() {
         m2: Number(formData.m2),
         floor: Number(formData.floor)
     };
-
     const res = await updateAdAction(Number(params.id), finalData);
-
     if (res.error) {
         addToast(res.error, 'error');
     } else {
@@ -121,29 +114,25 @@ function EditAdFormContent() {
         <button onClick={() => router.back()} className="text-gray-500 hover:text-blue-700"><ArrowLeft size={20} /></button>
         <h1 className="text-xl font-bold text-[#333]">İlanı Düzenle: {formData.title}</h1>
       </div>
-
       <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-6">
-
         <div>
             <label className="block text-xs font-bold mb-1">Başlık</label>
-            <input name="title" value={formData.title} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required />
+            <input name="title" value={formData.title || ''} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required />
         </div>
         <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className="block text-xs font-bold mb-1">Fiyat</label>
-                <input name="price" type="number" value={formData.price} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required />
+                <input name="price" type="number" value={formData.price || ''} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required />
              </div>
              <div>
                 <label className="block text-xs font-bold mb-1">Para Birimi</label>
-                <select name="currency" value={formData.currency} onChange={handleInputChange} className="w-full border p-2 rounded-sm bg-white">
+                <select name="currency" value={formData.currency || 'TL'} onChange={handleInputChange} className="w-full border p-2 rounded-sm bg-white">
                     <option>TL</option><option>USD</option><option>EUR</option>
                 </select>
              </div>
         </div>
-
         {category === 'emlak' && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
         {category === 'vasita' && <VehicleFields data={formData} onChange={handleDynamicChange} />}
-
         <div>
             <label className="block text-xs font-bold mb-2">Fotoğraflar</label>
             <div className="flex flex-wrap gap-4">
@@ -160,19 +149,16 @@ function EditAdFormContent() {
             </div>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
         </div>
-
         <div>
             <label className="block text-xs font-bold mb-1">Açıklama</label>
-            <textarea name="description" value={formData.description} onChange={handleInputChange} className="w-full border p-2 rounded-sm h-32 resize-none" required></textarea>
+            <textarea name="description" value={formData.description || ''} onChange={handleInputChange} className="w-full border p-2 rounded-sm h-32 resize-none" required></textarea>
         </div>
-
         <div className="flex justify-end gap-3 pt-4 border-t">
             <button type="button" onClick={() => router.back()} className="px-6 py-3 border border-gray-300 rounded-sm text-sm font-bold text-gray-600 hover:bg-gray-50">İptal</button>
             <button type="submit" disabled={isSubmitting} className="px-8 py-3 bg-[#ffe800] rounded-sm text-sm font-bold text-black hover:bg-yellow-400 flex items-center gap-2 disabled:opacity-50">
                 {isSubmitting ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} Güncelle
             </button>
         </div>
-
       </form>
     </div>
   );

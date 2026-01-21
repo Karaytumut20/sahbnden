@@ -1,4 +1,3 @@
-
 "use client";
 import React from 'react';
 import { X, Copy, Facebook, Twitter, Linkedin, Mail } from 'lucide-react';

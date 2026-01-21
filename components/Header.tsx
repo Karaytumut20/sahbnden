@@ -2,13 +2,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Search, Plus, User, Heart, LogOut, ChevronDown, Menu, ArrowUpRight, Bell, Settings } from 'lucide-react';
+import { Search, Plus, User, Heart, LogOut, ChevronDown, Menu, Bell, Settings } from 'lucide-react';
 import { useFavorites } from '@/context/FavoritesContext';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import MobileMenu from '@/components/MobileMenu';
 import ThemeToggle from '@/components/ThemeToggle';
-import { getAdsClient } from '@/lib/services'; // Dinamik arama önerileri için
+import { getAdsClient } from '@/lib/services';
 
 export default function Header() {
   const [searchTerm, setSearchTerm] = useState('');
@@ -41,11 +41,11 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Arama önerileri (Debounce eklenebilir ama şimdilik basit tutuyoruz)
+  // Arama önerileri
   useEffect(() => {
     if (searchTerm.length >= 2) {
       getAdsClient({ q: searchTerm }).then(data => {
-        setSuggestions(data.slice(0, 5)); // İlk 5 sonuç
+        setSuggestions(data.slice(0, 5));
         setShowSuggestions(true);
       });
     } else {
@@ -61,7 +61,6 @@ export default function Header() {
     }
   };
 
-  // Güvenli erişim
   const favCount = favorites?.length || 0;
 
   return (
@@ -118,6 +117,7 @@ export default function Header() {
               </>
             ) : (
               <>
+                {/* Bildirimler */}
                 <div className="relative" ref={notifRef}>
                   <button onClick={() => setNotifOpen(!notifOpen)} className="relative hover:text-[#ffe800]">
                     <Bell size={18} />
@@ -153,6 +153,7 @@ export default function Header() {
                   )}
                 </div>
 
+                {/* Kullanıcı Menüsü */}
                 <div className="relative hidden sm:block">
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 hover:text-[#ffe800] focus:outline-none">
                     <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20">
@@ -170,7 +171,7 @@ export default function Header() {
                       <Link href="/bana-ozel" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Bana Özel Özet</Link>
                       <Link href="/bana-ozel/ilanlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">İlanlarım</Link>
                       <Link href="/bana-ozel/favoriler" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Favori İlanlarım</Link>
-                      <Link href="/bana-ozel/mesajlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Mesajlarım</Link>
+                      <Link href="/bana-ozel/mesajlar" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Mesajlarım</Link>
                       <Link href="/bana-ozel/ayarlar" onClick={() => setMenuOpen(false)} className="w-full text-left px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px] flex items-center gap-2 border-t border-gray-100">
                         <Settings size={14} /> Ayarlar
                       </Link>

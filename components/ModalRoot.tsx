@@ -1,10 +1,9 @@
-
 "use client";
 import React from 'react';
 import { useModal } from '@/context/ModalContext';
 import ShareModal from './modals/ShareModal';
 import ReportModal from './modals/ReportModal';
-import OfferModal from './modals/OfferModal'; // YENİ
+import OfferModal from './modals/OfferModal';
 
 export default function ModalRoot() {
   const { activeModal } = useModal();

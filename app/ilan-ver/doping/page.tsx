@@ -1,7 +1,6 @@
-
 "use client";
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Star, Zap, Layout, CheckCircle, ArrowRight } from 'lucide-react';
 
 const dopings = [
@@ -37,8 +36,10 @@ const dopings = [
   },
 ];
 
-export default function DopingPage() {
+function DopingContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const adId = searchParams.get('adId'); // İlan oluşturma adımından gelen ID
   const [selectedDopings, setSelectedDopings] = useState<number[]>([]);
 
   const toggleDoping = (id: number) => {
@@ -55,9 +56,9 @@ export default function DopingPage() {
   }, 0);
 
   const handleContinue = () => {
-    // Seçilen dopingleri URL parametresi veya state ile taşıyabiliriz.
-    // Şimdilik demo olduğu için direkt geçiyoruz.
-    router.push(`/ilan-ver/odeme?total=${totalPrice}`);
+    const dopingParam = selectedDopings.length > 0 ? `&doping=${selectedDopings.join(',')}` : '';
+    const adIdParam = adId ? `&adId=${adId}` : '';
+    router.push(`/ilan-ver/odeme?total=${totalPrice}${dopingParam}${adIdParam}`);
   };
 
   return (
@@ -66,7 +67,6 @@ export default function DopingPage() {
 
       <div className="flex flex-col md:flex-row gap-6">
 
-        {/* Doping Listesi */}
         <div className="flex-1 space-y-4">
           {dopings.map((doping) => {
             const isSelected = selectedDopings.includes(doping.id);
@@ -96,7 +96,6 @@ export default function DopingPage() {
           })}
         </div>
 
-        {/* Özet Kartı */}
         <div className="w-full md:w-[300px] shrink-0">
           <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-4 sticky top-4">
             <h3 className="font-bold text-[#333] border-b border-gray-100 pb-2 mb-3">Sipariş Özeti</h3>
@@ -134,4 +133,8 @@ export default function DopingPage() {
       </div>
     </div>
   );
+}
+
+export default function DopingPage() {
+    return <Suspense fallback={<div>Yükleniyor...</div>}><DopingContent /></Suspense>
 }

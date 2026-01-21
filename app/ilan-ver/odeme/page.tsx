@@ -2,25 +2,45 @@
 import { Suspense } from 'react';
 import React, { useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Lock, ShieldCheck } from 'lucide-react';
+import { Lock, ShieldCheck, Loader2 } from 'lucide-react';
 import CreditCardForm from '@/components/CreditCardForm';
 import { useToast } from '@/context/ToastContext';
+import { activateDopingAction } from '@/lib/actions';
 
 function PaymentPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { addToast } = useToast();
+
   const total = searchParams.get('total') || '0';
+  // Doping ID'lerini ve İlan ID'sini URL'den alabiliriz veya state management kullanabiliriz.
+  // Basitlik için demo senaryosunda varsayım yapıyoruz.
+  // Gerçek uygulamada doping seçimleri bir önceki sayfadan query param olarak gelmeli: ?doping=1,2&adId=123
+  const adId = searchParams.get('adId');
+  const dopingIds = searchParams.get('doping')?.split(',') || [];
+
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handlePayment = () => {
+  const handlePayment = async () => {
     setIsProcessing(true);
 
-    // Ödeme işlemi simülasyonu
-    setTimeout(() => {
-      addToast('Ödeme başarıyla alındı!', 'success');
-      router.push('/ilan-ver/basarili');
-    }, 2000);
+    // 1. Ödeme işlemi simülasyonu (Stripe/Iyzico entegrasyonu buraya gelir)
+    await new Promise(resolve => setTimeout(resolve, 1500));
+
+    // 2. Ödeme başarılıysa Dopingleri Aktifleştir (Eğer ilan ID varsa)
+    if (adId && dopingIds.length > 0) {
+        const res = await activateDopingAction(Number(adId), dopingIds);
+        if (res.error) {
+            addToast('Ödeme alındı ancak doping aktif edilemedi. Destekle iletişime geçin.', 'error');
+        } else {
+            addToast('Ödeme başarılı! Dopingler tanımlandı.', 'success');
+        }
+    } else {
+        addToast('Ödeme başarıyla alındı! İlanınız yayına hazırlanıyor.', 'success');
+    }
+
+    setIsProcessing(false);
+    router.push('/ilan-ver/basarili');
   };
 
   return (
@@ -67,7 +87,7 @@ function PaymentPageContent() {
               disabled={isProcessing}
               className={`w-full mt-6 py-3 rounded-sm font-bold text-white transition-colors shadow-md flex items-center justify-center gap-2 ${isProcessing ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
             >
-              {isProcessing ? 'İşleniyor...' : 'Ödemeyi Tamamla'}
+              {isProcessing ? <><Loader2 className="animate-spin" size={18}/> İşleniyor...</> : 'Ödemeyi Tamamla'}
             </button>
           </div>
         </div>
