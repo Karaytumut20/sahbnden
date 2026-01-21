@@ -4,11 +4,7 @@ import { useRouter } from 'next/navigation';
 import { ChevronRight, ArrowLeft, Home, Car, ShoppingCart, CheckCircle } from 'lucide-react';
 import { categories } from '@/lib/data';
 
-const iconMap: any = {
-  Home: <Home size={20} />,
-  Car: <Car size={20} />,
-  ShoppingCart: <ShoppingCart size={20} />
-};
+const iconMap: any = { Home: <Home size={20} />, Car: <Car size={20} />, ShoppingCart: <ShoppingCart size={20} /> };
 
 export default function CategoryWizard() {
   const router = useRouter();
@@ -62,45 +58,23 @@ export default function CategoryWizard() {
                 </p>
             </div>
         </div>
-        <div className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">
-            Adım {step + 1}
-        </div>
+        <div className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Adım {step + 1}</div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         <ul className="divide-y divide-gray-100">
             {currentList.map((item) => (
                 <li key={item.id}>
-                    <button
-                        onClick={() => handleSelect(item)}
-                        className="w-full text-left px-6 py-4 hover:bg-blue-50 transition-colors flex items-center justify-between group"
-                    >
+                    <button onClick={() => handleSelect(item)} className="w-full text-left px-6 py-4 hover:bg-blue-50 transition-colors flex items-center justify-between group">
                         <div className="flex items-center gap-3">
-                            {step === 0 && (
-                                <span className="text-gray-400 group-hover:text-blue-600">
-                                    {iconMap[item.icon] || <CheckCircle size={20}/>}
-                                </span>
-                            )}
-                            <span className={`text-sm ${step === 0 ? 'font-bold' : 'font-medium'} text-gray-700 group-hover:text-blue-700`}>
-                                {item.title}
-                            </span>
+                            {step === 0 && <span className="text-gray-400 group-hover:text-blue-600">{iconMap[item.icon] || <CheckCircle size={20}/>}</span>}
+                            <span className={`text-sm ${step === 0 ? 'font-bold' : 'font-medium'} text-gray-700 group-hover:text-blue-700`}>{item.title}</span>
                         </div>
-                        {item.subs && item.subs.length > 0 ? (
-                            <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500" />
-                        ) : (
-                            <span className="text-[10px] font-bold bg-blue-600 text-white px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-                                Seç
-                            </span>
-                        )}
+                        {item.subs && item.subs.length > 0 ? <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500" /> : <span className="text-[10px] font-bold bg-blue-600 text-white px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">Seç</span>}
                     </button>
                 </li>
             ))}
         </ul>
-      </div>
-      <div className="bg-gray-50 p-3 text-center border-t border-gray-200">
-          <p className="text-[10px] text-gray-400">
-              © 2000-2025 sahibinden.com - Doğru kategori seçimi, ilanınızın daha hızlı onaylanmasını sağlar.
-          </p>
       </div>
     </div>
   );
