@@ -26,6 +26,7 @@ export default function Header() {
 
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
+  const userMenuRef = useRef<HTMLDivElement>(null);
 
   // Dışarı tıklama kontrolü
   useEffect(() => {
@@ -36,12 +37,15 @@ export default function Header() {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setNotifOpen(false);
       }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+        setMenuOpen(false);
+      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Arama önerileri
+  // Arama önerileri (Debounce eklenebilir ama şimdilik basit tutuyoruz)
   useEffect(() => {
     if (searchTerm.length >= 2) {
       getAdsClient({ q: searchTerm }).then(data => {
@@ -60,6 +64,11 @@ export default function Header() {
       router.push(`/search?q=${encodeURIComponent(searchTerm)}`);
     }
   };
+
+  const handleLogout = async () => {
+    setMenuOpen(false);
+    await logout();
+  }
 
   const favCount = favorites?.length || 0;
 
@@ -98,7 +107,7 @@ export default function Header() {
                     {suggestions.map((ad: any) => (
                       <Link key={ad.id} href={`/ilan/${ad.id}`} onClick={() => setShowSuggestions(false)} className="flex items-center justify-between px-3 py-2 text-[12px] hover:bg-blue-50 hover:text-blue-700 border-b border-gray-50 last:border-0">
                         <span className="truncate flex-1">{ad.title}</span>
-                        <span className="text-blue-800 font-bold ml-2">{ad.price.toLocaleString()} {ad.currency}</span>
+                        <span className="text-blue-800 font-bold ml-2">{ad.price?.toLocaleString()} {ad.currency}</span>
                       </Link>
                     ))}
                   </div>
@@ -119,7 +128,7 @@ export default function Header() {
               <>
                 {/* Bildirimler */}
                 <div className="relative" ref={notifRef}>
-                  <button onClick={() => setNotifOpen(!notifOpen)} className="relative hover:text-[#ffe800]">
+                  <button onClick={() => setNotifOpen(!notifOpen)} className="relative hover:text-[#ffe800] block mt-1">
                     <Bell size={18} />
                     {unreadCount > 0 && (
                       <span className="absolute -top-1.5 -right-1 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full border-2 border-[#2d405a]">
@@ -154,10 +163,10 @@ export default function Header() {
                 </div>
 
                 {/* Kullanıcı Menüsü */}
-                <div className="relative hidden sm:block">
+                <div className="relative hidden sm:block" ref={userMenuRef}>
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 hover:text-[#ffe800] focus:outline-none">
-                    <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20">
-                      {user.avatar ? <img src={user.avatar} className="w-full h-full rounded-full object-cover"/> : user.name?.charAt(0)}
+                    <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20 overflow-hidden">
+                      {user.avatar ? <img src={user.avatar} className="w-full h-full object-cover"/> : (user.name?.charAt(0) || 'U')}
                     </div>
                     <span>{user.name}</span>
                     <ChevronDown size={12} />
@@ -171,11 +180,11 @@ export default function Header() {
                       <Link href="/bana-ozel" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Bana Özel Özet</Link>
                       <Link href="/bana-ozel/ilanlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">İlanlarım</Link>
                       <Link href="/bana-ozel/favoriler" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Favori İlanlarım</Link>
-                      <Link href="/bana-ozel/mesajlar" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Mesajlarım</Link>
+                      <Link href="/bana-ozel/mesajlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Mesajlarım</Link>
                       <Link href="/bana-ozel/ayarlar" onClick={() => setMenuOpen(false)} className="w-full text-left px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px] flex items-center gap-2 border-t border-gray-100">
                         <Settings size={14} /> Ayarlar
                       </Link>
-                      <button onClick={() => { logout(); setMenuOpen(false); }} className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-600 text-[13px] flex items-center gap-2 border-t border-gray-100">
+                      <button onClick={handleLogout} className="w-full text-left px-4 py-2 hover:bg-red-50 hover:text-red-600 text-[13px] flex items-center gap-2 border-t border-gray-100">
                         <LogOut size={14} /> Çıkış Yap
                       </button>
                     </div>

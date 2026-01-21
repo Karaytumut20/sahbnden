@@ -1,9 +1,9 @@
-
 "use client";
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { LayoutDashboard, FileText, Users, DollarSign, Settings, LogOut, ExternalLink } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 const menuItems = [
   { name: 'Genel Bakış', href: '/admin', icon: LayoutDashboard },
@@ -15,6 +15,7 @@ const menuItems = [
 
 export default function AdminSidebar() {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   return (
     <aside className="w-64 bg-[#1a202c] text-white flex flex-col h-screen shrink-0 sticky top-0 overflow-y-auto">
@@ -42,9 +43,12 @@ export default function AdminSidebar() {
         <Link href="/" target="_blank" className="flex items-center gap-3 px-4 py-2 text-gray-400 hover:text-white text-sm">
           <ExternalLink size={16} /> Siteye Git
         </Link>
-        <Link href="/admin/login" className="flex items-center gap-3 px-4 py-2 text-red-400 hover:text-red-300 text-sm">
+        <button
+          onClick={() => logout()}
+          className="w-full flex items-center gap-3 px-4 py-2 text-red-400 hover:text-red-300 text-sm hover:bg-gray-800 rounded"
+        >
           <LogOut size={16} /> Çıkış Yap
-        </Link>
+        </button>
       </div>
     </aside>
   );

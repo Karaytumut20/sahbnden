@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
 type Notification = {
   id: number;
@@ -15,16 +15,37 @@ type NotificationContextType = {
   addNotification: (title: string, message: string) => void;
   markAsRead: (id: number) => void;
   markAllAsRead: () => void;
+  saveSearch: (url: string, name: string) => void; // Placeholder
 };
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
-  // Demo Başlangıç Verileri
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: 1, title: 'İlan Onayı', message: 'Satılık Daire ilanınız yayına alındı.', read: false, date: '10 dk önce' },
-    { id: 2, title: 'Fiyat Düşüşü', message: 'Favori ilanınızda fiyat düştü!', read: false, date: '1 saat önce' },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+
+  // Sayfa yüklendiğinde LocalStorage'dan oku
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('notifications');
+      if (stored) {
+        setNotifications(JSON.parse(stored));
+      } else {
+        // Demo veri (sadece ilk kez)
+        const demoData = [
+            { id: 1, title: 'Hoş Geldiniz', message: 'Hesabınız başarıyla oluşturuldu.', read: false, date: new Date().toLocaleDateString() }
+        ];
+        setNotifications(demoData);
+        localStorage.setItem('notifications', JSON.stringify(demoData));
+      }
+    }
+  }, []);
+
+  // Değişiklikleri kaydet
+  useEffect(() => {
+    if (notifications.length > 0) {
+        localStorage.setItem('notifications', JSON.stringify(notifications));
+    }
+  }, [notifications]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -34,9 +55,9 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
       title,
       message,
       read: false,
-      date: 'Şimdi'
+      date: new Date().toLocaleDateString()
     };
-    setNotifications([newNotif, ...notifications]);
+    setNotifications(prev => [newNotif, ...prev]);
   };
 
   const markAsRead = (id: number) => {
@@ -47,8 +68,13 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     setNotifications(prev => prev.map(n => ({ ...n, read: true })));
   };
 
+  const saveSearch = (url: string, name: string) => {
+      // Gerçek projede API'ye gider, burada simülasyon
+      addNotification('Arama Kaydedildi', `"${name}" aramanız favorilere eklendi.`);
+  }
+
   return (
-    <NotificationContext.Provider value={{ notifications, unreadCount, addNotification, markAsRead, markAllAsRead }}>
+    <NotificationContext.Provider value={{ notifications, unreadCount, addNotification, markAsRead, markAllAsRead, saveSearch }}>
       {children}
     </NotificationContext.Provider>
   );

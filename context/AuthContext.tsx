@@ -13,7 +13,7 @@ type User = {
 type AuthContextType = {
   user: User | null;
   loading: boolean;
-  logout: () => void;
+  logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -25,11 +25,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    // 1. Mevcut session'ı kontrol et
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Profili çek
         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         setUser({
           id: session.user.id,
@@ -43,11 +41,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkUser();
 
-    // 2. Dinleyici
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-         // Session varsa user'ı set et
-         // (Optimizasyon: Her değişimde profil çekmek yerine cache kullanılabilir ama şimdilik güvenli yol)
          const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
          setUser({
           id: session.user.id,
@@ -57,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       } else {
         setUser(null);
-        router.refresh(); // Server componentlerin yenilenmesi için
+        router.refresh();
       }
       setLoading(false);
     });
@@ -66,9 +61,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = async () => {
-    await supabase.auth.signOut();
-    router.push('/login');
-    router.refresh();
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      router.push('/login');
+      router.refresh();
+    } catch (error) {
+      console.error('Çıkış yapılırken hata oluştu:', error);
+    }
   };
 
   return (
