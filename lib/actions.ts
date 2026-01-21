@@ -2,7 +2,30 @@
 import { createClient } from '@/lib/supabase/server'
 import { revalidatePath } from 'next/cache'
 
-// --- KATEGORİLER ---
+export async function getInfiniteAdsAction(page = 1, limit = 20) {
+    const supabase = await createClient();
+
+    // Rastgelelik için basit bir yöntem: created_at'e göre sırala ama client tarafında karıştırılabilir.
+    // SQL 'RANDOM()' büyük veride yavaştır, bu yüzden ID veya Tarih bazlı gidiyoruz.
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
+
+    const { data, error, count } = await supabase
+        .from('ads')
+        .select('*, profiles(full_name)', { count: 'exact' })
+        .eq('status', 'yayinda')
+        .order('created_at', { ascending: false }) // En yeniler önce (Feed mantığı)
+        .range(start, end);
+
+    if(error) return { data: [], total: 0 };
+
+    return {
+        data: data || [],
+        total: count || 0,
+        hasMore: (count || 0) > end
+    };
+}
+
 export async function getCategoryTreeServer() {
   const supabase = await createClient();
   const { data } = await supabase.from('categories').select('*').order('title');
@@ -15,8 +38,7 @@ export async function getCategoryTreeServer() {
   }));
 }
 
-// --- İLANLAR ---
-export async function getAdsServer(searchParams) {
+export async function getAdsServer(searchParams: any) {
   const supabase = await createClient()
 
   let query = supabase.from('ads').select('*, profiles(full_name), categories(title)').eq('status', 'yayinda')
@@ -47,7 +69,7 @@ export async function getAdsServer(searchParams) {
   return data || []
 }
 
-export async function getAdDetailServer(id) {
+export async function getAdDetailServer(id: number) {
   const supabase = await createClient()
   const { data } = await supabase.from('ads').select('*, profiles(*), categories(title)').eq('id', id).single()
   return data
@@ -59,7 +81,7 @@ export async function getShowcaseAdsServer() {
   return data || []
 }
 
-export async function getRelatedAdsServer(category, currentId) {
+export async function getRelatedAdsServer(category: string, currentId: number) {
     const supabase = await createClient();
     const { data } = await supabase.from('ads')
         .select('*')
@@ -70,20 +92,18 @@ export async function getRelatedAdsServer(category, currentId) {
     return data || [];
 }
 
-export async function getAdsByIds(ids) {
+export async function getAdsByIds(ids: number[]) {
     if (!ids || ids.length === 0) return [];
     const supabase = await createClient();
     const { data } = await supabase.from('ads').select('*, profiles(full_name)').in('id', ids);
     return data || [];
 }
 
-// --- İŞLEMLER (CREATE / UPDATE) ---
-export async function createAdAction(formData) {
+export async function createAdAction(formData: any) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Giriş yapmalısınız' }
 
-  // Profil kontrolü
   const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
   if (!profile) {
       await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
@@ -101,7 +121,7 @@ export async function createAdAction(formData) {
   return { success: true, adId: data.id }
 }
 
-export async function updateAdAction(id, formData) {
+export async function updateAdAction(id: number, formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
@@ -113,36 +133,30 @@ export async function updateAdAction(id, formData) {
     return { success: true }
 }
 
-// --- DOPING (Eksik olan fonksiyon eklendi) ---
-export async function activateDopingAction(adId, dopingTypes) {
+export async function activateDopingAction(adId: number, dopingTypes: string[]) {
   const supabase = await createClient();
-
-  const updates = {};
+  const updates: any = {};
   if (dopingTypes.includes('1')) updates.is_vitrin = true;
   if (dopingTypes.includes('2')) updates.is_urgent = true;
-
   const { error } = await supabase.from('ads').update(updates).eq('id', adId);
-
   if (error) return { error: error.message };
-
   revalidatePath('/');
   return { success: true };
 }
 
-// --- MAĞAZA ---
-export async function getStoreBySlugServer(slug) {
+export async function getStoreBySlugServer(slug: string) {
     const supabase = await createClient()
     const { data } = await supabase.from('stores').select('*').eq('slug', slug).single()
     return data
 }
 
-export async function getStoreAdsServer(userId) {
+export async function getStoreAdsServer(userId: string) {
     const supabase = await createClient()
     const { data } = await supabase.from('ads').select('*').eq('user_id', userId).eq('status', 'yayinda')
     return data || []
 }
 
-export async function createStoreAction(formData) {
+export async function createStoreAction(formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
@@ -155,7 +169,7 @@ export async function createStoreAction(formData) {
     return { success: true }
 }
 
-export async function updateStoreAction(formData) {
+export async function updateStoreAction(formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
@@ -173,13 +187,12 @@ export async function getMyStoreServer() {
     return data
 }
 
-// --- DİĞER ---
 export async function getAdminStatsServer() {
     return { totalUsers: 10, activeAds: 5, totalRevenue: 1500 };
 }
 
-export async function getPageBySlugServer(slug) {
-  const contentMap = {
+export async function getPageBySlugServer(slug: string) {
+  const contentMap: any = {
       'hakkimizda': { title: 'Hakkımızda', content: '<p>Sahibinden klon projesi...</p>' },
       'kullanim-kosullari': { title: 'Kullanım Koşulları', content: '<p>Koşullar...</p>' },
       'gizlilik-politikasi': { title: 'Gizlilik Politikası', content: '<p>Gizlilik...</p>' },
