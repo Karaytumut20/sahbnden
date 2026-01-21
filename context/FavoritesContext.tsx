@@ -1,35 +1,63 @@
-
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { toggleFavoriteClient, getFavoritesClient } from '@/lib/services';
+import { useAuth } from '@/context/AuthContext';
 
 type FavoritesContextType = {
-  favorites: number[];
+  favorites: number[]; // Sadece ilan ID'lerini tutar
   toggleFavorite: (id: number) => void;
   isFavorite: (id: number) => boolean;
 };
 
-const FavoritesContext = createContext<FavoritesContextType | undefined>(undefined);
+// Başlangıç değeri güvenli hale getirildi
+const FavoritesContext = createContext<FavoritesContextType>({
+  favorites: [],
+  toggleFavorite: () => {},
+  isFavorite: () => false,
+});
 
 export function FavoritesProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const [favorites, setFavorites] = useState<number[]>([]);
 
-  // Sayfa yüklendiğinde LocalStorage'dan favorileri çek
   useEffect(() => {
-    const stored = localStorage.getItem('sahibinden_favorites');
-    if (stored) {
-      setFavorites(JSON.parse(stored));
+    let isMounted = true;
+    if (user) {
+      getFavoritesClient(user.id).then(ads => {
+        if (isMounted && ads) {
+            // Null olmayan ve geçerli ID'si olan ilanları filtrele
+            const validIds = ads
+              .filter((ad: any) => ad && typeof ad.id === 'number')
+              .map((ad: any) => ad.id);
+            setFavorites(validIds);
+        }
+      });
+    } else {
+      setFavorites([]);
     }
-  }, []);
+    return () => { isMounted = false; };
+  }, [user]);
 
-  const toggleFavorite = (id: number) => {
-    setFavorites((prev) => {
-      const newFavorites = prev.includes(id)
-        ? prev.filter(fid => fid !== id)
-        : [...prev, id];
+  const toggleFavorite = async (id: number) => {
+    if (!user) return;
 
-      localStorage.setItem('sahibinden_favorites', JSON.stringify(newFavorites));
-      return newFavorites;
-    });
+    // Optimistic Update (Arayüzde anında tepki)
+    const isAlreadyFav = favorites.includes(id);
+    if (isAlreadyFav) {
+        setFavorites(prev => prev.filter(fid => fid !== id));
+    } else {
+        setFavorites(prev => [...prev, id]);
+    }
+
+    // Backend Senkronizasyonu
+    try {
+      await toggleFavoriteClient(user.id, id);
+    } catch (error) {
+      console.error("Favori işlemi başarısız:", error);
+      // Hata olursa işlemi geri al (Revert)
+      if (isAlreadyFav) setFavorites(prev => [...prev, id]);
+      else setFavorites(prev => prev.filter(fid => fid !== id));
+    }
   };
 
   const isFavorite = (id: number) => favorites.includes(id);
@@ -42,9 +70,5 @@ export function FavoritesProvider({ children }: { children: React.ReactNode }) {
 }
 
 export function useFavorites() {
-  const context = useContext(FavoritesContext);
-  if (context === undefined) {
-    throw new Error('useFavorites must be used within a FavoritesProvider');
-  }
-  return context;
+  return useContext(FavoritesContext);
 }

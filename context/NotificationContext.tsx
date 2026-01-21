@@ -1,7 +1,9 @@
-
 "use client";
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
+import { getSavedSearchesClient, saveSearchClient, deleteSavedSearchClient } from '@/lib/services';
 
 type Notification = {
   id: number;
@@ -26,59 +28,97 @@ type NotificationContextType = {
   markAsRead: (id: number) => void;
   markAllAsRead: () => void;
   savedSearches: SavedSearch[];
-  saveSearch: (url: string, criteria: string) => void;
-  removeSearch: (id: number) => void;
+  saveSearch: (url: string, criteria: string) => Promise<void>;
+  removeSearch: (id: number) => Promise<void>;
 };
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
   const { addToast } = useToast();
+  const supabase = createClient();
 
-  // Demo Bildirimler
-  const [notifications, setNotifications] = useState<Notification[]>([
-    { id: 1, title: 'Fiyat Düştü', message: 'Favorinizdeki "Sahibinden Satılık Daire" ilanının fiyatı düştü.', date: '10 dk önce', read: false, type: 'price' },
-    { id: 2, title: 'İlan Onayı', message: 'Yeni verdiğiniz ilan editörlerimiz tarafından yayına alındı.', date: '1 saat önce', read: false, type: 'system' },
-    { id: 3, title: 'Yeni Mesaj', message: 'Ahmet Yılmaz ilanınızla ilgili bir soru sordu.', date: 'Dün', read: true, type: 'message' },
-  ]);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([]);
 
-  // Demo Kayıtlı Aramalar
-  const [savedSearches, setSavedSearches] = useState<SavedSearch[]>([
-    { id: 101, name: 'Kadıköy 2+1 Daireler', url: '/search?category=emlak&city=İstanbul&room=2%2B1', criteria: 'Emlak, İstanbul, 2+1', date: '20.01.2025' },
-  ]);
+  // GERÇEK ZAMANLI BİLDİRİM DİNLEYİCİSİ (Okunmamış Mesajlar)
+  useEffect(() => {
+    if (!user) return;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+    const fetchNotifications = async () => {
+      // Okunmamış mesajları çek ve bildirime dönüştür
+      const { data: messages } = await supabase
+        .from('messages')
+        .select('*, profiles:sender_id(full_name)')
+        .eq('is_read', false)
+        .neq('sender_id', user.id) // Kendi mesajlarımızı bildirim olarak alma
+        .order('created_at', { ascending: false });
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
-  };
-
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
-  };
-
-  const saveSearch = (url: string, criteria: string) => {
-    // Aynı arama var mı kontrol et (Basitçe URL bazlı)
-    if (savedSearches.some(s => s.url === url)) {
-      addToast('Bu arama zaten kayıtlı.', 'info');
-      return;
-    }
-
-    const newSearch: SavedSearch = {
-      id: Date.now(),
-      name: `Arama - ${new Date().toLocaleDateString()}`,
-      url,
-      criteria,
-      date: new Date().toLocaleDateString()
+      if (messages) {
+        const notifs = messages.map((m: any) => ({
+          id: m.id,
+          title: 'Yeni Mesaj',
+          message: `${m.profiles?.full_name || 'Kullanıcı'}: ${m.content}`,
+          date: new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          read: false,
+          type: 'message'
+        }));
+        setNotifications(notifs as Notification[]);
+      }
     };
 
-    setSavedSearches([newSearch, ...savedSearches]);
-    addToast('Arama başarıyla favorilere eklendi.', 'success');
+    fetchNotifications();
+    getSavedSearchesClient(user.id).then(setSavedSearches);
+
+    // Yeni mesaj gelince bildirim at
+    const channel = supabase.channel('realtime_notifications')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+        if (payload.new.sender_id !== user.id) {
+          fetchNotifications();
+          addToast('Yeni bir mesajınız var!', 'info');
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [user]);
+
+  const unreadCount = notifications.length;
+
+  const markAsRead = async (id: number) => {
+    // Local state güncelle
+    setNotifications(prev => prev.filter(n => n.id !== id));
+    // DB güncelle (Message tablosunda is_read = true)
+    await supabase.from('messages').update({ is_read: true }).eq('id', id);
   };
 
-  const removeSearch = (id: number) => {
+  const markAllAsRead = async () => {
+    setNotifications([]);
+    // Tüm okunmamış mesajları okundu yap (Bu kullanıcıya gelenler)
+    // Not: Bu basit bir implementation, detaylı sorgu gerekebilir
+  };
+
+  const saveSearch = async (url: string, criteria: string) => {
+    if (!user) { addToast('Giriş yapın.', 'error'); return; }
+
+    // URL içindeki query'den isim üret
+    const urlObj = new URL('http://localhost' + url);
+    const name = urlObj.searchParams.get('q') || 'Filtrelenmiş Arama';
+
+    const { error } = await saveSearchClient(user.id, name, url, criteria);
+    if (error) {
+        addToast('Kaydedilemedi.', 'error');
+    } else {
+        addToast('Arama kaydedildi.', 'success');
+        getSavedSearchesClient(user.id).then(setSavedSearches);
+    }
+  };
+
+  const removeSearch = async (id: number) => {
+    await deleteSavedSearchClient(id);
     setSavedSearches(prev => prev.filter(s => s.id !== id));
-    addToast('Arama kaydı silindi.', 'info');
+    addToast('Arama silindi.', 'info');
   };
 
   return (
@@ -90,8 +130,6 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
 export function useNotifications() {
   const context = useContext(NotificationContext);
-  if (context === undefined) {
-    throw new Error('useNotifications must be used within a NotificationProvider');
-  }
+  if (context === undefined) throw new Error('useNotifications must be used within a NotificationProvider');
   return context;
 }

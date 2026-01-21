@@ -1,8 +1,7 @@
-
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 
 type User = {
   id: string;
@@ -23,19 +22,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const supabase = createClient();
 
   useEffect(() => {
-    // Mevcut oturumu kontrol et
+    // 1. Mevcut session'ı kontrol et
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        // Profil tablosundan ekstra bilgileri çek
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-
+        // Profili çek
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         setUser({
           id: session.user.id,
           email: session.user.email!,
@@ -48,17 +43,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     checkUser();
 
-    // Oturum değişikliklerini dinle
+    // 2. Dinleyici
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
+         // Session varsa user'ı set et
+         // (Optimizasyon: Her değişimde profil çekmek yerine cache kullanılabilir ama şimdilik güvenli yol)
          const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
          setUser({
           id: session.user.id,
           email: session.user.email!,
-          name: profile?.full_name || 'Kullanıcı'
+          name: profile?.full_name || 'Kullanıcı',
+          avatar: profile?.avatar_url
         });
       } else {
         setUser(null);
+        router.refresh(); // Server componentlerin yenilenmesi için
       }
       setLoading(false);
     });
@@ -69,6 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut();
     router.push('/login');
+    router.refresh();
   };
 
   return (

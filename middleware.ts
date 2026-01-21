@@ -1,4 +1,3 @@
-
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -32,12 +31,23 @@ export async function middleware(request: NextRequest) {
     }
   )
 
+  // Auth durumunu kontrol et
+  // DİKKAT: getUser() kullanıyoruz, getSession() değil. Güvenlik için bu şart.
   const { data: { user } } = await supabase.auth.getUser()
 
   // Korumalı Rotalar
-  const protectedRoutes = ['/bana-ozel', '/ilan-ver', '/admin']
+  const protectedRoutes = ['/bana-ozel', '/ilan-ver']
   const isProtected = protectedRoutes.some(route => request.nextUrl.pathname.startsWith(route))
 
+  // Admin Kontrolü
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+     if (!user) {
+         return NextResponse.redirect(new URL('/admin/login', request.url))
+     }
+     // Gerçek projede burada user.role === 'admin' kontrolü yapılır
+  }
+
+  // Normal Kullanıcı Kontrolü
   if (isProtected && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
@@ -46,5 +56,7 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/bana-ozel/:path*', '/ilan-ver/:path*', '/admin/:path*'],
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+  ],
 }

@@ -1,32 +1,24 @@
-
 "use client";
 import React from 'react';
 import { useSearchParams, usePathname } from 'next/navigation';
 import { BellPlus } from 'lucide-react';
 import { useNotifications } from '@/context/NotificationContext';
-import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 
 export default function SaveSearchButton() {
   const searchParams = useSearchParams();
   const pathname = usePathname();
   const { saveSearch } = useNotifications();
-  const { user } = useAuth();
   const { addToast } = useToast();
 
   const handleSave = () => {
-    if (!user) {
-      addToast('Aramayı kaydetmek için giriş yapmalısınız.', 'error');
-      return;
-    }
-
     const paramsString = searchParams.toString();
     if (!paramsString) {
       addToast('Kaydedilecek bir arama kriteri yok.', 'info');
       return;
     }
 
-    // Kriterleri okunabilir metne dönüştür (Basitçe)
+    // Kriterleri okunabilir metne dönüştür
     const criteriaList = [];
     if (searchParams.get('q')) criteriaList.push(`Kelime: ${searchParams.get('q')}`);
     if (searchParams.get('city')) criteriaList.push(`Şehir: ${searchParams.get('city')}`);

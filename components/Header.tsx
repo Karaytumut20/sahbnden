@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
@@ -8,13 +7,13 @@ import { useFavorites } from '@/context/FavoritesContext';
 import { useAuth } from '@/context/AuthContext';
 import { useNotifications } from '@/context/NotificationContext';
 import MobileMenu from '@/components/MobileMenu';
-import ThemeToggle from '@/components/ThemeToggle'; // YENİ
-import { ads, categories } from '@/lib/data';
+import ThemeToggle from '@/components/ThemeToggle';
+import { getAdsClient } from '@/lib/services'; // Dinamik arama önerileri için
 
 export default function Header() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
-  const [suggestions, setSuggestions] = useState<{ads: any[], cats: any[]}>({ ads: [], cats: [] });
+  const [suggestions, setSuggestions] = useState<any[]>([]);
 
   const router = useRouter();
   const { favorites } = useFavorites();
@@ -28,6 +27,7 @@ export default function Header() {
   const searchRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
+  // Dışarı tıklama kontrolü
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (searchRef.current && !searchRef.current.contains(event.target as Node)) {
@@ -41,13 +41,13 @@ export default function Header() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Arama önerileri (Debounce eklenebilir ama şimdilik basit tutuyoruz)
   useEffect(() => {
     if (searchTerm.length >= 2) {
-      const q = searchTerm.toLowerCase();
-      const matchedAds = ads.filter(ad => ad.title.toLowerCase().includes(q)).slice(0, 3);
-      const matchedCats = categories.filter(cat => cat.name.toLowerCase().includes(q)).slice(0, 2);
-      setSuggestions({ ads: matchedAds, cats: matchedCats });
-      setShowSuggestions(true);
+      getAdsClient({ q: searchTerm }).then(data => {
+        setSuggestions(data.slice(0, 5)); // İlk 5 sonuç
+        setShowSuggestions(true);
+      });
     } else {
       setShowSuggestions(false);
     }
@@ -60,6 +60,9 @@ export default function Header() {
       router.push(`/search?q=${encodeURIComponent(searchTerm)}`);
     }
   };
+
+  // Güvenli erişim
+  const favCount = favorites?.length || 0;
 
   return (
     <>
@@ -89,36 +92,22 @@ export default function Header() {
                 <Search size={18} />
               </button>
             </form>
-            {showSuggestions && (suggestions.ads.length > 0 || suggestions.cats.length > 0) && (
+            {showSuggestions && suggestions.length > 0 && (
               <div className="absolute top-full left-0 w-full bg-white text-[#333] border border-gray-200 rounded-b-sm shadow-lg mt-1 z-[60] overflow-hidden">
-                {suggestions.cats.length > 0 && (
-                  <div className="border-b border-gray-100">
-                    <p className="px-3 py-2 text-[10px] font-bold text-gray-400 bg-gray-50 uppercase">Kategoriler</p>
-                    {suggestions.cats.map(cat => (
-                      <Link key={cat.id} href={`/search?category=${cat.id}`} onClick={() => setShowSuggestions(false)} className="block px-3 py-2 text-[12px] hover:bg-blue-50 hover:text-blue-700">
-                        {cat.name}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-                {suggestions.ads.length > 0 && (
                   <div>
-                    <p className="px-3 py-2 text-[10px] font-bold text-gray-400 bg-gray-50 uppercase">İlanlar</p>
-                    {suggestions.ads.map(ad => (
+                    <p className="px-3 py-2 text-[10px] font-bold text-gray-400 bg-gray-50 uppercase">Sonuçlar</p>
+                    {suggestions.map((ad: any) => (
                       <Link key={ad.id} href={`/ilan/${ad.id}`} onClick={() => setShowSuggestions(false)} className="flex items-center justify-between px-3 py-2 text-[12px] hover:bg-blue-50 hover:text-blue-700 border-b border-gray-50 last:border-0">
                         <span className="truncate flex-1">{ad.title}</span>
-                        <ArrowUpRight size={12} className="text-gray-400 ml-2" />
+                        <span className="text-blue-800 font-bold ml-2">{ad.price.toLocaleString()} {ad.currency}</span>
                       </Link>
                     ))}
                   </div>
-                )}
               </div>
             )}
           </div>
 
           <div className="flex items-center gap-4 text-[12px] font-medium">
-
-            {/* TEMA DEĞİŞTİRİCİ */}
             <ThemeToggle />
 
             {!user ? (
@@ -149,17 +138,13 @@ export default function Header() {
                         {notifications.length === 0 ? (
                           <div className="p-4 text-center text-gray-500 text-xs">Bildiriminiz yok.</div>
                         ) : (
-                          notifications.map(notif => (
-                            <div
-                              key={notif.id}
-                              onClick={() => markAsRead(notif.id)}
-                              className={`p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${!notif.read ? 'bg-blue-50/50' : ''}`}
-                            >
+                          notifications.map((notif: any) => (
+                            <div key={notif.id} onClick={() => markAsRead(notif.id)} className={`p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer ${!notif.read ? 'bg-blue-50/50' : ''}`}>
                               <div className="flex justify-between items-start mb-1">
-                                <span className={`text-[12px] font-semibold ${!notif.read ? 'text-blue-800' : 'text-gray-700'}`}>{notif.title}</span>
+                                <span className="text-[12px] font-semibold">{notif.title}</span>
                                 <span className="text-[10px] text-gray-400">{notif.date}</span>
                               </div>
-                              <p className="text-[11px] text-gray-600 leading-snug">{notif.message}</p>
+                              <p className="text-[11px] text-gray-600 leading-snug line-clamp-2">{notif.message}</p>
                             </div>
                           ))
                         )}
@@ -170,8 +155,8 @@ export default function Header() {
 
                 <div className="relative hidden sm:block">
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 hover:text-[#ffe800] focus:outline-none">
-                    <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold">
-                      {user.avatar}
+                    <div className="w-6 h-6 bg-blue-700 rounded-full flex items-center justify-center text-[10px] font-bold border border-white/20">
+                      {user.avatar ? <img src={user.avatar} className="w-full h-full rounded-full object-cover"/> : user.name?.charAt(0)}
                     </div>
                     <span>{user.name}</span>
                     <ChevronDown size={12} />
@@ -180,11 +165,12 @@ export default function Header() {
                     <div className="absolute right-0 top-full mt-2 w-48 bg-white text-[#333] border border-gray-200 rounded-sm shadow-lg py-1 z-50">
                       <div className="px-4 py-2 border-b border-gray-100 bg-gray-50">
                         <p className="font-bold text-[13px]">{user.name}</p>
-                        <p className="text-[10px] text-gray-500">{user.email}</p>
+                        <p className="text-[10px] text-gray-500 truncate">{user.email}</p>
                       </div>
                       <Link href="/bana-ozel" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Bana Özel Özet</Link>
                       <Link href="/bana-ozel/ilanlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">İlanlarım</Link>
-                      <Link href="/bana-ozel/favori-aramalar" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Favori Aramalarım</Link>
+                      <Link href="/bana-ozel/favoriler" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Favori İlanlarım</Link>
+                      <Link href="/bana-ozel/mesajlarim" onClick={() => setMenuOpen(false)} className="block px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px]">Mesajlarım</Link>
                       <Link href="/bana-ozel/ayarlar" onClick={() => setMenuOpen(false)} className="w-full text-left px-4 py-2 hover:bg-blue-50 hover:text-blue-700 text-[13px] flex items-center gap-2 border-t border-gray-100">
                         <Settings size={14} /> Ayarlar
                       </Link>
@@ -197,9 +183,9 @@ export default function Header() {
               </>
             )}
             <Link href="/bana-ozel/favoriler" className="hover:text-[#ffe800] flex items-center gap-1 relative group ml-2">
-               <Heart size={14} className={favorites.length > 0 ? 'fill-[#ffe800] text-[#ffe800]' : ''} />
+               <Heart size={14} className={favCount > 0 ? 'fill-[#ffe800] text-[#ffe800]' : ''} />
                <span className="hidden sm:inline">Favorilerim</span>
-               {favorites.length > 0 && <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full">{favorites.length}</span>}
+               {favCount > 0 && <span className="absolute -top-2 -right-2 bg-red-600 text-white text-[9px] w-4 h-4 flex items-center justify-center rounded-full">{favCount}</span>}
             </Link>
             <Link href="/ilan-ver" className="bg-[#ffe800] text-black px-4 h-[34px] flex items-center gap-1 rounded-sm font-bold hover:bg-yellow-400 transition-colors ml-2 whitespace-nowrap hidden sm:flex">
               <Plus size={14} /> Ücretsiz İlan Ver

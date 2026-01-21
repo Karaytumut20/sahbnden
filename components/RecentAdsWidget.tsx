@@ -1,4 +1,3 @@
-
 "use client";
 import React from 'react';
 import Link from 'next/link';
@@ -8,7 +7,8 @@ import { History, Trash2 } from 'lucide-react';
 export default function RecentAdsWidget() {
   const { recentAds, clearHistory } = useHistory();
 
-  if (recentAds.length === 0) return null;
+  // Henüz yüklenmediyse veya boşsa gösterme
+  if (!recentAds || recentAds.length === 0) return null;
 
   return (
     <div className="mt-4 bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden dark:bg-gray-800 dark:border-gray-700">

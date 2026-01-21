@@ -1,14 +1,15 @@
-
 import Sidebar from "@/components/Sidebar";
 import Showcase from "@/components/Showcase";
-import { getShowcaseAds, getUrgentAds } from "@/lib/services";
+import { getShowcaseAdsServer } from "@/lib/actions";
 
-export const revalidate = 0; // Her istekte veriyi yenile (veya 60 saniye yapabilirsin)
+// Next.js 15 Caching stratejisi
+export const revalidate = 60; // 60 saniyede bir yenile
 
 export default async function Home() {
-  // Veritabanından verileri çek
-  const vitrinAds = await getShowcaseAds(15);
-  const urgentAds = await getUrgentAds(10);
+  const vitrinAds = await getShowcaseAdsServer();
+
+  // Urgent için ayrı fonksiyon yazmaya gerek yok, sıralama ile hallediyoruz şimdilik
+  const urgentAds = [...vitrinAds].sort((a,b) => a.price - b.price);
 
   return (
     <div className="flex gap-4">
