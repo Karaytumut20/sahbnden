@@ -19,16 +19,16 @@ function PostAdFormContent() {
   const categoryPath = searchParams.get('path') || 'Kategori Seçilmedi';
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
-  const [formData, setFormData] = useState<any>({});
+  const [images, setImages] = useState([]);
+  const [formData, setFormData] = useState({});
 
   const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri') || categorySlug.includes('arsa') || categorySlug.includes('bina');
   const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv') || categorySlug.includes('moto');
 
-  const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handleDynamicChange = (name: string, value: string) => setFormData({ ...formData, [name]: value });
+  const handleInputChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleDynamicChange = (name, value) => setFormData({ ...formData, [name]: value });
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!user) { router.push('/login'); return; }
 
@@ -72,20 +72,20 @@ function PostAdFormContent() {
 
       <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-8">
         <section>
-            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2"><span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">1</span> İlan Detayları</h3>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">İlan Detayları</h3>
             <div className="space-y-4 px-2">
-                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">İlan Başlığı *</label><input name="title" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm outline-none focus:border-blue-500 text-sm" required placeholder="Örn: Sahibinden temiz..." /></div>
-                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">Açıklama *</label><textarea name="description" onChange={handleInputChange} className="w-full border border-gray-300 p-3 rounded-sm h-32 resize-none focus:border-blue-500 outline-none text-sm" required></textarea></div>
+                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">İlan Başlığı</label><input name="title" onChange={handleInputChange} className="w-full border p-2 rounded-sm text-sm" required placeholder="Örn: Sahibinden temiz..." /></div>
+                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">Açıklama</label><textarea name="description" onChange={handleInputChange} className="w-full border p-2 rounded-sm text-sm h-32" required></textarea></div>
                 <div className="grid grid-cols-2 gap-4">
-                    <div><label className="block text-[11px] font-bold text-gray-600 mb-1">Fiyat *</label><input name="price" type="number" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm outline-none focus:border-blue-500 text-sm" required placeholder="0" /></div>
-                    <div><label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label><select name="currency" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm bg-white outline-none text-sm"><option>TL</option><option>USD</option><option>EUR</option></select></div>
+                    <div><label className="block text-[11px] font-bold text-gray-600 mb-1">Fiyat</label><input name="price" type="number" onChange={handleInputChange} className="w-full border p-2 rounded-sm text-sm" required placeholder="0" /></div>
+                    <div><label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label><select name="currency" onChange={handleInputChange} className="w-full border p-2 rounded-sm text-sm"><option>TL</option><option>USD</option><option>EUR</option></select></div>
                 </div>
             </div>
         </section>
 
         {(isRealEstate || isVehicle) && (
             <section>
-                <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2"><span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">2</span> Özellikler</h3>
+                <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">Özellikler</h3>
                 <div className="px-2">
                     {isRealEstate && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
                     {isVehicle && <VehicleFields data={formData} onChange={handleDynamicChange} />}
@@ -94,15 +94,15 @@ function PostAdFormContent() {
         )}
 
         <section>
-            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2"><span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">3</span> Fotoğraflar</h3>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">Fotoğraflar</h3>
             <div className="px-2"><ImageUploader onImagesChange={setImages} /></div>
         </section>
 
         <section>
-            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2 flex items-center gap-2"><span className="bg-blue-600 text-white w-5 h-5 flex items-center justify-center rounded-full text-xs">4</span> Adres Bilgileri</h3>
+            <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">Adres Bilgileri</h3>
             <div className="px-2 grid grid-cols-2 gap-4">
-                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">İl *</label><select name="city" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm bg-white outline-none text-sm" required><option value="">Seçiniz</option><option value="İstanbul">İstanbul</option><option value="Ankara">Ankara</option><option value="İzmir">İzmir</option></select></div>
-                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">İlçe *</label><input name="district" onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm outline-none text-sm" required placeholder="Örn: Kadıköy"/></div>
+                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">İl</label><select name="city" onChange={handleInputChange} className="w-full border p-2 rounded-sm text-sm"><option>İstanbul</option><option>Ankara</option><option>İzmir</option></select></div>
+                <div><label className="block text-[11px] font-bold text-gray-600 mb-1">İlçe</label><input name="district" onChange={handleInputChange} className="w-full border p-2 rounded-sm text-sm" /></div>
             </div>
         </section>
 

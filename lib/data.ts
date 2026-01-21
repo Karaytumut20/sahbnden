@@ -1,7 +1,5 @@
-import { Home, Car, Monitor, Briefcase, Shirt, BookOpen, Dog, Hammer, MapPin } from 'lucide-react';
+import { Home, Car, Monitor, Briefcase, ShoppingCart, Map, Sun } from 'lucide-react';
 
-// SQL veritabanındaki yapıya birebir uyan statik kategori listesi
-// Bu liste Sidebar ve Kategori sihirbazında kullanılır.
 export const categories = [
   {
     id: 'emlak',
@@ -34,6 +32,7 @@ export const categories = [
         slug: 'arsa',
         subs: [
             { id: 'arsa-satilik', title: 'Satılık Arsa', slug: 'arsa-satilik' },
+            { id: 'arsa-kiralik', title: 'Kiralık Arsa', slug: 'arsa-kiralik' },
         ]
       }
     ]
