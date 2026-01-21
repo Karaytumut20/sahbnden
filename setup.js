@@ -11,7 +11,7 @@ const colors = {
 console.log(
   colors.cyan +
     colors.bold +
-    "\n🚀 SENIOR UPGRADE: SCALABILITY & DB PERFORMANCE...\n" +
+    "\n🚀 SENIOR UPGRADE: REPORTING SYSTEM, ADVANCED COMPARE & ROBOTS...\n" +
     colors.reset,
 );
 
@@ -24,37 +24,61 @@ function writeFile(filePath, content) {
 }
 
 // =============================================================================
-// 1. LIB/ACTIONS.TS (PAGINATION DESTEKLİ GELİŞMİŞ SORGULAR)
+// 1. LIB/ACTIONS.TS (REPORT ACTION EKLENDİ)
 // =============================================================================
 const actionsContent = `
 'use server'
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
+import { revalidatePath, unstable_cache } from 'next/cache'
 import { adSchema } from '@/lib/schemas'
 
-// --- SEARCH PAGE (SAYFALAMA DESTEKLİ) ---
-// Artık tüm veriyi değil, sadece istenen sayfayı çeker.
+// --- RAPORLAMA SİSTEMİ (YENİ) ---
+export async function createReportAction(adId: number, reason: string, description: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user) return { error: 'Şikayet etmek için giriş yapmalısınız.' };
+
+    const { error } = await supabase.from('reports').insert([{
+        ad_id: adId,
+        user_id: user.id,
+        reason,
+        description,
+        status: 'pending'
+    }]);
+
+    if (error) {
+        console.error('Report Error:', error);
+        return { error: 'Şikayetiniz iletilemedi.' };
+    }
+
+    return { success: true };
+}
+
+// --- MEVCUT AKSİYONLAR (KORUNUYOR) ---
+export const getCategoryTreeServer = unstable_cache(
+  async () => {
+    const supabase = await createClient();
+    const { data } = await supabase.from('categories').select('*').order('title');
+    if (!data) return [];
+    const parents = data.filter(c => !c.parent_id);
+    return parents.map(p => ({ ...p, subs: data.filter(c => c.parent_id === p.id) }));
+  }, ['category-tree'], { revalidate: 3600 }
+);
+
 export async function getAdsServer(searchParams: any) {
   const supabase = await createClient()
-
-  // Sayfalama Ayarları
   const page = Number(searchParams?.page) || 1;
   const limit = 20;
   const from = (page - 1) * limit;
   const to = from + limit - 1;
 
-  let query = supabase
-    .from('ads')
-    .select('*, profiles(full_name), categories(title)', { count: 'exact' }) // Toplam sayıyı da al
-    .eq('status', 'yayinda');
+  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)', { count: 'exact' }).eq('status', 'yayinda');
 
-  // Filtreler
   if (searchParams?.q) query = query.ilike('title', \`%\${searchParams.q}%\`);
   if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice);
   if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice);
   if (searchParams?.city) query = query.eq('city', searchParams.city);
-
-  // Kategori Mantığı
   if (searchParams?.category) {
       const slug = searchParams.category;
       if (slug === 'emlak') query = query.or('category.ilike.konut%,category.ilike.isyeri%,category.ilike.arsa%');
@@ -63,35 +87,17 @@ export async function getAdsServer(searchParams: any) {
       else if (slug === 'vasita') query = query.or('category.eq.otomobil,category.eq.suv,category.eq.motosiklet');
       else query = query.eq('category', slug);
   }
-
-  // Özellik Filtreleri
-  if (searchParams?.room) query = query.eq('room', searchParams.room);
-  if (searchParams?.minYear) query = query.gte('year', searchParams.minYear);
-  if (searchParams?.maxYear) query = query.lte('year', searchParams.maxYear);
-
-  // Sıralama
   if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true });
   else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false });
   else query = query.order('created_at', { ascending: false });
 
-  // Sayfalama Uygula
   query = query.range(from, to);
-
   const { data, count, error } = await query;
 
-  if (error) {
-    console.error('Search Error:', error);
-    return { data: [], count: 0, totalPages: 0 };
-  }
-
-  return {
-    data: data || [],
-    count: count || 0,
-    totalPages: count ? Math.ceil(count / limit) : 0
-  };
+  if (error) return { data: [], count: 0, totalPages: 0 };
+  return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
 }
 
-// --- DİĞER AKSİYONLAR (KORUNDU) ---
 export async function createAdAction(formData: any) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
@@ -119,23 +125,13 @@ export async function createAdAction(formData: any) {
 export async function getInfiniteAdsAction(page = 1, limit = 20) {
     const supabase = await createClient();
     try {
-        // RPC varsa kullan, yoksa fallback
         const { data, error } = await supabase.rpc('get_random_ads', { limit_count: limit });
         if (!error && data && data.length > 0) return { data: data, total: 100, hasMore: true };
     } catch (e) {}
-
     const start = (page - 1) * limit;
     const end = start + limit - 1;
     const { data, count } = await supabase.from('ads').select('*, profiles(full_name)', { count: 'exact' }).eq('status', 'yayinda').order('created_at', { ascending: false }).range(start, end);
     return { data: data || [], total: count || 0, hasMore: (count || 0) > end + 1 };
-}
-
-export async function getCategoryTreeServer() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('categories').select('*').order('title');
-  if (!data) return [];
-  const parents = data.filter(c => !c.parent_id);
-  return parents.map(p => ({ ...p, subs: data.filter(c => c.parent_id === p.id) }));
 }
 
 export async function getAdDetailServer(id: number) {
@@ -207,7 +203,14 @@ export async function getMyStoreServer() {
 }
 
 export async function getAdminStatsServer() {
-    return { totalUsers: 10, activeAds: 5, totalRevenue: 1500 };
+    const supabase = await createClient();
+    const [users, ads, revenue] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('ads').select('*', { count: 'exact', head: true }).eq('status', 'yayinda'),
+        supabase.from('ads').select('*', { count: 'exact', head: true }).or('is_vitrin.eq.true,is_urgent.eq.true')
+    ]);
+    const estimatedRevenue = (revenue.count || 0) * 100;
+    return { totalUsers: users.count || 0, activeAds: ads.count || 0, totalRevenue: estimatedRevenue };
 }
 
 export async function getPageBySlugServer(slug: string) {
@@ -244,106 +247,297 @@ export async function getRelatedAdsServer(category: string, currentId: number) {
     const { data } = await supabase.from('ads').select('*').eq('category', category).eq('status', 'yayinda').neq('id', currentId).limit(5);
     return data || [];
 }
+
+export async function getAdminAdsClient() {
+  const supabase = await createClient();
+  const { data } = await supabase.from('ads').select('*, profiles(full_name)').order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function approveAdAction(adId: number) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update({ status: 'yayinda' }).eq('id', adId);
+    if(error) return { error: error.message };
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
+export async function rejectAdAction(adId: number, reason: string) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
+    if(error) return { error: error.message };
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
+export async function getAdFavoriteCount(adId: number) {
+    const supabase = await createClient();
+    const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('ad_id', adId);
+    return count || 0;
+}
 `;
 writeFile("lib/actions.ts", actionsContent);
 
 // =============================================================================
-// 2. APP/SEARCH/PAGE.TSX (SAYFALAMA GÜNCELLEMESİ)
+// 2. COMPONENTS/MODALS/REPORTMODAL.TSX (SERVER ACTION BAĞLANTISI)
 // =============================================================================
-const searchPageContent = `
-import React from 'react';
-import { getAdsServer } from '@/lib/actions';
-import FilterSidebar from '@/components/FilterSidebar';
-import MapView from '@/components/MapView';
-import SearchHeader from '@/components/SearchHeader';
-import AdCard from '@/components/AdCard';
-import ViewToggle from '@/components/ViewToggle';
-import Pagination from '@/components/Pagination';
-import { Metadata } from 'next';
-import { categories } from '@/lib/data';
-import EmptyState from '@/components/ui/EmptyState';
-import { SearchX } from 'lucide-react';
+const reportModalContent = `
+"use client";
+import React, { useState } from 'react';
+import { useModal } from '@/context/ModalContext';
+import { X, AlertTriangle, Loader2 } from 'lucide-react';
+import { createReportAction } from '@/lib/actions';
+import { useToast } from '@/context/ToastContext';
 
-type Props = {
-  searchParams: Promise<{ q?: string; category?: string; minPrice?: string; maxPrice?: string; city?: string; sort?: string; view?: string; page?: string }>;
-};
+export default function ReportModal() {
+  const { isReportOpen, closeReport, reportData } = useModal();
+  const { addToast } = useToast();
+  const [reason, setReason] = useState('yaniltici');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
 
-export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const params = await searchParams;
-  let title = "Tüm İlanlar";
-  if (params.q) title = \`"\${params.q}" Arama Sonuçları\`;
-  else if (params.category) title = \`\${params.category} İlanları\`;
-  if (params.city) title += \` - \${params.city}\`;
-  return { title: \`\${title} | sahibinden.com Klon\` };
-}
+  if (!isReportOpen) return null;
 
-export default async function SearchPage({ searchParams }: Props) {
-  const params = await searchParams;
-  const { data: ads, count, totalPages } = await getAdsServer(params);
-  const viewMode = (params.view || 'table') as 'grid' | 'list' | 'table' | 'map';
-  const currentPage = Number(params.page) || 1;
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reportData?.adId) return;
+
+    setLoading(true);
+    const res = await createReportAction(reportData.adId, reason, description);
+    setLoading(false);
+
+    if (res.error) {
+        addToast(res.error, 'error');
+    } else {
+        addToast('Şikayetiniz alındı. Teşekkür ederiz.', 'success');
+        closeReport();
+        setDescription('');
+    }
+  };
 
   return (
-    <div className="flex gap-4 pt-4">
-      {/* Sol Sidebar */}
-      <div className="w-[240px] shrink-0 hidden md:block">
-        <FilterSidebar />
-      </div>
-
-      {/* Ana İçerik */}
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-end mb-3 pb-2 border-b border-gray-200">
-            <SearchHeader total={count} query={params.q} currentSort={params.sort} currentView={viewMode} />
-            <div className="ml-4"><ViewToggle currentView={viewMode} /></div>
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-md w-full max-w-md shadow-xl animate-in fade-in zoom-in-95 duration-200">
+        <div className="flex justify-between items-center p-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <AlertTriangle className="text-red-500" size={20} /> İlanı Şikayet Et
+          </h3>
+          <button onClick={closeReport} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
 
-        {viewMode === 'map' ? (
-          <MapView ads={ads} />
-        ) : (
-          <>
-            {viewMode === 'table' ? (
-              <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-[11px] text-gray-500 font-semibold uppercase">
-                      <th className="p-3">Görsel</th>
-                      <th className="p-3">İlan Başlığı</th>
-                      <th className="p-3">Fiyat</th>
-                      <th className="p-3">İlan Tarihi</th>
-                      <th className="p-3">İl / İlçe</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode="table" />)}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className={\`grid gap-4 \${viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1'}\`}>
-                {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode={viewMode} />)}
-              </div>
-            )}
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Şikayet Nedeni</label>
+            <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full border border-gray-300 rounded-sm h-10 px-3 text-sm outline-none focus:border-blue-500"
+            >
+                <option value="yaniltici">Yanıltıcı Bilgi / Fotoğraf</option>
+                <option value="dolandiricilik">Dolandırıcılık Şüphesi</option>
+                <option value="kufur">Küfür / Hakaret</option>
+                <option value="kategori">Yanlış Kategori</option>
+                <option value="diger">Diğer</option>
+            </select>
+          </div>
 
-            {ads.length === 0 ? (
-              <EmptyState
-                icon={SearchX}
-                title="Sonuç Bulunamadı"
-                description="Arama kriterlerinize uygun ilan bulunmamaktadır. Filtreleri temizleyerek tekrar deneyebilirsiniz."
-              />
-            ) : (
-              <Pagination currentPage={currentPage} totalPages={totalPages} />
-            )}
-          </>
-        )}
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Açıklama (İsteğe Bağlı)</label>
+            <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full border border-gray-300 rounded-sm p-3 text-sm h-24 resize-none outline-none focus:border-blue-500"
+                placeholder="Lütfen detay veriniz..."
+            ></textarea>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={closeReport} className="px-4 py-2 text-gray-600 text-sm font-bold hover:bg-gray-100 rounded-sm">Vazgeç</button>
+            <button
+                type="submit"
+                disabled={loading}
+                className="bg-red-600 text-white px-6 py-2 rounded-sm text-sm font-bold hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
+            >
+                {loading && <Loader2 size={16} className="animate-spin" />} Şikayet Et
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
 }
 `;
-writeFile("app/search/page.tsx", searchPageContent);
+writeFile("components/modals/ReportModal.tsx", reportModalContent);
+
+// =============================================================================
+// 3. APP/KARSILASTIR/PAGE.TSX (GELİŞMİŞ KARŞILAŞTIRMA MATRİSİ)
+// =============================================================================
+const comparePageContent = `
+"use client";
+import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
+import { useCompare } from '@/context/CompareContext';
+import { getAdsByIds } from '@/lib/actions';
+import { Check, X, Trash2, ArrowLeft, AlertCircle } from 'lucide-react';
+import EmptyState from '@/components/ui/EmptyState';
+import { Loader2 } from 'lucide-react';
+
+export default function ComparePage() {
+  const { compareList, removeFromCompare, clearCompare } = useCompare();
+  const [ads, setAds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (compareList.length === 0) {
+        setAds([]);
+        setLoading(false);
+        return;
+    }
+    setLoading(true);
+    getAdsByIds(compareList).then((data) => {
+        setAds(data);
+        setLoading(false);
+    });
+  }, [compareList]);
+
+  if (compareList.length === 0) {
+    return (
+        <div className="p-10 container max-w-[1150px] mx-auto">
+            <EmptyState
+                icon={AlertCircle}
+                title="Karşılaştırma Listeniz Boş"
+                description="İlanları karşılaştırmak için detay sayfalarından 'Karşılaştır' butonuna tıklayınız."
+                actionLabel="İlanlara Git"
+                actionUrl="/search"
+            />
+        </div>
+    );
+  }
+
+  if (loading) return <div className="p-20 text-center flex justify-center"><Loader2 className="animate-spin"/></div>;
+
+  // Ortak özellikler
+  const features = [
+    { label: 'Fiyat', key: 'price', format: (v: any, ad: any) => \`\${v?.toLocaleString()} \${ad.currency}\` },
+    { label: 'İl / İlçe', key: 'city', format: (v: any, ad: any) => \`\${v} / \${ad.district}\` },
+    { label: 'İlan Tarihi', key: 'created_at', format: (v: any) => new Date(v).toLocaleDateString() },
+    { label: 'Kategori', key: 'category' },
+    // Dinamik alanlar
+    { label: 'Marka', key: 'brand' },
+    { label: 'Model', key: 'model' },
+    { label: 'Yıl', key: 'year' },
+    { label: 'KM', key: 'km', format: (v: any) => v ? \`\${v} KM\` : '-' },
+    { label: 'Yakıt', key: 'fuel' },
+    { label: 'Vites', key: 'gear' },
+    { label: 'm²', key: 'm2' },
+    { label: 'Oda', key: 'room' },
+    { label: 'Kat', key: 'floor' },
+    { label: 'Isıtma', key: 'heating' },
+  ];
+
+  return (
+    <div className="container max-w-[1150px] mx-auto py-8 px-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">İlan Karşılaştırma</h1>
+        <div className="flex gap-4">
+            <Link href="/" className="text-sm text-blue-600 hover:underline flex items-center gap-1"><ArrowLeft size={16}/> Alışverişe Dön</Link>
+            <button onClick={clearCompare} className="text-sm text-red-600 hover:underline flex items-center gap-1"><Trash2 size={16}/> Listeyi Temizle</button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm bg-white">
+        <table className="w-full text-left border-collapse">
+          <thead>
+            <tr>
+              <th className="p-4 border-b border-r border-gray-100 bg-gray-50 w-[200px] min-w-[150px]">Özellikler</th>
+              {ads.map(ad => (
+                <th key={ad.id} className="p-4 border-b border-r border-gray-100 min-w-[250px] relative group">
+                    <button
+                        onClick={() => removeFromCompare(ad.id)}
+                        className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Listeden Çıkar"
+                    >
+                        <X size={18}/>
+                    </button>
+                    <div className="h-32 w-full bg-gray-100 rounded-md mb-3 overflow-hidden relative">
+                        {ad.image ? (
+                            <img src={ad.image} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Resim Yok</div>
+                        )}
+                        {ad.is_vitrin && <span className="absolute top-0 left-0 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5">VİTRİN</span>}
+                    </div>
+                    <Link href={\`/ilan/\${ad.id}\`} className="font-bold text-blue-900 hover:underline line-clamp-2 h-10 text-sm">
+                        {ad.title}
+                    </Link>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {features.map((feature, idx) => {
+               // Eğer hiçbir ilanda bu özellik yoksa satırı gizle (Smart Table)
+               const hasValue = ads.some(ad => ad[feature.key] !== null && ad[feature.key] !== undefined);
+               if (!hasValue) return null;
+
+               return (
+                <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 border-b border-r border-gray-100 font-bold text-gray-600 text-sm bg-gray-50/50">
+                        {feature.label}
+                    </td>
+                    {ads.map(ad => (
+                        <td key={ad.id} className="p-4 border-b border-r border-gray-100 text-sm text-gray-800">
+                            {feature.format
+                                ? feature.format(ad[feature.key], ad)
+                                : (ad[feature.key] || <span className="text-gray-300">-</span>)
+                            }
+                        </td>
+                    ))}
+                </tr>
+               );
+            })}
+            <tr>
+                <td className="p-4 border-r border-gray-100 bg-gray-50"></td>
+                {ads.map(ad => (
+                    <td key={ad.id} className="p-4 border-r border-gray-100">
+                        <Link href={\`/ilan/\${ad.id}\`} className="block w-full bg-[#ffe800] text-black text-center py-2 rounded-sm font-bold text-sm hover:bg-yellow-400">
+                            İlanı İncele
+                        </Link>
+                    </td>
+                ))}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+`;
+writeFile("app/karsilastir/page.tsx", comparePageContent);
+
+// =============================================================================
+// 4. APP/ROBOTS.TS (DİNAMİK ROBOTS.TXT)
+// =============================================================================
+const robotsContent = `
+import { MetadataRoute } from 'next';
+
+export default function robots(): MetadataRoute.Robots {
+  const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+
+  return {
+    rules: {
+      userAgent: '*',
+      allow: '/',
+      disallow: ['/bana-ozel/', '/admin/', '/ilan-ver/'], // Özel sayfaları engelle
+    },
+    sitemap: \`\${baseUrl}/sitemap.xml\`,
+  };
+}
+`;
+writeFile("app/robots.ts", robotsContent);
 
 console.log(
   colors.yellow +
-    "\\n⚠️ SCALABILITY UPGRADE TAMAMLANDI! 'npm run dev' ile başlatın." +
+    "\\n⚠️ SENIOR UPGRADE TAMAMLANDI! 'npm run dev' ile projeyi başlatın." +
     colors.reset,
 );

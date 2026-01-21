@@ -1,99 +1,136 @@
-import React from 'react';
+"use client";
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useCompare } from '@/context/CompareContext';
 import { getAdsByIds } from '@/lib/actions';
-import { ArrowLeft, X, Check, Minus } from 'lucide-react';
+import { Check, X, Trash2, ArrowLeft, AlertCircle } from 'lucide-react';
+import EmptyState from '@/components/ui/EmptyState';
+import { Loader2 } from 'lucide-react';
 
-export default async function ComparePage({ searchParams }: { searchParams: Promise<{ ids?: string }> }) {
-  const { ids } = await searchParams;
-  const adIds = ids ? ids.split(',').map(Number) : [];
+export default function ComparePage() {
+  const { compareList, removeFromCompare, clearCompare } = useCompare();
+  const [ads, setAds] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Server Action ile gerçek veri çekiyoruz
-  const ads = await getAdsByIds(adIds);
+  useEffect(() => {
+    if (compareList.length === 0) {
+        setAds([]);
+        setLoading(false);
+        return;
+    }
+    setLoading(true);
+    getAdsByIds(compareList).then((data) => {
+        setAds(data);
+        setLoading(false);
+    });
+  }, [compareList]);
 
-  if (ads.length === 0) {
+  if (compareList.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-4">
-        <div className="bg-blue-50 p-6 rounded-full mb-4">
-            <ArrowLeft size={32} className="text-blue-600" />
+        <div className="p-10 container max-w-[1150px] mx-auto">
+            <EmptyState
+                icon={AlertCircle}
+                title="Karşılaştırma Listeniz Boş"
+                description="İlanları karşılaştırmak için detay sayfalarından 'Karşılaştır' butonuna tıklayınız."
+                actionLabel="İlanlara Git"
+                actionUrl="/search"
+            />
         </div>
-        <h1 className="text-xl font-bold mb-2 text-[#333]">Karşılaştırılacak ilan bulunamadı.</h1>
-        <p className="text-gray-500 mb-6 text-sm">Lütfen ilan detay sayfalarından veya arama sonuçlarından karşılaştırma listesine ilan ekleyin.</p>
-        <Link href="/" className="bg-blue-700 text-white px-6 py-3 rounded-sm font-bold text-sm hover:bg-blue-800 transition-colors">
-          Ana Sayfaya Dön
-        </Link>
-      </div>
     );
   }
 
-  // Karşılaştırma Özellikleri
-  const compareFields = [
-    { label: 'Fiyat', key: 'price', format: (val: any, ad: any) => `${val?.toLocaleString()} ${ad.currency}` },
-    { label: 'İl / İlçe', key: 'location', format: (_: any, ad: any) => `${ad.city} / ${ad.district}` },
-    { label: 'Oda Sayısı', key: 'room' },
-    { label: 'Metrekare', key: 'm2', format: (val: any) => val ? `${val} m²` : '-' },
-    { label: 'Model Yılı', key: 'year' },
-    { label: 'Kilometre', key: 'km', format: (val: any) => val ? `${val.toLocaleString()} KM` : '-' },
+  if (loading) return <div className="p-20 text-center flex justify-center"><Loader2 className="animate-spin"/></div>;
+
+  // Ortak özellikler
+  const features = [
+    { label: 'Fiyat', key: 'price', format: (v: any, ad: any) => `${v?.toLocaleString()} ${ad.currency}` },
+    { label: 'İl / İlçe', key: 'city', format: (v: any, ad: any) => `${v} / ${ad.district}` },
+    { label: 'İlan Tarihi', key: 'created_at', format: (v: any) => new Date(v).toLocaleDateString() },
+    { label: 'Kategori', key: 'category' },
+    // Dinamik alanlar
+    { label: 'Marka', key: 'brand' },
+    { label: 'Model', key: 'model' },
+    { label: 'Yıl', key: 'year' },
+    { label: 'KM', key: 'km', format: (v: any) => v ? `${v} KM` : '-' },
     { label: 'Yakıt', key: 'fuel' },
     { label: 'Vites', key: 'gear' },
-    { label: 'Isıtma', key: 'heating' },
+    { label: 'm²', key: 'm2' },
+    { label: 'Oda', key: 'room' },
     { label: 'Kat', key: 'floor' },
-    { label: 'İlan Tarihi', key: 'created_at', format: (val: any) => new Date(val).toLocaleDateString('tr-TR') },
-    { label: 'Kimden', key: 'profiles', format: (val: any) => val?.full_name || 'Sahibinden' },
+    { label: 'Isıtma', key: 'heating' },
   ];
 
   return (
-    <div className="py-6">
-      <div className="flex items-center gap-2 mb-6">
-        <Link href="/" className="flex items-center gap-1 text-sm text-gray-500 hover:text-blue-700">
-          <ArrowLeft size={16} /> Geri Dön
-        </Link>
-        <h1 className="text-xl font-bold text-[#333]">İlan Karşılaştırma ({ads.length})</h1>
+    <div className="container max-w-[1150px] mx-auto py-8 px-4">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">İlan Karşılaştırma</h1>
+        <div className="flex gap-4">
+            <Link href="/" className="text-sm text-blue-600 hover:underline flex items-center gap-1"><ArrowLeft size={16}/> Alışverişe Dön</Link>
+            <button onClick={clearCompare} className="text-sm text-red-600 hover:underline flex items-center gap-1"><Trash2 size={16}/> Listeyi Temizle</button>
+        </div>
       </div>
 
-      <div className="overflow-x-auto bg-white border border-gray-200 rounded-sm shadow-sm scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pb-2">
-        <table className="w-full text-left border-collapse min-w-[800px]">
+      <div className="overflow-x-auto border border-gray-200 rounded-lg shadow-sm bg-white">
+        <table className="w-full text-left border-collapse">
           <thead>
             <tr>
-              <th className="p-4 border-b border-r border-gray-200 w-[200px] bg-gray-50 sticky left-0 z-10 text-sm font-bold text-gray-600">
-                Özellikler
-              </th>
+              <th className="p-4 border-b border-r border-gray-100 bg-gray-50 w-[200px] min-w-[150px]">Özellikler</th>
               {ads.map(ad => (
-                <th key={ad.id} className="p-4 border-b border-r border-gray-200 min-w-[220px] align-top relative bg-white">
-                  <div className="w-full h-32 bg-gray-100 mb-3 relative overflow-hidden rounded-sm border border-gray-200 group">
-                    <img
-                        src={ad.image || 'https://via.placeholder.com/300x200?text=Resim+Yok'}
-                        alt={ad.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <Link href={`/ilan/${ad.id}`} className="absolute inset-0 z-10" />
-                  </div>
-                  <Link href={`/ilan/${ad.id}`} className="text-blue-900 font-bold text-sm hover:underline line-clamp-2 mb-2 block h-[2.5em]">
-                    {ad.title}
-                  </Link>
-                  <p className="text-red-600 font-bold text-lg">{ad.price?.toLocaleString()} {ad.currency}</p>
+                <th key={ad.id} className="p-4 border-b border-r border-gray-100 min-w-[250px] relative group">
+                    <button
+                        onClick={() => removeFromCompare(ad.id)}
+                        className="absolute top-2 right-2 text-gray-400 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="Listeden Çıkar"
+                    >
+                        <X size={18}/>
+                    </button>
+                    <div className="h-32 w-full bg-gray-100 rounded-md mb-3 overflow-hidden relative">
+                        {ad.image ? (
+                            <img src={ad.image} className="w-full h-full object-cover" />
+                        ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400 text-xs">Resim Yok</div>
+                        )}
+                        {ad.is_vitrin && <span className="absolute top-0 left-0 bg-yellow-400 text-black text-[10px] font-bold px-2 py-0.5">VİTRİN</span>}
+                    </div>
+                    <Link href={`/ilan/${ad.id}`} className="font-bold text-blue-900 hover:underline line-clamp-2 h-10 text-sm">
+                        {ad.title}
+                    </Link>
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {compareFields.map((field, idx) => (
-              <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
-                <td className="p-3 border-b border-r border-gray-200 font-bold text-[#333] text-sm sticky left-0 bg-inherit z-10">
-                  {field.label}
-                </td>
-                {ads.map(ad => {
-                  // Veriye erişim (Nested key support could be added via lodash/get but simple access is usually fine)
-                  const rawVal = ad[field.key as keyof typeof ad];
-                  const displayVal = field.format ? field.format(rawVal, ad) : (rawVal || <span className="text-gray-300 text-xs"><Minus size={12}/></span>);
+            {features.map((feature, idx) => {
+               // Eğer hiçbir ilanda bu özellik yoksa satırı gizle (Smart Table)
+               const hasValue = ads.some(ad => ad[feature.key] !== null && ad[feature.key] !== undefined);
+               if (!hasValue) return null;
 
-                  return (
-                    <td key={ad.id} className="p-3 border-b border-r border-gray-200 text-[#333] text-sm text-center">
-                      {displayVal}
+               return (
+                <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="p-4 border-b border-r border-gray-100 font-bold text-gray-600 text-sm bg-gray-50/50">
+                        {feature.label}
                     </td>
-                  );
-                })}
-              </tr>
-            ))}
+                    {ads.map(ad => (
+                        <td key={ad.id} className="p-4 border-b border-r border-gray-100 text-sm text-gray-800">
+                            {feature.format
+                                ? feature.format(ad[feature.key], ad)
+                                : (ad[feature.key] || <span className="text-gray-300">-</span>)
+                            }
+                        </td>
+                    ))}
+                </tr>
+               );
+            })}
+            <tr>
+                <td className="p-4 border-r border-gray-100 bg-gray-50"></td>
+                {ads.map(ad => (
+                    <td key={ad.id} className="p-4 border-r border-gray-100">
+                        <Link href={`/ilan/${ad.id}`} className="block w-full bg-[#ffe800] text-black text-center py-2 rounded-sm font-bold text-sm hover:bg-yellow-400">
+                            İlanı İncele
+                        </Link>
+                    </td>
+                ))}
+            </tr>
           </tbody>
         </table>
       </div>

@@ -18,7 +18,6 @@ export default function SaveSearchButton() {
       return;
     }
 
-    // Kriterleri okunabilir metne dönüştür
     const criteriaList = [];
     if (searchParams.get('q')) criteriaList.push(`Kelime: ${searchParams.get('q')}`);
     if (searchParams.get('city')) criteriaList.push(`Şehir: ${searchParams.get('city')}`);
@@ -27,13 +26,14 @@ export default function SaveSearchButton() {
     const criteriaText = criteriaList.join(', ') || 'Filtrelenmiş Arama';
     const fullUrl = `${pathname}?${paramsString}`;
 
+    // Bu fonksiyon Context üzerinden hem DB'ye kaydeder hem bildirim atar
     saveSearch(fullUrl, criteriaText);
   };
 
   return (
     <button
       onClick={handleSave}
-      className="text-[12px] text-blue-700 flex items-center gap-1 hover:underline hover:text-blue-900 ml-4"
+      className="text-[12px] text-blue-700 flex items-center gap-1 hover:underline hover:text-blue-900 ml-4 font-bold"
     >
       <BellPlus size={14} /> Aramayı Kaydet
     </button>

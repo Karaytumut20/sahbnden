@@ -17,39 +17,45 @@ export async function middleware(request: NextRequest) {
           return request.cookies.getAll()
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
+          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value, options))
           response = NextResponse.next({
             request: {
               headers: request.headers,
             },
           })
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options)
-          )
+          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options))
         },
       },
     }
   )
 
-  // Auth durumunu kontrol et
-  // DİKKAT: getUser() kullanıyoruz, getSession() değil. Güvenlik için bu şart.
+  // Oturumu kontrol et
   const { data: { user } } = await supabase.auth.getUser()
 
   // Korumalı Rotalar
-  const protectedRoutes = ['/bana-ozel', '/ilan-ver', '/ilan-duzenle']
-  const isProtected = protectedRoutes.some(route => request.nextUrl.pathname.startsWith(route))
-
-  // Admin Kontrolü
-  if (request.nextUrl.pathname.startsWith('/admin')) {
-     if (!user) {
-         return NextResponse.redirect(new URL('/admin/login', request.url))
-     }
-     // Gerçek projede burada user.role === 'admin' kontrolü yapılır
+  if (request.nextUrl.pathname.startsWith('/bana-ozel') || request.nextUrl.pathname.startsWith('/ilan-ver')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/login', request.url))
+    }
   }
 
-  // Normal Kullanıcı Kontrolü
-  if (isProtected && !user) {
-    return NextResponse.redirect(new URL('/login', request.url))
+  // Admin Koruması (Senior Security)
+  if (request.nextUrl.pathname.startsWith('/admin')) {
+    if (!user) {
+      return NextResponse.redirect(new URL('/admin/login', request.url))
+    }
+
+    // Kullanıcının rolünü kontrol et
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (profile?.role !== 'admin') {
+      // Admin değilse anasayfaya at
+      return NextResponse.redirect(new URL('/', request.url))
+    }
   }
 
   return response

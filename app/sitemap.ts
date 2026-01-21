@@ -1,30 +1,40 @@
+import { MetadataRoute } from 'next';
+import { createClient } from '@/lib/supabase/client';
 
-import { MetadataRoute } from 'next'
-import { ads } from '@/lib/data'
+// BASE URL'i environment variable'dan al veya localhost kullan
+const BASE_URL = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://ornek-sahibinden-klon.com';
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const supabase = createClient();
 
-  const adUrls = ads.map((ad) => ({
-    url: `${baseUrl}/ilan/${ad.id}`,
-    lastModified: new Date(),
+  // En son eklenen 1000 ilanı çek
+  const { data: ads } = await supabase
+    .from('ads')
+    .select('id, updated_at')
+    .eq('status', 'yayinda')
+    .order('updated_at', { ascending: false })
+    .limit(1000);
+
+  const adUrls = (ads || []).map((ad) => ({
+    url: `${BASE_URL}/ilan/${ad.id}`,
+    lastModified: new Date(ad.updated_at),
     changeFrequency: 'daily' as const,
     priority: 0.8,
   }));
 
   return [
     {
-      url: baseUrl,
+      url: BASE_URL,
       lastModified: new Date(),
       changeFrequency: 'always',
       priority: 1,
     },
     {
-      url: `${baseUrl}/search`,
+      url: `${BASE_URL}/search`,
       lastModified: new Date(),
       changeFrequency: 'daily',
       priority: 0.9,
     },
     ...adUrls,
-  ]
+  ];
 }

@@ -4,6 +4,38 @@ import { Upload, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { uploadImageClient } from '@/lib/services';
 import { useToast } from '@/context/ToastContext';
 
+// Basit Canvas Tabanlı Resim Sıkıştırma
+const compressImage = async (file: File): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      const maxWidth = 1200; // Maksimum genişlik
+      const scaleSize = maxWidth / img.width;
+
+      canvas.width = maxWidth;
+      canvas.height = img.height * scaleSize;
+
+      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const compressedFile = new File([blob], file.name, {
+            type: 'image/jpeg',
+            lastModified: Date.now(),
+          });
+          resolve(compressedFile);
+        } else {
+          reject(new Error('Compression failed'));
+        }
+      }, 'image/jpeg', 0.7); // %70 kalite
+    };
+    img.onerror = (err) => reject(err);
+  });
+};
+
 type ImageUploaderProps = {
   onImagesChange: (urls: string[]) => void;
   initialImages?: string[];
@@ -11,17 +43,16 @@ type ImageUploaderProps = {
 
 type UploadItem = {
   id: string;
-  url: string;        // Local preview veya Remote URL
-  file?: File;        // Yükleniyorsa dosya objesi
+  url: string;
+  file?: File;
   status: 'pending' | 'uploading' | 'success' | 'error';
-  remoteUrl?: string; // Başarılı yükleme sonrası gelen URL
+  remoteUrl?: string;
 };
 
 export default function ImageUploader({ onImagesChange, initialImages = [] }: ImageUploaderProps) {
   const { addToast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Başlangıç resimleri
   const [items, setItems] = useState<UploadItem[]>(
     initialImages.map((url, i) => ({
       id: `init-${i}`,
@@ -38,10 +69,10 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
 
     const files = Array.from(e.target.files);
 
-    // 1. Önce "Yükleniyor" durumunda listeye ekle (ANLIK ÖNİZLEME İÇİN)
+    // Önizleme Ekle
     const newItems: UploadItem[] = files.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
-      url: URL.createObjectURL(file), // Local blob URL ile hemen göster
+      url: URL.createObjectURL(file),
       file: file,
       status: 'uploading'
     }));
@@ -49,20 +80,22 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
     setItems(prev => [...prev, ...newItems]);
     setIsGlobalUploading(true);
 
-    // 2. Arka planda tek tek yükle
+    // Yükleme İşlemi (Sıkıştırmalı)
     for (const item of newItems) {
       if (!item.file) continue;
 
       try {
-        const publicUrl = await uploadImageClient(item.file);
+        // Sıkıştır
+        const compressedFile = await compressImage(item.file);
 
-        // Başarılı olursa remoteUrl'i güncelle
+        // Yükle
+        const publicUrl = await uploadImageClient(compressedFile);
+
         setItems(prev => prev.map(i =>
           i.id === item.id ? { ...i, status: 'success', remoteUrl: publicUrl } : i
         ));
       } catch (error) {
         console.error("Yükleme hatası:", error);
-        // Hatalı olursa durumu güncelle
         setItems(prev => prev.map(i =>
           i.id === item.id ? { ...i, status: 'error' } : i
         ));
@@ -74,12 +107,10 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
-  // Üst bileşene sadece başarılı URL'leri gönder
   React.useEffect(() => {
     const successUrls = items
       .filter(i => i.status === 'success' && i.remoteUrl)
       .map(i => i.remoteUrl as string);
-
     onImagesChange(successUrls);
   }, [items, onImagesChange]);
 
@@ -90,8 +121,6 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
-
-        {/* Yükleme Butonu */}
         <div
           onClick={() => !isGlobalUploading && fileInputRef.current?.click()}
           className={`w-28 h-28 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer transition-colors hover:bg-blue-50 hover:border-blue-400 ${isGlobalUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
@@ -115,29 +144,16 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
           />
         </div>
 
-        {/* Resim Listesi */}
         {items.map((item, idx) => (
           <div key={item.id} className="relative w-28 h-28 bg-gray-100 rounded-md border border-gray-200 overflow-hidden group">
             <img src={item.url} alt="preview" className="w-full h-full object-cover" />
-
-            {/* Durum İkonları */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-              {item.status === 'uploading' && (
-                <div className="bg-white/80 p-2 rounded-full shadow"><Loader2 size={20} className="animate-spin text-blue-600" /></div>
-              )}
-              {item.status === 'error' && (
-                <div className="bg-red-100 p-2 rounded-full shadow text-red-600"><AlertCircle size={20} /></div>
-              )}
+              {item.status === 'uploading' && <div className="bg-white/80 p-2 rounded-full shadow"><Loader2 size={20} className="animate-spin text-blue-600" /></div>}
+              {item.status === 'error' && <div className="bg-red-100 p-2 rounded-full shadow text-red-600"><AlertCircle size={20} /></div>}
             </div>
-
-            {/* Vitrin Etiketi (İlk başarılı resim) */}
             {idx === 0 && item.status === 'success' && (
-              <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10">
-                VİTRİN
-              </div>
+              <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10">VİTRİN</div>
             )}
-
-            {/* Sil Butonu */}
             <button
               onClick={() => removeImage(item.id)}
               className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-20 cursor-pointer"
@@ -150,7 +166,7 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
       </div>
 
       {items.length === 0 && (
-        <p className="text-xs text-gray-400">Henüz fotoğraf yüklenmedi. (İsteğe bağlı)</p>
+        <p className="text-xs text-gray-400">Vitrin görseli için en az 1 adet fotoğraf yüklemeniz önerilir. (Otomatik sıkıştırılır)</p>
       )}
     </div>
   );

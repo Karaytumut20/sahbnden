@@ -1,81 +1,55 @@
 'use server'
 import { createClient } from '@/lib/supabase/server'
-import { revalidatePath } from 'next/cache'
-import { adSchema } from '@/lib/schemas' // Şemayı import et
+import { revalidatePath, unstable_cache } from 'next/cache'
+import { adSchema } from '@/lib/schemas'
 
-// --- GÜVENLİ İLAN OLUŞTURMA ---
-export async function createAdAction(formData: any) {
-  const supabase = await createClient()
-
-  // 1. Yetki Kontrolü
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
-
-  // 2. Server-Side Validasyon (ZOD) - Senior Move!
-  // Gelen veriyi şemaya göre test et. Hata varsa veritabanına gitme.
-  const validation = adSchema.safeParse(formData);
-
-  if (!validation.success) {
-    // İlk hatayı döndür
-    return { error: validation.error.issues[0].message };
-  }
-
-  const validData = validation.data;
-
-  // 3. Profil Kontrolü
-  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
-  if (!profile) {
-      await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
-  }
-
-  // 4. Veritabanına Kayıt
-  const { data, error } = await supabase.from('ads').insert([{
-    ...validData,
-    user_id: user.id,
-    status: 'onay_bekliyor',
-    is_vitrin: false,
-    is_urgent: false
-  }]).select('id').single()
-
-  if (error) {
-    console.error('Database Error:', error);
-    return { error: 'Veritabanı hatası oluştu.' }
-  }
-
-  revalidatePath('/');
-  return { success: true, adId: data.id }
-}
-
-// --- DİĞER AKSİYONLAR (Mevcut yapıyı koruyoruz) ---
-export async function getCategoryTreeServer() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('categories').select('*').order('title');
-  if (!data) return [];
-  const parents = data.filter(c => !c.parent_id);
-  return parents.map(p => ({ ...p, subs: data.filter(c => c.parent_id === p.id) }));
-}
-
-export async function getInfiniteAdsAction(page = 1, limit = 20) {
+// --- RAPORLAMA SİSTEMİ (YENİ) ---
+export async function createReportAction(adId: number, reason: string, description: string) {
     const supabase = await createClient();
-    try {
-        const { data, error } = await supabase.rpc('get_random_ads', { limit_count: limit });
-        if (!error && data && data.length > 0) return { data: data, total: 100, hasMore: true };
-    } catch (e) {}
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const start = (page - 1) * limit;
-    const end = start + limit - 1;
-    const { data, count } = await supabase.from('ads').select('*, profiles(full_name)', { count: 'exact' }).eq('status', 'yayinda').order('created_at', { ascending: false }).range(start, end);
-    return { data: data || [], total: count || 0, hasMore: (count || 0) > end + 1 };
+    if (!user) return { error: 'Şikayet etmek için giriş yapmalısınız.' };
+
+    const { error } = await supabase.from('reports').insert([{
+        ad_id: adId,
+        user_id: user.id,
+        reason,
+        description,
+        status: 'pending'
+    }]);
+
+    if (error) {
+        console.error('Report Error:', error);
+        return { error: 'Şikayetiniz iletilemedi.' };
+    }
+
+    return { success: true };
 }
+
+// --- MEVCUT AKSİYONLAR (KORUNUYOR) ---
+export const getCategoryTreeServer = unstable_cache(
+  async () => {
+    const supabase = await createClient();
+    const { data } = await supabase.from('categories').select('*').order('title');
+    if (!data) return [];
+    const parents = data.filter(c => !c.parent_id);
+    return parents.map(p => ({ ...p, subs: data.filter(c => c.parent_id === p.id) }));
+  }, ['category-tree'], { revalidate: 3600 }
+);
 
 export async function getAdsServer(searchParams: any) {
   const supabase = await createClient()
-  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)').eq('status', 'yayinda')
+  const page = Number(searchParams?.page) || 1;
+  const limit = 20;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
-  if (searchParams?.q) query = query.ilike('title', `%${searchParams.q}%`)
-  if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice)
-  if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice)
-  if (searchParams?.city) query = query.eq('city', searchParams.city)
+  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)', { count: 'exact' }).eq('status', 'yayinda');
+
+  if (searchParams?.q) query = query.ilike('title', `%${searchParams.q}%`);
+  if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice);
+  if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice);
+  if (searchParams?.city) query = query.eq('city', searchParams.city);
   if (searchParams?.category) {
       const slug = searchParams.category;
       if (slug === 'emlak') query = query.or('category.ilike.konut%,category.ilike.isyeri%,category.ilike.arsa%');
@@ -84,12 +58,51 @@ export async function getAdsServer(searchParams: any) {
       else if (slug === 'vasita') query = query.or('category.eq.otomobil,category.eq.suv,category.eq.motosiklet');
       else query = query.eq('category', slug);
   }
-  if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true })
-  else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false })
-  else query = query.order('created_at', { ascending: false })
+  if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true });
+  else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false });
+  else query = query.order('created_at', { ascending: false });
 
-  const { data } = await query
-  return data || []
+  query = query.range(from, to);
+  const { data, count, error } = await query;
+
+  if (error) return { data: [], count: 0, totalPages: 0 };
+  return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
+}
+
+export async function createAdAction(formData: any) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
+
+  const validation = adSchema.safeParse(formData);
+  if (!validation.success) return { error: validation.error.issues[0].message };
+
+  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
+  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
+
+  const { data, error } = await supabase.from('ads').insert([{
+    ...validation.data,
+    user_id: user.id,
+    status: 'onay_bekliyor',
+    is_vitrin: false,
+    is_urgent: false
+  }]).select('id').single()
+
+  if (error) return { error: 'Veritabanı hatası.' }
+  revalidatePath('/');
+  return { success: true, adId: data.id }
+}
+
+export async function getInfiniteAdsAction(page = 1, limit = 20) {
+    const supabase = await createClient();
+    try {
+        const { data, error } = await supabase.rpc('get_random_ads', { limit_count: limit });
+        if (!error && data && data.length > 0) return { data: data, total: 100, hasMore: true };
+    } catch (e) {}
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
+    const { data, count } = await supabase.from('ads').select('*, profiles(full_name)', { count: 'exact' }).eq('status', 'yayinda').order('created_at', { ascending: false }).range(start, end);
+    return { data: data || [], total: count || 0, hasMore: (count || 0) > end + 1 };
 }
 
 export async function getAdDetailServer(id: number) {
@@ -102,8 +115,6 @@ export async function updateAdAction(id: number, formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
-
-    // Update işleminde de validasyon yapılmalı (Basitleştirilmiş)
     const { error } = await supabase.from('ads').update({ ...formData, status: 'onay_bekliyor' }).eq('id', id).eq('user_id', user.id)
     if (error) return { error: error.message }
     revalidatePath('/bana-ozel/ilanlarim')
@@ -163,7 +174,14 @@ export async function getMyStoreServer() {
 }
 
 export async function getAdminStatsServer() {
-    return { totalUsers: 10, activeAds: 5, totalRevenue: 1500 };
+    const supabase = await createClient();
+    const [users, ads, revenue] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('ads').select('*', { count: 'exact', head: true }).eq('status', 'yayinda'),
+        supabase.from('ads').select('*', { count: 'exact', head: true }).or('is_vitrin.eq.true,is_urgent.eq.true')
+    ]);
+    const estimatedRevenue = (revenue.count || 0) * 100;
+    return { totalUsers: users.count || 0, activeAds: ads.count || 0, totalRevenue: estimatedRevenue };
 }
 
 export async function getPageBySlugServer(slug: string) {
@@ -197,11 +215,34 @@ export async function getShowcaseAdsServer() {
 
 export async function getRelatedAdsServer(category: string, currentId: number) {
     const supabase = await createClient();
-    const { data } = await supabase.from('ads')
-        .select('*')
-        .eq('category', category)
-        .eq('status', 'yayinda')
-        .neq('id', currentId)
-        .limit(5);
+    const { data } = await supabase.from('ads').select('*').eq('category', category).eq('status', 'yayinda').neq('id', currentId).limit(5);
     return data || [];
+}
+
+export async function getAdminAdsClient() {
+  const supabase = await createClient();
+  const { data } = await supabase.from('ads').select('*, profiles(full_name)').order('created_at', { ascending: false });
+  return data || [];
+}
+
+export async function approveAdAction(adId: number) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update({ status: 'yayinda' }).eq('id', adId);
+    if(error) return { error: error.message };
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
+export async function rejectAdAction(adId: number, reason: string) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
+    if(error) return { error: error.message };
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
+export async function getAdFavoriteCount(adId: number) {
+    const supabase = await createClient();
+    const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('ad_id', adId);
+    return count || 0;
 }

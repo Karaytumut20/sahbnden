@@ -1,74 +1,80 @@
 "use client";
 import React, { useState } from 'react';
-import { X, AlertTriangle } from 'lucide-react';
 import { useModal } from '@/context/ModalContext';
+import { X, AlertTriangle, Loader2 } from 'lucide-react';
+import { createReportAction } from '@/lib/actions';
 import { useToast } from '@/context/ToastContext';
 
 export default function ReportModal() {
-  const { closeModal, modalProps } = useModal();
+  const { isReportOpen, closeReport, reportData } = useModal();
   const { addToast } = useToast();
-  const [reason, setReason] = useState('');
+  const [reason, setReason] = useState('yaniltici');
+  const [description, setDescription] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  if (!isReportOpen) return null;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!reason) {
-      addToast('Lütfen bir neden seçiniz.', 'error');
-      return;
+    if (!reportData?.adId) return;
+
+    setLoading(true);
+    const res = await createReportAction(reportData.adId, reason, description);
+    setLoading(false);
+
+    if (res.error) {
+        addToast(res.error, 'error');
+    } else {
+        addToast('Şikayetiniz alındı. Teşekkür ederiz.', 'success');
+        closeReport();
+        setDescription('');
     }
-    // API Call simülasyonu
-    addToast('Şikayetiniz tarafımıza ulaşmıştır. Teşekkürler.', 'success');
-    closeModal();
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeModal}></div>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md relative z-10 animate-in fade-in zoom-in-95 duration-200">
-
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+      <div className="bg-white rounded-md w-full max-w-md shadow-xl animate-in fade-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center p-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <AlertTriangle size={18} className="text-red-500" /> İlanı Şikayet Et
+            <AlertTriangle className="text-red-500" size={20} /> İlanı Şikayet Et
           </h3>
-          <button onClick={closeModal} className="text-gray-400 hover:text-gray-600">
-            <X size={20} />
-          </button>
+          <button onClick={closeReport} className="text-gray-400 hover:text-gray-600"><X size={20} /></button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-6">
-          <p className="text-sm text-gray-600 mb-4">
-            <strong>İlan No:</strong> {modalProps.id} <br/>
-            Lütfen şikayet nedeninizi belirtiniz:
-          </p>
-
-          <div className="space-y-3 mb-6">
-            {['Yanlış Kategori', 'Yanlış Fiyat / Bilgi', 'Uygunsuz İçerik / Görsel', 'Dolandırıcılık Şüphesi', 'Satılmış Ürün'].map((r) => (
-              <label key={r} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
-                <input
-                  type="radio"
-                  name="reason"
-                  value={r}
-                  checked={reason === r}
-                  onChange={(e) => setReason(e.target.value)}
-                  className="accent-red-600"
-                />
-                {r}
-              </label>
-            ))}
+        <form onSubmit={handleSubmit} className="p-4 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Şikayet Nedeni</label>
+            <select
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                className="w-full border border-gray-300 rounded-sm h-10 px-3 text-sm outline-none focus:border-blue-500"
+            >
+                <option value="yaniltici">Yanıltıcı Bilgi / Fotoğraf</option>
+                <option value="dolandiricilik">Dolandırıcılık Şüphesi</option>
+                <option value="kufur">Küfür / Hakaret</option>
+                <option value="kategori">Yanlış Kategori</option>
+                <option value="diger">Diğer</option>
+            </select>
           </div>
 
-          <div className="flex justify-end gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-700 mb-1">Açıklama (İsteğe Bağlı)</label>
+            <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                className="w-full border border-gray-300 rounded-sm p-3 text-sm h-24 resize-none outline-none focus:border-blue-500"
+                placeholder="Lütfen detay veriniz..."
+            ></textarea>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={closeReport} className="px-4 py-2 text-gray-600 text-sm font-bold hover:bg-gray-100 rounded-sm">Vazgeç</button>
             <button
-              type="button"
-              onClick={closeModal}
-              className="px-4 py-2 border border-gray-300 rounded text-sm font-bold text-gray-600 hover:bg-gray-50"
+                type="submit"
+                disabled={loading}
+                className="bg-red-600 text-white px-6 py-2 rounded-sm text-sm font-bold hover:bg-red-700 disabled:opacity-50 flex items-center gap-2"
             >
-              Vazgeç
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-red-600 rounded text-sm font-bold text-white hover:bg-red-700"
-            >
-              Şikayet Et
+                {loading && <Loader2 size={16} className="animate-spin" />} Şikayet Et
             </button>
           </div>
         </form>

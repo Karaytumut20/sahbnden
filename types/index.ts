@@ -7,6 +7,15 @@ export interface Profile {
   created_at: string;
 }
 
+export interface Notification {
+  id: number;
+  user_id: string;
+  title: string;
+  message: string;
+  is_read: boolean;
+  created_at: string;
+}
+
 export interface Category {
   id: number;
   title: string;
@@ -32,7 +41,6 @@ export interface Ad {
   is_urgent: boolean;
   user_id: string;
   created_at: string;
-  // Dinamik Özellikler
   room?: string;
   m2?: number;
   floor?: number;
@@ -43,11 +51,9 @@ export interface Ad {
   km?: number;
   gear?: string;
   fuel?: string;
-  // İlişkiler
   profiles?: Profile;
 }
 
-// Form Verisi İçin Tip
 export interface AdFormData {
   title: string;
   description: string;
@@ -56,12 +62,10 @@ export interface AdFormData {
   city: string;
   district: string;
   category?: string;
-  // Emlak
   m2?: string | number;
   room?: string;
   floor?: string | number;
   heating?: string;
-  // Vasıta
   brand?: string;
   year?: string | number;
   km?: string | number;

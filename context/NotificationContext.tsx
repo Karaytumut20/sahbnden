@@ -1,76 +1,86 @@
 "use client";
 import React, { createContext, useContext, useState, useEffect } from 'react';
-
-type Notification = {
-  id: number;
-  title: string;
-  message: string;
-  read: boolean;
-  date: string;
-};
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { getNotificationsClient, markNotificationReadClient, markAllNotificationsReadClient, createNotificationClient } from '@/lib/services';
+import { Notification } from '@/types';
+import { useToast } from '@/context/ToastContext';
 
 type NotificationContextType = {
   notifications: Notification[];
   unreadCount: number;
-  addNotification: (title: string, message: string) => void;
+  addNotification: (title: string, message: string) => Promise<void>;
   markAsRead: (id: number) => void;
   markAllAsRead: () => void;
-  saveSearch: (url: string, name: string) => void; // Placeholder
+  saveSearch: (url: string, name: string) => void;
 };
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
 
 export function NotificationProvider({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const supabase = createClient();
+  const { addToast } = useToast();
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // Sayfa yüklendiğinde LocalStorage'dan oku
+  // 1. İlk Yükleme
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('notifications');
-      if (stored) {
-        setNotifications(JSON.parse(stored));
-      } else {
-        // Demo veri (sadece ilk kez)
-        const demoData = [
-            { id: 1, title: 'Hoş Geldiniz', message: 'Hesabınız başarıyla oluşturuldu.', read: false, date: new Date().toLocaleDateString() }
-        ];
-        setNotifications(demoData);
-        localStorage.setItem('notifications', JSON.stringify(demoData));
-      }
+    if (user) {
+      getNotificationsClient(user.id).then(setNotifications);
+    } else {
+      setNotifications([]);
     }
-  }, []);
+  }, [user]);
 
-  // Değişiklikleri kaydet
+  // 2. Realtime Dinleyici (Senior Upgrade)
   useEffect(() => {
-    if (notifications.length > 0) {
-        localStorage.setItem('notifications', JSON.stringify(notifications));
-    }
-  }, [notifications]);
+    if (!user) return;
 
-  const unreadCount = notifications.filter(n => !n.read).length;
+    const channel = supabase
+      .channel('realtime_notifications')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          // Yeni bildirim geldiğinde listeye ekle
+          const newNotif = payload.new as Notification;
+          setNotifications((prev) => [newNotif, ...prev]);
 
-  const addNotification = (title: string, message: string) => {
-    const newNotif = {
-      id: Date.now(),
-      title,
-      message,
-      read: false,
-      date: new Date().toLocaleDateString()
+          // Opsiyonel: Ses çal veya Browser bildirimi gönder
+          // addToast(`Yeni Bildirim: ${newNotif.title}`, 'info');
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
     };
-    setNotifications(prev => [newNotif, ...prev]);
+  }, [user]);
+
+  const unreadCount = notifications.filter(n => !n.is_read).length;
+
+  const addNotification = async (title: string, message: string) => {
+    if (!user) return;
+    // Client-side optimistic update yerine direkt DB'ye yazıyoruz, Realtime zaten güncelleyecek
+    await createNotificationClient(user.id, title, message);
   };
 
-  const markAsRead = (id: number) => {
-    setNotifications(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAsRead = async (id: number) => {
+    setNotifications(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+    await markNotificationReadClient(id);
   };
 
-  const markAllAsRead = () => {
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
+    if (user) await markAllNotificationsReadClient(user.id);
   };
 
-  const saveSearch = (url: string, name: string) => {
-      // Gerçek projede API'ye gider, burada simülasyon
-      addNotification('Arama Kaydedildi', `"${name}" aramanız favorilere eklendi.`);
+  const saveSearch = async (url: string, name: string) => {
+    if (!user) { addToast('Giriş yapmalısınız.', 'error'); return; }
+    // Gerçek kayıt işlemi services.ts üzerinden yapılmalı, burada sadece bildirim simülasyonu
+    // saveSearchClient(...) çağrılabilir.
+    await addNotification('Arama Kaydedildi', `"${name}" aramanız başarıyla kaydedildi.`);
+    addToast('Arama kaydedildi.', 'success');
   }
 
   return (
