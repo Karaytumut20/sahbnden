@@ -1,10 +1,78 @@
-// Rastgele ilan üretici
+// --- FULL KATEGORİ YAPISI ---
+export const categories = [
+  {
+    id: 'emlak',
+    title: 'Emlak',
+    icon: 'Home',
+    slug: 'emlak',
+    subs: [
+      {
+        id: 'konut',
+        title: 'Konut',
+        slug: 'konut',
+        subs: [
+            { id: 'konut-satilik', title: 'Satılık', slug: 'konut-satilik' },
+            { id: 'konut-kiralik', title: 'Kiralık', slug: 'konut-kiralik' },
+            { id: 'gunluk-kiralik', title: 'Turistik Günlük Kiralık', slug: 'gunluk-kiralik' },
+            { id: 'devren-satilik-konut', title: 'Devren Satılık Konut', slug: 'devren-satilik-konut' }
+        ]
+      },
+      {
+        id: 'isyeri',
+        title: 'İş Yeri',
+        slug: 'is-yeri',
+        subs: [
+            { id: 'isyeri-satilik', title: 'Satılık', slug: 'isyeri-satilik' },
+            { id: 'isyeri-kiralik', title: 'Kiralık', slug: 'isyeri-kiralik' }
+        ]
+      },
+      {
+        id: 'arsa',
+        title: 'Arsa',
+        slug: 'arsa',
+        subs: [
+            { id: 'arsa-satilik', title: 'Satılık', slug: 'arsa-satilik' },
+            { id: 'arsa-kiralik', title: 'Kiralık', slug: 'arsa-kiralik' }
+        ]
+      }
+    ]
+  },
+  {
+    id: 'vasita',
+    title: 'Vasıta',
+    icon: 'Car',
+    slug: 'vasita',
+    subs: [
+      { id: 'oto', title: 'Otomobil', slug: 'otomobil' },
+      { id: 'suv', title: 'Arazi, SUV & Pickup', slug: 'arazi-suv-pickup' },
+      { id: 'moto', title: 'Motosiklet', slug: 'motosiklet' }
+    ]
+  },
+  {
+    id: 'alisveris',
+    title: 'İkinci El ve Sıfır Alışveriş',
+    icon: 'ShoppingCart',
+    slug: 'alisveris',
+    subs: [
+      { id: 'pc', title: 'Bilgisayar', slug: 'bilgisayar' },
+      { id: 'phone', title: 'Cep Telefonu', slug: 'cep-telefonu-ve-aksesuar' }
+    ]
+  }
+];
+
+// Rastgele ilan üretici (Artık detaylı kategori atıyor)
 const generateAds = (count: number, prefix: string, startPrice: number) => {
   return Array.from({ length: count }).map((_, i) => {
     const cityIndex = i % 5;
     const city = ['İstanbul', 'Ankara', 'İzmir', 'Antalya', 'Bursa'][cityIndex];
     const district = ['Merkez', 'Çankaya', 'Karşıyaka', 'Muratpaşa', 'Nilüfer'][cityIndex];
     const priceValue = startPrice + (i * 12500) + (cityIndex * 5000);
+
+    // Kategorileri dağıt
+    let cat = 'emlak';
+    if (i % 3 === 0) cat = 'konut-satilik';
+    else if (i % 3 === 1) cat = 'konut-kiralik';
+    else cat = 'otomobil';
 
     return {
       id: 100000 + i + (startPrice / 1000),
@@ -18,7 +86,7 @@ const generateAds = (count: number, prefix: string, startPrice: number) => {
       location: `${city} / ${district}`,
       dateRaw: new Date(2025, 0, 24).getTime() - (i * 3600000),
       date: '25 Ocak 2025',
-      category: i < 60 ? 'emlak' : 'vasita',
+      category: cat, // Detaylı kategori atandı
       attributes: [
         { label: 'İlan No', value: `102938${i}` },
         { label: 'Kimden', value: 'Sahibinden' },
@@ -40,96 +108,6 @@ export function getAdById(id: any) {
   return allAds.find(ad => ad.id === Number(id));
 }
 
-// --- FULL KATEGORİ YAPISI ---
-export const categories = [
-  {
-    id: 'emlak',
-    name: 'Emlak',
-    icon: 'Home',
-    slug: 'emlak',
-    subs: [
-      {
-        id: 'konut',
-        title: 'Konut',
-        slug: 'konut',
-        // İŞTE BURASI: Konut'un alt seçenekleri
-        subs: [
-            { id: 'tum-konut', title: 'Tüm Konut İlanları', slug: 'konut' },
-            { id: 'satilik', title: 'Satılık', slug: 'konut-satilik' },
-            { id: 'kiralik', title: 'Kiralık', slug: 'konut-kiralik' },
-            { id: 'gunluk', title: 'Turistik Günlük Kiralık', slug: 'gunluk-kiralik' },
-            { id: 'devren', title: 'Devren Satılık Konut', slug: 'devren-satilik-konut' }
-        ]
-      },
-      { id: 'isyeri', title: 'İş Yeri', slug: 'is-yeri', subs: [{id:'tum-is', title:'Tüm İş Yeri İlanları', slug:'is-yeri'}] },
-      { id: 'arsa', title: 'Arsa', slug: 'arsa', subs: [{id:'tum-arsa', title:'Tüm Arsa İlanları', slug:'arsa'}] },
-      { id: 'bina', title: 'Bina', slug: 'bina' },
-      { id: 'devremulk', title: 'Devre Mülk', slug: 'devre-mulk' },
-      { id: 'turistik', title: 'Turistik Tesis', slug: 'turistik-tesis' }
-    ]
-  },
-  {
-    id: 'vasita',
-    name: 'Vasıta',
-    icon: 'Car',
-    slug: 'vasita',
-    subs: [
-      { id: 'oto', title: 'Otomobil', slug: 'otomobil' },
-      { id: 'suv', title: 'Arazi, SUV & Pickup', slug: 'arazi-suv-pickup' },
-      { id: 'electric', title: 'Elektrikli Araçlar', slug: 'elektrikli-araclar' },
-      { id: 'moto', title: 'Motosiklet', slug: 'motosiklet' },
-      { id: 'minivan', title: 'Minivan & Panelvan', slug: 'minivan-panelvan' },
-      { id: 'commercial', title: 'Ticari Araçlar', slug: 'ticari-araclar' },
-      { id: 'rental', title: 'Kiralık Araçlar', slug: 'kiralik-araclar' },
-      { id: 'marine', title: 'Deniz Araçları', slug: 'deniz-araclari' },
-      { id: 'damaged', title: 'Hasarlı Araçlar', slug: 'hasarli-araclar' },
-      { id: 'caravan', title: 'Karavan', slug: 'karavan' },
-      { id: 'classic', title: 'Klasik Araçlar', slug: 'klasik-araclar' },
-      { id: 'air', title: 'Hava Araçları', slug: 'hava-araclari' },
-      { id: 'atv', title: 'ATV', slug: 'atv' },
-      { id: 'utv', title: 'UTV', slug: 'utv' },
-      { id: 'disabled', title: 'Engelli Plakalı Araçlar', slug: 'engelli-plakali-araclar' }
-    ]
-  },
-  {
-    id: 'alisveris',
-    name: 'İkinci El ve Sıfır Alışveriş',
-    icon: 'ShoppingCart',
-    slug: 'alisveris',
-    subs: [
-      { id: 'pc', title: 'Bilgisayar', slug: 'bilgisayar' },
-      { id: 'phone', title: 'Cep Telefonu & Aksesuar', slug: 'cep-telefonu-ve-aksesuar' },
-      { id: 'camera', title: 'Fotoğraf & Kamera', slug: 'fotograf-ve-kamera' },
-      { id: 'home-deco', title: 'Ev Dekorasyon', slug: 'ev-dekorasyon' },
-      { id: 'home-elec', title: 'Ev Elektroniği', slug: 'ev-elektronigi' },
-      { id: 'elec-app', title: 'Elektrikli Ev Aletleri', slug: 'elektrikli-ev-aletleri' },
-      { id: 'clothing', title: 'Giyim & Aksesuar', slug: 'giyim-ve-aksesuar' },
-      { id: 'watch', title: 'Saat', slug: 'saat' },
-      { id: 'baby', title: 'Anne & Bebek', slug: 'anne-ve-bebek' },
-      { id: 'cosmetic', title: 'Kişisel Bakım & Kozmetik', slug: 'kisisel-bakim-ve-kozmetik' },
-      { id: 'hobby', title: 'Hobi & Oyuncak', slug: 'hobi-ve-oyuncak' },
-      { id: 'gaming', title: 'Oyunculara Özel', slug: 'oyunculara-ozel' },
-      { id: 'books', title: 'Kitap, Dergi & Film', slug: 'kitap-dergi-ve-film' },
-      { id: 'music', title: 'Müzik', slug: 'muzik' },
-      { id: 'sports', title: 'Spor', slug: 'spor' },
-      { id: 'jewelry', title: 'Takı & Mücevher', slug: 'taki-ve-mucevher' },
-      { id: 'collection', title: 'Koleksiyon', slug: 'koleksiyon' },
-      { id: 'antique', title: 'Antika', slug: 'antika' },
-      { id: 'garden', title: 'Bahçe & Yapı Market', slug: 'bahce-ve-yapi-market' },
-      { id: 'technical', title: 'Teknik Elektronik', slug: 'teknik-elektronik' },
-      { id: 'office', title: 'Ofis & Kırtasiye', slug: 'ofis-ve-kirtasiye' },
-      { id: 'food', title: 'Yiyecek & İçecek', slug: 'yiyecek-ve-icecek' },
-      { id: 'other', title: 'Diğer Her Şey', slug: 'diger-her-sey' }
-    ]
-  },
-  { id: 'is-makineleri', name: 'İş Makineleri & Sanayi', icon: 'Hammer', slug: 'is-makineleri', subs: [] },
-  { id: 'usta-hizmet', name: 'Ustalar ve Hizmetler', icon: 'Briefcase', slug: 'ustalar-ve-hizmetler', subs: [] },
-  { id: 'ozel-ders', name: 'Özel Ders Verenler', icon: 'BookOpen', slug: 'ozel-ders-verenler', subs: [] },
-  { id: 'is-ilanlari', name: 'İş İlanları', icon: 'Briefcase', slug: 'is-ilanlari', subs: [] },
-  { id: 'yardimci-arayanlar', name: 'Yardımcı Arayanlar', icon: 'User', slug: 'yardimci-arayanlar', subs: [] },
-  { id: 'hayvanlar-alemi', name: 'Hayvanlar Alemi', icon: 'Dog', slug: 'hayvanlar-alemi', subs: [] }
-];
-
 export function getSellerById(id: any) { return { id, name: 'Ahmet Yılmaz', avatar: 'AY', rating: 4.5, joined: '2020', lastSeen: 'Bugün', isVerified: true, reviews: [] }; }
 export function getAdsBySeller(id: any) { return ads.slice(0, 5); }
 
@@ -140,7 +118,23 @@ export function searchAds(params: any) {
     const q = params.q.toLowerCase();
     filtered = filtered.filter(ad => ad.title.toLowerCase().includes(q));
   }
-  if (params.category) filtered = filtered.filter(ad => ad.category === params.category);
+
+  // Akıllı Kategori Filtresi (Lokal Veri İçin)
+  if (params.category) {
+     const slug = params.category;
+     filtered = filtered.filter(ad => {
+        // Tam eşleşme (örn: 'konut-satilik')
+        if (ad.category === slug) return true;
+
+        // Üst kategori mantığı (Basitçe slug içeriyorsa veya özel map)
+        if (slug === 'emlak') return ad.category.includes('konut') || ad.category.includes('isyeri') || ad.category.includes('arsa');
+        if (slug === 'konut') return ad.category.includes('konut');
+        if (slug === 'vasita') return ad.category === 'otomobil' || ad.category === 'suv' || ad.category === 'motosiklet';
+
+        return false;
+     });
+  }
+
   if (params.city) filtered = filtered.filter(ad => ad.city === params.city);
   if (params.minPrice) filtered = filtered.filter(ad => ad.rawPrice >= Number(params.minPrice));
   if (params.maxPrice) filtered = filtered.filter(ad => ad.rawPrice <= Number(params.maxPrice));
