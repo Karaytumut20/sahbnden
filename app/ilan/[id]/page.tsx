@@ -10,10 +10,10 @@ import SellerSidebar from '@/components/SellerSidebar';
 import Tabs from '@/components/AdDetail/Tabs';
 import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
+import LoanCalculator from '@/components/tools/LoanCalculator'; // YENİ
 import Badge from '@/components/ui/Badge';
 import { Calendar, Eye, Hash, MapPin } from 'lucide-react';
 
-// Dinamik Metadata
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ad = await getAdDetailServer(Number(id));
@@ -34,7 +34,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '' };
 
-  // Tab İçerikleri
   const tabItems = [
     {
       id: 'desc',
@@ -57,7 +56,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
     }
   ];
 
-  // Özellik Listesi (Sidebar İçin)
   const attributes = [
     { label: 'İlan No', value: ad.id, icon: Hash },
     { label: 'İlan Tarihi', value: new Date(ad.created_at).toLocaleDateString('tr-TR'), icon: Calendar },
@@ -67,12 +65,12 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
     { label: 'Bina Yaşı', value: ad.year ? `${2025 - ad.year} Yaşında` : null },
     { label: 'Bulunduğu Kat', value: ad.floor ? `${ad.floor}. Kat` : null },
     { label: 'Isıtma', value: ad.heating },
-    { label: 'Marka', value: ad.brand }, // Vasıta
-    { label: 'Yıl', value: ad.year }, // Vasıta
-    { label: 'KM', value: ad.km ? `${ad.km.toLocaleString()} KM` : null }, // Vasıta
-    { label: 'Vites', value: ad.gear }, // Vasıta
-    { label: 'Yakıt', value: ad.fuel }, // Vasıta
-  ].filter(attr => attr.value); // Değeri olmayanları gizle
+    { label: 'Marka', value: ad.brand },
+    { label: 'Yıl', value: ad.year },
+    { label: 'KM', value: ad.km ? `${ad.km.toLocaleString()} KM` : null },
+    { label: 'Vites', value: ad.gear },
+    { label: 'Yakıt', value: ad.fuel },
+  ].filter(attr => attr.value);
 
   return (
     <div className="pb-20 relative font-sans">
@@ -92,7 +90,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
       </div>
 
       <div className="flex flex-col lg:flex-row gap-6">
-        {/* SOL KOLON: Galeri ve Tablar */}
         <div className="lg:w-[600px] shrink-0">
           <Gallery mainImage={ad.image || 'https://via.placeholder.com/800x600?text=Resim+Yok'} />
 
@@ -103,7 +100,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
           <Tabs items={tabItems} />
         </div>
 
-        {/* ORTA KOLON: Özellik Özeti */}
         <div className="flex-1 min-w-0">
           <div className="mb-6">
             <span className="block text-blue-700 font-bold text-2xl">{formattedPrice} {ad.currency}</span>
@@ -131,7 +127,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* SAĞ KOLON: Satıcı Bilgisi */}
         <div className="lg:w-[280px] shrink-0 hidden md:block">
            <SellerSidebar
              sellerId={ad.user_id}
@@ -143,6 +138,10 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
              price={formattedPrice}
              currency={ad.currency}
            />
+
+           {/* Kredi Hesaplama Aracı Sadece Emlakta Göster */}
+           {ad.category === 'emlak' && <LoanCalculator price={ad.price} />}
+
            <div className="mt-4 bg-yellow-50 p-4 border border-yellow-200 rounded-sm text-xs text-yellow-800">
               <strong>Güvenlik İpucu:</strong> Tanımadığınız kişilere kesinlikle para göndermeyin, kapora yatırmayın.
            </div>
