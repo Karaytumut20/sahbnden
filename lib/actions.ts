@@ -2,13 +2,31 @@
 import { createClient, createStaticClient } from '@/lib/supabase/server'
 import { revalidatePath, unstable_cache } from 'next/cache'
 import { adSchema } from '@/lib/schemas'
+import { logActivity } from '@/lib/logger' // Yeni Logger
+
+// --- YARDIMCI: RATE LIMIT CHECK ---
+async function checkRateLimit(userId: string, actionType: 'ad_creation' | 'review') {
+    const supabase = await createClient();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    if (actionType === 'ad_creation') {
+        const { count } = await supabase.from('ads')
+            .select('*', { count: 'exact', head: true })
+            .eq('user_id', userId)
+            .gte('created_at', oneDayAgo);
+
+        // Günlük 5 ilan limiti
+        if ((count || 0) >= 5) return false;
+    }
+    return true;
+}
 
 // --- YORUM SİSTEMİ ---
 export async function createReviewAction(targetUserId: string, rating: number, comment: string, adId?: number) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
-    if (!user) return { error: 'Yorum yapmak için giriş yapmalısınız.' };
+    if (!user) return { error: 'Giriş yapmalısınız.' };
     if (user.id === targetUserId) return { error: 'Kendinize yorum yapamazsınız.' };
 
     const { error } = await supabase.from('reviews').insert([{
@@ -21,24 +39,11 @@ export async function createReviewAction(targetUserId: string, rating: number, c
 
     if (error) return { error: 'Yorum kaydedilemedi.' };
 
+    // Logla
+    await logActivity(user.id, 'CREATE_REVIEW', { targetUserId, rating });
+
     revalidatePath(`/satici/${targetUserId}`);
     return { success: true };
-}
-
-export async function getSellerStats(userId: string) {
-    const supabase = await createClient();
-    const { data: reviews } = await supabase.from('reviews').select('rating');
-    const { count: adCount } = await supabase
-        .from('ads')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId)
-        .eq('status', 'yayinda');
-
-    return {
-        avgRating: 0,
-        reviewCount: 0,
-        activeAds: adCount || 0
-    };
 }
 
 export async function getSellerReviewsServer(targetUserId: string) {
@@ -65,12 +70,10 @@ export async function getUserDashboardStats() {
     return ads || [];
 }
 
-// --- KRİTİK DÜZELTME: STATIC CLIENT KULLANIMI ---
+// --- STATIC DATA FETCHING ---
 export const getCategoryTreeServer = unstable_cache(
   async () => {
-    // BURASI GÜNCELLENDİ: createClient() yerine createStaticClient()
-    const supabase = createStaticClient();
-
+    const supabase = createStaticClient(); // Static Client kullanıldı
     const { data } = await supabase.from('categories').select('*').order('title');
     if (!data) return [];
     const parents = data.filter(c => !c.parent_id);
@@ -79,7 +82,7 @@ export const getCategoryTreeServer = unstable_cache(
 );
 
 export async function getAdsServer(searchParams: any) {
-  const supabase = await createClient() // Arama kullanıcıya göre değişebilir, dinamik kalmalı
+  const supabase = await createClient()
   const page = Number(searchParams?.page) || 1;
   const limit = 20;
   const from = (page - 1) * limit;
@@ -110,10 +113,19 @@ export async function getAdsServer(searchParams: any) {
   return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
 }
 
+// --- CREATE AD (GÜVENLİ VE LOGLU) ---
 export async function createAdAction(formData: any) {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return { error: 'Oturum açmanız gerekiyor.' }
+
+  // 1. Rate Limit Kontrolü
+  const canCreate = await checkRateLimit(user.id, 'ad_creation');
+  if (!canCreate) {
+      // Spam girişimi logla
+      await logActivity(user.id, 'SPAM_AD_CREATION', { reason: 'Rate limit exceeded' });
+      return { error: 'Günlük ilan verme limitine (5 adet) ulaştınız.' };
+  }
 
   const validation = adSchema.safeParse(formData);
   if (!validation.success) return { error: validation.error.issues[0].message };
@@ -130,16 +142,16 @@ export async function createAdAction(formData: any) {
   }]).select('id').single()
 
   if (error) return { error: 'Veritabanı hatası.' }
+
+  // 2. Başarılı işlem logu
+  await logActivity(user.id, 'CREATE_AD', { adId: data.id, title: validation.data.title });
+
   revalidatePath('/');
   return { success: true, adId: data.id }
 }
 
 export async function getInfiniteAdsAction(page = 1, limit = 20) {
     const supabase = await createClient();
-    try {
-        const { data, error } = await supabase.rpc('get_random_ads', { limit_count: limit });
-        if (!error && data && data.length > 0) return { data: data, total: 100, hasMore: true };
-    } catch (e) {}
     const start = (page - 1) * limit;
     const end = start + limit - 1;
     const { data, count } = await supabase.from('ads').select('*, profiles(full_name)', { count: 'exact' }).eq('status', 'yayinda').order('created_at', { ascending: false }).range(start, end);
@@ -156,19 +168,28 @@ export async function updateAdAction(id: number, formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
+
     const { error } = await supabase.from('ads').update({ ...formData, status: 'onay_bekliyor' }).eq('id', id).eq('user_id', user.id)
     if (error) return { error: error.message }
+
+    await logActivity(user.id, 'UPDATE_AD', { adId: id });
+
     revalidatePath('/bana-ozel/ilanlarim')
     return { success: true }
 }
 
 export async function activateDopingAction(adId: number, dopingTypes: string[]) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   const updates: any = {};
   if (dopingTypes.includes('1')) updates.is_vitrin = true;
   if (dopingTypes.includes('2')) updates.is_urgent = true;
+
   const { error } = await supabase.from('ads').update(updates).eq('id', adId);
   if (error) return { error: error.message };
+
+  if (user) await logActivity(user.id, 'ACTIVATE_DOPING', { adId, types: dopingTypes });
+
   revalidatePath('/');
   return { success: true };
 }
@@ -176,7 +197,7 @@ export async function activateDopingAction(adId: number, dopingTypes: string[]) 
 export async function createReportAction(adId: number, reason: string, description: string) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Şikayet etmek için giriş yapmalısınız.' };
+    if (!user) return { error: 'Giriş yapmalısınız.' };
     const { error } = await supabase.from('reports').insert([{
         ad_id: adId, user_id: user.id, reason, description, status: 'pending'
     }]);
@@ -203,6 +224,9 @@ export async function createStoreAction(formData: any) {
     const { error } = await supabase.from('stores').insert([{ ...formData, user_id: user.id }])
     if (error) return { error: error.message }
     await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id)
+
+    await logActivity(user.id, 'CREATE_STORE', { name: formData.name });
+
     revalidatePath('/bana-ozel/magazam')
     return { success: true }
 }
@@ -213,6 +237,9 @@ export async function updateStoreAction(formData: any) {
     if (!user) return { error: 'Giriş yapmalısınız' }
     const { error } = await supabase.from('stores').update(formData).eq('user_id', user.id)
     if (error) return { error: error.message }
+
+    await logActivity(user.id, 'UPDATE_STORE', { name: formData.name });
+
     revalidatePath('/bana-ozel/magazam')
     return { success: true }
 }
@@ -273,16 +300,26 @@ export async function getAdminAdsClient() {
 
 export async function approveAdAction(adId: number) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase.from('ads').update({ status: 'yayinda' }).eq('id', adId);
     if(error) return { error: error.message };
+
+    if (user) await logActivity(user.id, 'ADMIN_APPROVE_AD', { adId });
+
     revalidatePath('/admin/ilanlar');
     return { success: true };
 }
 
 export async function rejectAdAction(adId: number, reason: string) {
     const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
     const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
     if(error) return { error: error.message };
+
+    if (user) await logActivity(user.id, 'ADMIN_REJECT_AD', { adId, reason });
+
     revalidatePath('/admin/ilanlar');
     return { success: true };
 }
@@ -300,6 +337,9 @@ export async function updateProfileAction(formData: any) {
     const updates = { full_name: formData.full_name, phone: formData.phone, avatar_url: formData.avatar_url, updated_at: new Date().toISOString() };
     const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
     if (error) return { error: error.message };
+
+    await logActivity(user.id, 'UPDATE_PROFILE', {});
+
     revalidatePath('/bana-ozel/ayarlar');
     return { success: true };
 }
@@ -326,4 +366,15 @@ export async function getRelatedAdsServer(category: string, currentId: number, b
 export async function incrementViewCountAction(adId: number) {
     const supabase = await createClient();
     await supabase.rpc('increment_view_count', { ad_id_input: adId });
+}
+
+// --- AUDIT LOG FETCHER (ADMIN) ---
+export async function getAuditLogsServer() {
+    const supabase = await createClient();
+    const { data } = await supabase
+        .from('audit_logs')
+        .select('*, profiles:user_id(full_name, email)')
+        .order('created_at', { ascending: false })
+        .limit(100);
+    return data || [];
 }

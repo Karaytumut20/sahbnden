@@ -2,7 +2,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, FileText, Users, DollarSign, Settings, LogOut, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, FileText, Users, DollarSign, Settings, LogOut, ExternalLink, ScrollText } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 const menuItems = [
@@ -10,6 +10,7 @@ const menuItems = [
   { name: 'İlan Yönetimi', href: '/admin/ilanlar', icon: FileText },
   { name: 'Kullanıcılar', href: '/admin/kullanicilar', icon: Users },
   { name: 'Ödemeler & Ciro', href: '/admin/odemeler', icon: DollarSign },
+  { name: 'Sistem Logları', href: '/admin/logs', icon: ScrollText }, // YENİ
   { name: 'Ayarlar', href: '/admin/ayarlar', icon: Settings },
 ];
 

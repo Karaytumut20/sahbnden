@@ -19,7 +19,7 @@ export async function createClient() {
               cookieStore.set(name, value, options)
             )
           } catch {
-            // Server Component içinde cookie set edilemez, bu normaldir.
+            // Server Component içinde cookie set edilemez
           }
         },
       },
@@ -28,7 +28,7 @@ export async function createClient() {
 }
 
 // 2. STATIC CLIENT (Cache işlemleri için - Cookie KULLANMAZ)
-// Bu fonksiyon "unstable_cache" içinde güvenle kullanılabilir.
+// unstable_cache içinde bunu kullanacağız.
 export function createStaticClient() {
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -36,10 +36,9 @@ export function createStaticClient() {
     {
       cookies: {
         getAll() {
-          return [] // Boş çerez döndür (Anonim erişim)
+          return []
         },
         setAll(cookiesToSet) {
-          // Çerez yazma işlemini yoksay
         },
       },
     }
