@@ -1,77 +1,97 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
-import { getUserStatsClient } from '@/lib/services';
-import { List, Eye, MessageSquare, TrendingUp } from 'lucide-react';
+import { getUserDashboardStats } from '@/lib/actions';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { Loader2, Eye, List, CheckCircle, Clock } from 'lucide-react';
 
-export default function DashboardHome() {
+export default function DashboardPage() {
   const { user } = useAuth();
-  const [stats, setStats] = useState({ adsCount: 0 });
+  const [stats, setStats] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (user) {
-      getUserStatsClient(user.id).then(setStats);
+        getUserDashboardStats().then((data) => {
+            setStats(data || []);
+            setLoading(false);
+        });
     }
   }, [user]);
 
-  if (!user) return null;
+  if (!user) return <div className="p-10">Giriş yapmalısınız.</div>;
+  if (loading) return <div className="p-20 flex justify-center"><Loader2 className="animate-spin text-blue-600"/></div>;
+
+  // Veri Hazırlığı (Chart için)
+  const activeCount = stats.filter(s => s.status === 'yayinda').length;
+  const pendingCount = stats.filter(s => s.status === 'onay_bekliyor').length;
+  const totalViews = stats.reduce((acc, curr) => acc + (curr.view_count || 0), 0);
+
+  const statusData = [
+    { name: 'Yayında', value: activeCount, color: '#22c55e' }, // Yeşil
+    { name: 'Onay Bekleyen', value: pendingCount, color: '#eab308' }, // Sarı
+    { name: 'Pasif/Red', value: stats.length - activeCount - pendingCount, color: '#ef4444' } // Kırmızı
+  ];
+
+  // Fiyat Dağılımı (Bar Chart için basit gruplama)
+  const priceData = stats.slice(0, 10).map((ad, i) => ({
+      name: `İlan ${i+1}`,
+      views: ad.view_count || 0
+  }));
 
   return (
     <div className="space-y-6">
-      <div className="bg-white border border-gray-200 p-6 rounded-sm shadow-sm">
-        <h1 className="text-xl font-bold text-[#333] mb-1">Hoş Geldiniz, {user.name}</h1>
-        <p className="text-sm text-gray-500 mb-6">Hesap özetiniz ve son aktiviteleriniz aşağıdadır.</p>
+        <h1 className="text-2xl font-bold text-gray-800">Hoş Geldiniz, {user.name}</h1>
 
-        {/* İstatistik Kartları */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-blue-50 p-4 rounded-sm border border-blue-100 flex items-center gap-4">
-            <div className="bg-blue-200 p-3 rounded-full text-blue-700"><List size={24}/></div>
-            <div>
-               <span className="block text-2xl font-bold text-blue-800">{stats.adsCount}</span>
-               <span className="text-xs text-blue-600 font-bold uppercase">Yayındaki İlan</span>
+        {/* Özet Kartları */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-sm border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-blue-50 rounded-full"><List className="text-blue-600"/></div>
+                <div><p className="text-xs text-gray-500">Toplam İlan</p><p className="text-xl font-bold">{stats.length}</p></div>
             </div>
-          </div>
-          <div className="bg-green-50 p-4 rounded-sm border border-green-100 flex items-center gap-4">
-            <div className="bg-green-200 p-3 rounded-full text-green-700"><MessageSquare size={24}/></div>
-            <div>
-               <span className="block text-2xl font-bold text-green-800">2</span>
-               <span className="text-xs text-green-600 font-bold uppercase">Okunmamış Mesaj</span>
+            <div className="bg-white p-4 rounded-sm border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-green-50 rounded-full"><CheckCircle className="text-green-600"/></div>
+                <div><p className="text-xs text-gray-500">Yayında</p><p className="text-xl font-bold">{activeCount}</p></div>
             </div>
-          </div>
-          <div className="bg-orange-50 p-4 rounded-sm border border-orange-100 flex items-center gap-4">
-            <div className="bg-orange-200 p-3 rounded-full text-orange-700"><Eye size={24}/></div>
-            <div>
-               <span className="block text-2xl font-bold text-orange-800">1.2K</span>
-               <span className="text-xs text-orange-600 font-bold uppercase">Toplam Görüntülenme</span>
+            <div className="bg-white p-4 rounded-sm border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-yellow-50 rounded-full"><Clock className="text-yellow-600"/></div>
+                <div><p className="text-xs text-gray-500">Onay Bekleyen</p><p className="text-xl font-bold">{pendingCount}</p></div>
             </div>
-          </div>
-          <div className="bg-purple-50 p-4 rounded-sm border border-purple-100 flex items-center gap-4">
-            <div className="bg-purple-200 p-3 rounded-full text-purple-700"><TrendingUp size={24}/></div>
-            <div>
-               <span className="block text-2xl font-bold text-purple-800">%12</span>
-               <span className="text-xs text-purple-600 font-bold uppercase">Etkileşim Artışı</span>
+            <div className="bg-white p-4 rounded-sm border border-gray-200 shadow-sm flex items-center gap-4">
+                <div className="p-3 bg-purple-50 rounded-full"><Eye className="text-purple-600"/></div>
+                <div><p className="text-xs text-gray-500">Toplam Görüntülenme</p><p className="text-xl font-bold">{totalViews}</p></div>
             </div>
-          </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-         <div className="bg-white border border-gray-200 p-6 rounded-sm shadow-sm">
-            <h3 className="font-bold text-[#333] mb-4 border-b border-gray-100 pb-2">Son Aktiviteler</h3>
-            <ul className="space-y-3 text-sm text-gray-600">
-                <li className="flex gap-2"><span className="w-2 h-2 bg-green-500 rounded-full mt-1.5"></span> İlanınız "Satılık Daire" yayına alındı.</li>
-                <li className="flex gap-2"><span className="w-2 h-2 bg-blue-500 rounded-full mt-1.5"></span> Yeni bir mesaj aldınız.</li>
-                <li className="flex gap-2"><span className="w-2 h-2 bg-gray-400 rounded-full mt-1.5"></span> Şifreniz güncellendi.</li>
-            </ul>
-         </div>
-         <div className="bg-white border border-gray-200 p-6 rounded-sm shadow-sm flex items-center justify-center text-center">
-            <div>
-                <h3 className="font-bold text-lg mb-2">Mağaza Açarak Daha Fazla Satın!</h3>
-                <p className="text-sm text-gray-500 mb-4">Kurumsal mağaza özellikleri ile ilanlarınızı öne çıkarın.</p>
-                <button className="bg-[#ffe800] text-black font-bold px-6 py-2 rounded-sm text-sm">Mağaza Paketlerini İncele</button>
+        {/* Grafikler */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-[300px]">
+            <div className="bg-white p-6 rounded-sm border border-gray-200 shadow-sm">
+                <h3 className="font-bold text-gray-700 mb-4 text-sm">İlan Durum Dağılımı</h3>
+                <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                        <Pie data={statusData} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={5} dataKey="value">
+                            {statusData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={entry.color} />
+                            ))}
+                        </Pie>
+                        <Tooltip />
+                    </PieChart>
+                </ResponsiveContainer>
             </div>
-         </div>
-      </div>
+
+            <div className="bg-white p-6 rounded-sm border border-gray-200 shadow-sm">
+                <h3 className="font-bold text-gray-700 mb-4 text-sm">İlan Performansı (Görüntülenme)</h3>
+                <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={priceData}>
+                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                        <XAxis dataKey="name" hide />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="views" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
     </div>
   );
 }

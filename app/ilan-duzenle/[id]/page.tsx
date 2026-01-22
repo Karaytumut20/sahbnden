@@ -1,173 +1,159 @@
 "use client";
-import React, { useState, useEffect, useRef, Suspense } from 'react';
-import { useRouter, useParams } from 'next/navigation';
-import { Upload, X, ArrowLeft, Save, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, Suspense } from 'react';
+import { useRouter } from 'next/navigation';
+import { Loader2, ArrowLeft, Save } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
+import { getAdDetailServer, updateAdAction } from '@/lib/actions';
+import ImageUploader from '@/components/ui/ImageUploader';
 import RealEstateFields from '@/components/form/RealEstateFields';
 import VehicleFields from '@/components/form/VehicleFields';
-import { getAdDetailServer, updateAdAction } from '@/lib/actions';
-import { uploadImageClient } from '@/lib/services';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
 
-function EditAdFormContent() {
+function EditAdContent({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const params = useParams();
   const { addToast } = useToast();
   const { user } = useAuth();
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState<any>({});
-  const [category, setCategory] = useState('');
+  const [images, setImages] = useState<string[]>([]);
+  const [adId, setAdId] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchAd = async () => {
-        if(!params.id) return;
+    async function loadData() {
+        if(!user) return;
+
         try {
-            const ad = await getAdDetailServer(Number(params.id));
+            const { id } = await params;
+            const ad = await getAdDetailServer(Number(id));
+
             if (!ad) {
                 addToast('İlan bulunamadı.', 'error');
                 router.push('/bana-ozel/ilanlarim');
                 return;
             }
-            if (user && ad.user_id !== user.id) {
-                 addToast('Bu ilanı düzenleyemezsiniz.', 'error');
-                 router.push('/');
-                 return;
+
+            if (ad.user_id !== user.id) {
+                addToast('Bu ilanı düzenleme yetkiniz yok.', 'error');
+                router.push('/');
+                return;
             }
-            setCategory(ad.category);
-            setImages(ad.image ? [ad.image] : []);
-            setFormData({
-                title: ad.title,
-                price: ad.price,
-                currency: ad.currency,
-                description: ad.description,
-                m2: ad.m2,
-                room: ad.room,
-                floor: ad.floor,
-                heating: ad.heating,
-                brand: ad.brand,
-                year: ad.year,
-                km: ad.km,
-                gear: ad.gear,
-                fuel: ad.fuel,
-                status: ad.status_vehicle
-            });
+
+            setFormData(ad);
+            setImages(ad.image ? [ad.image] : []); // Tek resim desteği şimdilik
+            setAdId(ad.id);
         } catch (e) {
             console.error(e);
-            addToast('Veri yüklenirken hata oluştu.', 'error');
         } finally {
-            setIsLoading(false);
+            setLoading(false);
         }
-    };
-    if(user) fetchAd();
-  }, [user, params.id]);
-
-  const handleInputChange = (e: any) => setFormData({ ...formData, [e.target.name]: e.target.value });
-  const handleDynamicChange = (name: string, value: string) => setFormData({ ...formData, [name]: value });
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!e.target.files?.length) return;
-    setIsUploading(true);
-    try {
-        const url = await uploadImageClient(e.target.files[0]);
-        setImages([...images, url]);
-        addToast('Resim yüklendi', 'success');
-    } catch(e) {
-        addToast('Resim yükleme hatası', 'error');
-    } finally {
-        setIsUploading(false);
     }
+    loadData();
+  }, [user, params]);
+
+  const handleInputChange = (e: any) => {
+    const { name, value } = e.target;
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  const handleDynamicChange = (name: string, value: string) => {
+    setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsSubmitting(true);
-    const finalData = {
+    if (!adId) return;
+    setSaving(true);
+
+    const updateData = {
         ...formData,
-        category,
         image: images[0] || null,
         price: Number(formData.price),
-        year: Number(formData.year),
-        km: Number(formData.km),
-        m2: Number(formData.m2),
-        floor: Number(formData.floor)
+        year: Number(formData.year) || null,
+        km: Number(formData.km) || null,
+        m2: Number(formData.m2) || null,
     };
-    const res = await updateAdAction(Number(params.id), finalData);
+
+    const res = await updateAdAction(adId, updateData);
+
     if (res.error) {
         addToast(res.error, 'error');
     } else {
         addToast('İlan güncellendi ve onaya gönderildi.', 'success');
         router.push('/bana-ozel/ilanlarim');
     }
-    setIsSubmitting(false);
+    setSaving(false);
   };
 
-  if (isLoading) return <div className="p-20 text-center flex justify-center"><Loader2 className="animate-spin mr-2"/> İlan bilgileri yükleniyor...</div>;
+  if (loading) return <div className="p-20 text-center flex justify-center"><Loader2 className="animate-spin text-blue-600"/></div>;
+
+  const isRealEstate = formData.category?.includes('konut') || formData.category?.includes('isyeri');
+  const isVehicle = formData.category?.includes('otomobil') || formData.category?.includes('suv');
 
   return (
     <div className="max-w-[800px] mx-auto py-8 px-4">
-      <div className="flex items-center gap-2 mb-6 border-b pb-2">
-        <button onClick={() => router.back()} className="text-gray-500 hover:text-blue-700"><ArrowLeft size={20} /></button>
-        <h1 className="text-xl font-bold text-[#333]">İlanı Düzenle: {formData.title}</h1>
-      </div>
-      <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-6">
-        <div>
-            <label className="block text-xs font-bold mb-1">Başlık</label>
-            <input name="title" value={formData.title || ''} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required />
+        <div className="flex items-center gap-4 mb-6 border-b border-gray-200 pb-4">
+            <button onClick={() => router.back()} className="text-gray-500 hover:text-gray-700"><ArrowLeft size={20}/></button>
+            <h1 className="text-xl font-bold text-gray-800">İlanı Düzenle: {formData.title}</h1>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-             <div>
-                <label className="block text-xs font-bold mb-1">Fiyat</label>
-                <input name="price" type="number" value={formData.price || ''} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required />
-             </div>
-             <div>
-                <label className="block text-xs font-bold mb-1">Para Birimi</label>
-                <select name="currency" value={formData.currency || 'TL'} onChange={handleInputChange} className="w-full border p-2 rounded-sm bg-white">
-                    <option>TL</option><option>USD</option><option>EUR</option>
-                </select>
-             </div>
-        </div>
-        {category === 'emlak' && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
-        {category === 'vasita' && <VehicleFields data={formData} onChange={handleDynamicChange} />}
-        <div>
-            <label className="block text-xs font-bold mb-2">Fotoğraflar</label>
-            <div className="flex flex-wrap gap-4">
-                {images.map((img, i) => (
-                    <div key={i} className="relative group w-24 h-24 border rounded overflow-hidden">
-                        <img src={img} className="w-full h-full object-cover"/>
-                        <button type="button" onClick={() => setImages(images.filter((_, idx) => idx !== i))} className="absolute top-0 right-0 bg-red-500 text-white p-1 opacity-0 group-hover:opacity-100 transition-opacity"><X size={12}/></button>
+
+        <form onSubmit={handleSubmit} className="bg-white p-6 shadow-sm border border-gray-200 rounded-sm space-y-8">
+
+            <section className="space-y-4">
+                <Input label="İlan Başlığı" name="title" value={formData.title} onChange={handleInputChange} required />
+                <Textarea label="Açıklama" name="description" value={formData.description} onChange={handleInputChange} className="h-32" required />
+                <div className="grid grid-cols-2 gap-4">
+                    <Input label="Fiyat" name="price" type="number" value={formData.price} onChange={handleInputChange} required />
+                    <div>
+                        <label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label>
+                        <select name="currency" value={formData.currency} onChange={handleInputChange} className="w-full border border-gray-300 h-10 px-3 rounded-sm bg-white outline-none text-sm">
+                            <option>TL</option><option>USD</option><option>EUR</option>
+                        </select>
                     </div>
-                ))}
-                <div className="w-24 h-24 border-2 border-dashed flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 rounded" onClick={() => fileInputRef.current?.click()}>
-                    {isUploading ? <Loader2 className="animate-spin text-blue-600"/> : <Upload className="text-gray-400"/>}
-                    <span className="text-[10px] text-gray-500 mt-1">Ekle</span>
                 </div>
+            </section>
+
+            {(isRealEstate || isVehicle) && (
+                <section>
+                    <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">Özellikler</h3>
+                    <div className="px-2">
+                        {isRealEstate && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
+                        {isVehicle && <VehicleFields data={formData} onChange={handleDynamicChange} />}
+                    </div>
+                </section>
+            )}
+
+            <section>
+                <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">Fotoğraflar</h3>
+                <div className="px-2"><ImageUploader onImagesChange={setImages} initialImages={images} /></div>
+            </section>
+
+            <section>
+                <h3 className="font-bold text-sm text-[#333] mb-4 border-b pb-2">Konum</h3>
+                <div className="grid grid-cols-2 gap-4 px-2">
+                    <Input label="İl" name="city" value={formData.city} onChange={handleInputChange} />
+                    <Input label="İlçe" name="district" value={formData.district} onChange={handleInputChange} />
+                </div>
+            </section>
+
+            <div className="flex justify-end pt-4">
+                <button
+                    type="submit"
+                    disabled={saving}
+                    className="bg-[#ffe800] text-black px-8 py-3 rounded-sm font-bold hover:bg-yellow-400 disabled:opacity-50 flex items-center gap-2"
+                >
+                    {saving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18}/>}
+                    Değişiklikleri Kaydet
+                </button>
             </div>
-            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" accept="image/*" />
-        </div>
-        <div>
-            <label className="block text-xs font-bold mb-1">Açıklama</label>
-            <textarea name="description" value={formData.description || ''} onChange={handleInputChange} className="w-full border p-2 rounded-sm h-32 resize-none" required></textarea>
-        </div>
-        <div className="flex justify-end gap-3 pt-4 border-t">
-            <button type="button" onClick={() => router.back()} className="px-6 py-3 border border-gray-300 rounded-sm text-sm font-bold text-gray-600 hover:bg-gray-50">İptal</button>
-            <button type="submit" disabled={isSubmitting} className="px-8 py-3 bg-[#ffe800] rounded-sm text-sm font-bold text-black hover:bg-yellow-400 flex items-center gap-2 disabled:opacity-50">
-                {isSubmitting ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>} Güncelle
-            </button>
-        </div>
-      </form>
+        </form>
     </div>
   );
 }
 
-export default function EditAdPage() {
-    return (
-        <Suspense fallback={<div className="p-20 text-center">Yükleniyor...</div>}>
-            <EditAdFormContent />
-        </Suspense>
-    );
+export default function EditAdPage({ params }: { params: Promise<{ id: string }> }) {
+    return <Suspense fallback={<div>Yükleniyor...</div>}><EditAdContent params={params} /></Suspense>
 }
