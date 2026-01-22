@@ -1,14 +1,19 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Filter, Check, RotateCcw, ChevronLeft, Car, Home } from 'lucide-react';
+import { Filter, Check, RotateCcw, ChevronLeft, Car, Home, MapPin, Loader2 } from 'lucide-react';
 import { categories } from '@/lib/data';
-import { cities } from '@/lib/locations';
+import { getLocationsServer, getFacetCountsServer } from '@/lib/actions'; // Server Actions
 
 export default function FilterSidebar() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const currentCategorySlug = searchParams.get('category');
+
+  // State
+  const [provinces, setProvinces] = useState<any[]>([]);
+  const [facetCounts, setFacetCounts] = useState<Record<string, number>>({});
+  const [loadingLoc, setLoadingLoc] = useState(true);
 
   const [filters, setFilters] = useState({
     city: searchParams.get('city') || '',
@@ -21,6 +26,42 @@ export default function FilterSidebar() {
     gear: searchParams.get('gear') || '',
     fuel: searchParams.get('fuel') || '',
   });
+
+  // Veri Çekme (Locations & Counts)
+  useEffect(() => {
+    async function initData() {
+        try {
+            const [locs, counts] = await Promise.all([
+                getLocationsServer(),
+                getFacetCountsServer()
+            ]);
+            setProvinces(locs);
+
+            // Counts array'ini objeye çevir { 'İstanbul': 42, 'Ankara': 10 }
+            const countMap: Record<string, number> = {};
+            if (counts) {
+                counts.forEach((c: any) => {
+                    countMap[c.city_name] = c.count;
+                });
+            }
+            setFacetCounts(countMap);
+        } catch (e) {
+            console.error("Filtre verileri çekilemedi", e);
+        } finally {
+            setLoadingLoc(false);
+        }
+    }
+    initData();
+  }, []);
+
+  useEffect(() => {
+    setFilters(prev => ({
+      ...prev,
+      city: searchParams.get('city') || '',
+      minPrice: searchParams.get('minPrice') || '',
+      maxPrice: searchParams.get('maxPrice') || '',
+    }));
+  }, [searchParams]);
 
   const navData = useMemo(() => {
     let activeCat: any = null;
@@ -57,20 +98,6 @@ export default function FilterSidebar() {
     return { list: listToDisplay, title, parent: parentCat, active: activeCat };
   }, [currentCategorySlug]);
 
-  useEffect(() => {
-    setFilters({
-      city: searchParams.get('city') || '',
-      minPrice: searchParams.get('minPrice') || '',
-      maxPrice: searchParams.get('maxPrice') || '',
-      room: searchParams.get('room') || '',
-      minYear: searchParams.get('minYear') || '',
-      maxYear: searchParams.get('maxYear') || '',
-      maxKm: searchParams.get('maxKm') || '',
-      gear: searchParams.get('gear') || '',
-      fuel: searchParams.get('fuel') || '',
-    });
-  }, [searchParams]);
-
   const updateFilter = (key: string, value: string) => setFilters(prev => ({ ...prev, [key]: value }));
 
   const applyFilters = () => {
@@ -100,9 +127,8 @@ export default function FilterSidebar() {
     router.push(`/search?${params.toString()}`);
   };
 
-  // Kategori Tespiti (Senior Logic)
-  const isRealEstate = currentCategorySlug?.includes('konut') || currentCategorySlug?.includes('emlak') || currentCategorySlug?.includes('isyeri');
-  const isVehicle = currentCategorySlug?.includes('vasita') || currentCategorySlug?.includes('oto') || currentCategorySlug?.includes('motosiklet');
+  const isRealEstate = currentCategorySlug?.includes('konut') || currentCategorySlug?.includes('emlak');
+  const isVehicle = currentCategorySlug?.includes('vasita') || currentCategorySlug?.includes('oto');
 
   return (
     <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-4 sticky top-20 dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors max-h-[calc(100vh-100px)] overflow-y-auto scrollbar-thin">
@@ -128,16 +154,29 @@ export default function FilterSidebar() {
       <h3 className="font-bold text-[#333] text-sm mb-4 flex items-center gap-2 border-b border-gray-100 pb-2 dark:text-white dark:border-gray-700"><Filter size={16} /> Filtrele</h3>
 
       <div className="space-y-5">
-        {/* Ortak Filtreler: Konum */}
+
+        {/* AKILLI ŞEHİR SEÇİMİ */}
         <div>
-          <label className="text-[11px] font-bold text-gray-500 mb-1 block dark:text-gray-400">İL</label>
-          <select value={filters.city} onChange={(e) => updateFilter('city', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 focus:border-blue-500 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white bg-white">
+          <label className="text-[11px] font-bold text-gray-500 mb-1 block dark:text-gray-400 flex justify-between">
+             <span>İL</span>
+             {loadingLoc && <Loader2 size={12} className="animate-spin"/>}
+          </label>
+          <select
+            value={filters.city}
+            onChange={(e) => updateFilter('city', e.target.value)}
+            className="w-full border border-gray-300 rounded-sm text-[12px] p-2 focus:border-blue-500 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white bg-white"
+            disabled={loadingLoc}
+          >
             <option value="">Tüm İller</option>
-            {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+            {provinces.map((c: any) => (
+                <option key={c.id} value={c.name}>
+                    {c.name} {facetCounts[c.name] ? `(${facetCounts[c.name]})` : ''}
+                </option>
+            ))}
           </select>
         </div>
 
-        {/* Ortak Filtreler: Fiyat */}
+        {/* Fiyat Filtresi */}
         <div>
           <label className="text-[11px] font-bold text-gray-500 mb-1 block dark:text-gray-400">FİYAT (TL)</label>
           <div className="flex gap-2">
@@ -146,11 +185,10 @@ export default function FilterSidebar() {
           </div>
         </div>
 
-        {/* EMLAK FİLTRELERİ */}
+        {/* Emlak Özel */}
         {isRealEstate && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300 border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2 text-xs font-bold text-blue-800"><Home size={14}/> Emlak Detay</div>
-
                 <div>
                     <label className="text-[11px] font-bold text-gray-500 mb-1 block">ODA SAYISI</label>
                     <div className="grid grid-cols-3 gap-1">
@@ -162,11 +200,10 @@ export default function FilterSidebar() {
             </div>
         )}
 
-        {/* ARAÇ FİLTRELERİ */}
+        {/* Araç Özel */}
         {isVehicle && (
             <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300 border-t border-gray-100 pt-4">
                 <div className="flex items-center gap-2 text-xs font-bold text-blue-800"><Car size={14}/> Araç Detay</div>
-
                 <div>
                     <label className="text-[11px] font-bold text-gray-500 mb-1 block">YIL</label>
                     <div className="flex gap-2">
@@ -174,37 +211,11 @@ export default function FilterSidebar() {
                         <input type="number" placeholder="Max" value={filters.maxYear} onChange={(e) => updateFilter('maxYear', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none focus:border-blue-500" />
                     </div>
                 </div>
-
-                <div>
-                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">KM (Maks)</label>
-                    <input type="number" placeholder="Maksimum KM" value={filters.maxKm} onChange={(e) => updateFilter('maxKm', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none focus:border-blue-500" />
-                </div>
-
-                <div>
-                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">VİTES</label>
-                    <select value={filters.gear} onChange={(e) => updateFilter('gear', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none bg-white">
-                        <option value="">Hepsi</option>
-                        <option value="Manuel">Manuel</option>
-                        <option value="Otomatik">Otomatik</option>
-                        <option value="Yarı Otomatik">Yarı Otomatik</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">YAKIT</label>
-                    <select value={filters.fuel} onChange={(e) => updateFilter('fuel', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none bg-white">
-                        <option value="">Hepsi</option>
-                        <option value="Benzin">Benzin</option>
-                        <option value="Dizel">Dizel</option>
-                        <option value="LPG">Benzin & LPG</option>
-                        <option value="Elektrik">Elektrik</option>
-                    </select>
-                </div>
             </div>
         )}
 
         <div className="pt-2 sticky bottom-0 bg-white pb-2 border-t border-gray-100">
-            <button onClick={applyFilters} className="w-full bg-blue-700 text-white text-[13px] font-bold py-3 rounded-sm hover:bg-blue-800 transition-colors shadow-md flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700">
+            <button onClick={applyFilters} className="w-full bg-blue-700 text-white text-[13px] font-bold py-2.5 rounded-sm hover:bg-blue-800 transition-colors shadow-md flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700">
                 <Check size={16} /> Sonuçları Göster
             </button>
             <button onClick={clearFilters} className="w-full text-center text-[11px] text-gray-500 hover:text-red-600 underline flex items-center justify-center gap-1 mt-3 dark:text-gray-400 dark:hover:text-red-400">
