@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import Link from 'next/link';
-import { Home, List, Heart, MessageSquare, Settings, LogOut, Store } from 'lucide-react';
+import { Home, List, Heart, MessageSquare, Settings, LogOut, Store, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function DashboardSidebar() {
@@ -16,6 +16,10 @@ export default function DashboardSidebar() {
       <nav className="p-2">
         <ul className="space-y-1 text-[13px] text-[#333] dark:text-gray-200">
           <li><Link href="/bana-ozel" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Home size={16} /> Bana Özel Özet</Link></li>
+
+          {/* YENİ EKLENEN CÜZDAN LİNKİ */}
+          <li><Link href="/bana-ozel/cuzdan" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Wallet size={16} /> Cüzdanım</Link></li>
+
           <li className="border-b border-gray-100 mb-2 pb-2 dark:border-gray-700"><Link href="/bana-ozel/magazam" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400 font-semibold text-blue-800 dark:text-blue-300"><Store size={16} /> Mağaza Yönetimi</Link></li>
           <li><Link href="/bana-ozel/ilanlarim" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><List size={16} /> Yayındaki İlanlarım</Link></li>
           <li><Link href="/bana-ozel/favoriler" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Heart size={16} /> Favori İlanlarım</Link></li>

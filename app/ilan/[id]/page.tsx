@@ -11,16 +11,16 @@ import Tabs from '@/components/AdDetail/Tabs';
 import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
 import LoanCalculator from '@/components/tools/LoanCalculator';
-import ViewTracker from '@/components/ViewTracker'; // YENİ EKLENDİ
+import ViewTracker from '@/components/ViewTracker';
+import LiveVisitorCount from '@/components/LiveVisitorCount'; // YENİ
 import Badge from '@/components/ui/Badge';
-import { Calendar, Eye, Hash, MapPin, Heart } from 'lucide-react';
+import { Eye, MapPin, Heart } from 'lucide-react';
 import type { Metadata, ResolvingMetadata } from 'next';
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }, parent: ResolvingMetadata): Promise<Metadata> {
   const { id } = await params;
   const ad = await getAdDetailServer(Number(id));
   if (!ad) return { title: 'İlan Bulunamadı' };
-
   return {
     title: `${ad.title} - ${ad.price.toLocaleString()} ${ad.currency}`,
     description: `${ad.city}/${ad.district} bölgesinde ${ad.title} ilanını inceleyin.`,
@@ -65,13 +65,13 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
 
       <div className="border-b border-gray-200 pb-4 mb-6">
         <h1 className="text-[#333] font-bold text-xl mb-2">{ad.title}</h1>
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center">
             {ad.is_urgent && <Badge variant="danger">Acil Satılık</Badge>}
             {ad.is_vitrin && <Badge variant="warning">Vitrinde</Badge>}
-            {ad.price < 2000000 && <Badge variant="success">Fırsat Ürünü</Badge>}
+            <LiveVisitorCount adId={ad.id} /> {/* YENİ: SOSYAL KANIT */}
             {favCount > 0 && (
                 <span className="text-xs text-red-600 flex items-center gap-1 ml-auto font-bold bg-red-50 px-2 py-1 rounded-sm">
-                    <Heart size={12} className="fill-red-600"/> {favCount} kişi favoriye aldı
+                    <Heart size={12} className="fill-red-600"/> {favCount} favori
                 </span>
             )}
         </div>
@@ -100,7 +100,7 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
              {ad.km && <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">KM</span><span>{ad.km}</span></div>}
              <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm px-2 bg-gray-50">
                 <span className="font-bold text-[#333] flex items-center gap-2"><Eye size={14} className="text-gray-400"/> Görüntülenme</span>
-                <span>{ad.view_count || 0}</span> {/* ARTIK GERÇEK VERİ */}
+                <span>{ad.view_count || 0}</span>
              </div>
           </div>
         </div>

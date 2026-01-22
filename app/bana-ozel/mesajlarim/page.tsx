@@ -6,6 +6,7 @@ import { getConversationsClient, getMessagesClient, sendMessageClient, markMessa
 import { Send, ArrowLeft, Loader2, MessageSquareOff, ExternalLink, MapPin } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import Link from 'next/link';
+import { useRealtimeSubscription } from '@/hooks/use-realtime';
 
 export default function MessagesPage() {
   const { user } = useAuth();
@@ -18,6 +19,7 @@ export default function MessagesPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { addToast } = useToast();
 
+  // 1. Sohbet Listesini Getir
   useEffect(() => {
     if (user) {
       getConversationsClient(user.id)
@@ -25,13 +27,11 @@ export default function MessagesPage() {
              if (Array.isArray(data)) setConversations(data);
              else setConversations([]);
         })
-        .catch(err => console.error(err))
         .finally(() => setLoading(false));
     }
   }, [user]);
 
-  const activeConv = Array.isArray(conversations) ? conversations.find(c => c.id === activeConvId) : null;
-
+  // 2. Aktif Sohbetin Mesajlarını Getir
   useEffect(() => {
     if (!activeConvId || !user) return;
 
@@ -40,19 +40,29 @@ export default function MessagesPage() {
       markMessagesAsReadClient(activeConvId, user.id);
       scrollToBottom();
     });
+  }, [activeConvId, user]);
 
-    const channel = supabase.channel('chat_room_' + activeConvId)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${activeConvId}` }, (payload) => {
+  // 3. REALTIME LİSTENER (Kanca kullanarak)
+  // Sadece aktif sohbet penceresi açıksa o sohbetin mesajlarını dinle
+  useRealtimeSubscription({
+      table: 'messages',
+      filter: activeConvId ? `conversation_id=eq.${activeConvId}` : undefined,
+      event: 'INSERT',
+      callback: (payload) => {
+          // Yeni mesaj geldiğinde listeye ekle (eğer zaten yoksa)
           setMessages(current => {
               if (current.some(m => m.id === payload.new.id)) return current;
               return [...current, payload.new];
           });
-          if (payload.new.sender_id !== user.id) markMessagesAsReadClient(activeConvId, user.id);
-          scrollToBottom();
-      }).subscribe();
 
-    return () => { supabase.removeChannel(channel); };
-  }, [activeConvId, user]);
+          if (user && payload.new.sender_id !== user.id && activeConvId) {
+             markMessagesAsReadClient(activeConvId, user.id);
+          }
+          scrollToBottom();
+      }
+  });
+
+  const activeConv = Array.isArray(conversations) ? conversations.find(c => c.id === activeConvId) : null;
 
   const scrollToBottom = () => {
     setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
@@ -79,11 +89,12 @@ export default function MessagesPage() {
     if(error) addToast('Mesaj gönderilemedi', 'error');
   };
 
-  if (!user) return <div className="p-10 text-center text-gray-500">Mesajlarınızı görmek için giriş yapmalısınız.</div>;
+  if (!user) return <div className="p-10 text-center text-gray-500">Giriş yapmalısınız.</div>;
 
   return (
     <div className="bg-white border border-gray-200 rounded-sm shadow-sm h-[calc(100vh-140px)] min-h-[600px] flex overflow-hidden dark:bg-[#1c1c1c] dark:border-gray-700">
 
+      {/* SOL: LİSTE */}
       <div className={`w-full md:w-[320px] border-r border-gray-200 flex flex-col dark:border-gray-700 ${activeConvId ? 'hidden md:flex' : 'flex'}`}>
         <div className="p-4 border-b border-gray-100 bg-gray-50 dark:bg-[#151515] dark:border-gray-700">
           <h2 className="font-bold text-[#333] dark:text-white">Mesajlarım</h2>
@@ -118,12 +129,13 @@ export default function MessagesPage() {
         </div>
       </div>
 
+      {/* SAĞ: SOHBET */}
       <div className={`flex-1 flex flex-col bg-[#e5ddd5] dark:bg-[#0b141a] ${!activeConvId ? 'hidden md:flex' : 'flex'}`}>
         {activeConv ? (
           <>
             <div className="bg-white border-b border-gray-200 shadow-sm z-10 dark:bg-[#1c1c1c] dark:border-gray-700">
                 <div className="md:hidden p-2 border-b border-gray-100 flex items-center">
-                    <button onClick={() => setActiveConvId(null)} className="flex items-center text-gray-600 font-bold text-sm"><ArrowLeft size={16} className="mr-1"/> Mesajlara Dön</button>
+                    <button onClick={() => setActiveConvId(null)} className="flex items-center text-gray-600 font-bold text-sm"><ArrowLeft size={16} className="mr-1"/> Geri</button>
                 </div>
                 {activeConv.ads && (
                     <div className="p-3 flex items-center gap-4">
@@ -151,7 +163,7 @@ export default function MessagesPage() {
                     <p className="break-words">{msg.content}</p>
                     <div className="flex items-center justify-end gap-1 mt-1">
                         <span className="text-[9px] text-gray-500 dark:text-gray-400">
-                            {msg.is_pending ? 'Gönderiliyor...' : new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                            {msg.is_pending ? '...' : new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </span>
                     </div>
                   </div>
@@ -161,15 +173,15 @@ export default function MessagesPage() {
             </div>
 
             <form onSubmit={handleSend} className="p-3 bg-[#f0f2f5] dark:bg-[#202c33] flex gap-2 items-center">
-              <input value={inputText} onChange={e => setInputText(e.target.value)} className="flex-1 border-none rounded-full px-4 py-2.5 outline-none text-sm dark:bg-[#2a3942] dark:text-white placeholder:text-gray-500" placeholder="Bir mesaj yazın..." autoFocus />
-              <button type="submit" disabled={!inputText.trim()} className="bg-[#008a7c] text-white p-2.5 rounded-full hover:bg-[#006e63] transition-colors disabled:opacity-50 disabled:cursor-not-allowed transform active:scale-95"><Send size={18}/></button>
+              <input value={inputText} onChange={e => setInputText(e.target.value)} className="flex-1 border-none rounded-full px-4 py-2.5 outline-none text-sm dark:bg-[#2a3942] dark:text-white placeholder:text-gray-500" placeholder="Mesaj yazın..." autoFocus />
+              <button type="submit" disabled={!inputText.trim()} className="bg-[#008a7c] text-white p-2.5 rounded-full hover:bg-[#006e63] transition-colors disabled:opacity-50 transform active:scale-95"><Send size={18}/></button>
             </form>
           </>
         ) : (
           <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-8 text-center bg-[#f0f2f5] dark:bg-[#111]">
-             <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800"><img src="/window.svg" className="w-16 h-16 opacity-20"/></div>
-             <h3 className="font-bold text-lg mb-2">Web'de Mesajlaşın</h3>
-             <p className="text-sm max-w-xs">İlan sahipleriyle anlık olarak mesajlaşabilir, fotoğraf ve konum gönderebilirsiniz.</p>
+             <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800 opacity-20"><MessageSquareOff size={64}/></div>
+             <h3 className="font-bold text-lg mb-2">Sohbet Seçin</h3>
+             <p className="text-sm max-w-xs">Sol taraftaki listeden bir sohbet seçerek anlık mesajlaşmaya başlayın.</p>
           </div>
         )}
       </div>

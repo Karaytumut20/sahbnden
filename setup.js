@@ -5,15 +5,14 @@ const colors = {
   reset: "\x1b[0m",
   green: "\x1b[32m",
   cyan: "\x1b[36m",
-  red: "\x1b[31m",
+  magenta: "\x1b[35m",
   bold: "\x1b[1m",
-  yellow: "\x1b[33m",
 };
 
 console.log(
-  colors.red +
+  colors.magenta +
     colors.bold +
-    "\n🚀 SENIOR UPGRADE V7: AUTOMATED MODERATION ENGINE...\n" +
+    "\n🚀 SENIOR UPGRADE V9: REAL-TIME ENGINE (CHAT & PRESENCE)...\n" +
     colors.reset,
 );
 
@@ -28,589 +27,480 @@ function writeFile(filePath, content) {
 }
 
 // =============================================================================
-// 1. SUPABASE/MODERATION.SQL (VERİTABANI GÜNCELLEMESİ)
+// 1. SUPABASE/REALTIME.SQL (REPLİKASYON AYARLARI)
 // =============================================================================
-const moderationSqlContent = `
+const realtimeSqlContent = `
 -- BU KODU SUPABASE SQL EDITOR'DE ÇALIŞTIRIN --
+-- Gerçek zamanlı özellikleri aktif etmek için "supa_realtime" yayınına tabloları ekliyoruz.
 
--- 1. İlan tablosuna moderasyon skorlarını ekleyelim
-ALTER TABLE ads
-ADD COLUMN IF NOT EXISTS moderation_score integer default 0, -- 0: Temiz, 100: Çok Riskli
-ADD COLUMN IF NOT EXISTS moderation_tags text[] default '{}', -- Örn: ['PHONE_DETECTED', 'BAD_WORD']
-ADD COLUMN IF NOT EXISTS admin_note text;
+-- 1. Mesajlaşma için Realtime
+alter publication supabase_realtime add table messages;
 
--- 2. İndeks (Riskli ilanları bulmak için)
-CREATE INDEX IF NOT EXISTS idx_ads_mod_score ON ads(moderation_score);
+-- 2. Bildirimler için Realtime
+alter publication supabase_realtime add table notifications;
+
+-- 3. İlan durumu değişiklikleri için (Örn: Biri ilanı satın alınca anında 'Satıldı' yazsın)
+alter publication supabase_realtime add table ads;
+
+-- 4. Online Kullanıcı Takibi (Presence) için tabloya gerek yok, Supabase Channel kullanacağız.
+-- Ancak son görülme bilgisini kalıcı tutmak istersek:
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS last_seen_at timestamp with time zone;
 `;
-writeFile("supabase/moderation.sql", moderationSqlContent);
+writeFile("supabase/realtime.sql", realtimeSqlContent);
 
 // =============================================================================
-// 2. LIB/MODERATION/RULES.TS (KURALLAR VE YASAKLI KELİMELER)
+// 2. HOOKS/USE-REALTIME.TS (GENERIC REALTIME HOOK)
 // =============================================================================
-const rulesContent = `
-// Yasaklı veya Riskli Kelimeler
-export const BLACKLIST = [
-  'dolandırıcı', 'kumar', 'bahis', 'illegal', 'kaçak', 'silah',
-  'hack', 'warez', 'iptv', 'crack'
-];
+const useRealtimeContent = `
+import { useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useRouter } from 'next/navigation';
 
-// Rakip Site İsimleri (Platform dışına yönlendirmeyi önlemek için)
-export const COMPETITORS = [
-  'letgo', 'dolap', 'arabam.com', 'zingat', 'hepsiemlak'
-];
-
-// Regex Desenleri
-export const PATTERNS = {
-  // Telefon numarası yakalama (05XX, 5XX, aralara boşluk/nokta koyma vb.)
-  PHONE: /(0?5\d{2})[\s\.-]?\d{3}[\s\.-]?\d{2}[\s\.-]?\d{2}/g,
-
-  // Email yakalama
-  EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
-
-  // Büyük harf kullanımı (Bağırma tespiti)
-  ALL_CAPS: /^[^a-z]*$/
-};
-`;
-writeFile("lib/moderation/rules.ts", rulesContent);
-
-// =============================================================================
-// 3. LIB/MODERATION/ENGINE.TS (MODERASYON MOTORU)
-// =============================================================================
-const engineContent = `
-import { BLACKLIST, COMPETITORS, PATTERNS } from './rules';
-
-type ModerationResult = {
-  score: number; // 0-100 (100 = En Riskli)
-  flags: string[];
-  autoReject: boolean;
-  rejectReason?: string;
+type RealtimeOptions = {
+  table: string;
+  channelName?: string;
+  filter?: string;
+  event?: 'INSERT' | 'UPDATE' | 'DELETE' | '*';
+  callback: (payload: any) => void;
 };
 
-export function analyzeAdContent(title: string, description: string): ModerationResult {
-  let score = 0;
-  const flags: string[] = [];
-  const content = (title + ' ' + description).toLowerCase();
+/**
+ * Veritabanı değişikliklerini anlık dinlemek için Custom Hook.
+ * Memory leak önlemek için cleanup işlemini otomatik yapar.
+ */
+export function useRealtimeSubscription({ table, channelName, filter, event = '*', callback }: RealtimeOptions) {
+  const supabase = createClient();
+  const router = useRouter();
 
-  // 1. Yasaklı Kelime Kontrolü (Ağır İhlal)
-  const foundBadWords = BLACKLIST.filter(word => content.includes(word));
-  if (foundBadWords.length > 0) {
-    score += 100;
-    flags.push('ILLEGAL_CONTENT');
-    return { score, flags, autoReject: true, rejectReason: \`Yasaklı içerik tespit edildi: \${foundBadWords.join(', ')}\` };
-  }
+  useEffect(() => {
+    // Benzersiz bir kanal adı oluştur veya verileni kullan
+    const channelId = channelName || \`sub_\${table}_\${Math.random().toString(36).substr(2, 9)}\`;
 
-  // 2. Rakip Site Kontrolü
-  const foundCompetitors = COMPETITORS.filter(comp => content.includes(comp));
-  if (foundCompetitors.length > 0) {
-    score += 50;
-    flags.push('COMPETITOR_MENTION');
-  }
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        'postgres_changes',
+        { event, schema: 'public', table, filter },
+        (payload) => {
+          // Callback'i tetikle
+          callback(payload);
+          // Opsiyonel: Veri değiştiğinde Next.js cache'ini tazeleyebiliriz (router.refresh())
+          // Ancak bu her durumda istenmeyebilir, o yüzden manuel yönetime bırakıyoruz.
+        }
+      )
+      .subscribe();
 
-  // 3. İletişim Bilgisi Sızdırma (Komisyon Atlatma)
-  if (PATTERNS.PHONE.test(title) || PATTERNS.PHONE.test(description)) {
-    score += 40;
-    flags.push('PHONE_DETECTED');
-  }
-  if (PATTERNS.EMAIL.test(title) || PATTERNS.EMAIL.test(description)) {
-    score += 30;
-    flags.push('EMAIL_DETECTED');
-  }
-
-  // 4. Kalite Kontrolü (Hepsi Büyük Harf)
-  // Sadece title'a bakıyoruz, description uzun olabilir
-  if (title.length > 10 && PATTERNS.ALL_CAPS.test(title)) {
-    score += 20;
-    flags.push('ALL_CAPS_TITLE');
-  }
-
-  // 5. Kısa Açıklama (Spam Belirtisi)
-  if (description.length < 20) {
-    score += 10;
-    flags.push('LOW_QUALITY_DESC');
-  }
-
-  // Skor Tavanı
-  score = Math.min(score, 100);
-
-  return {
-    score,
-    flags,
-    autoReject: score >= 100, // 100 puan direkt ret
-  };
+    // Cleanup: Bileşen unmount olduğunda dinlemeyi durdur
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [table, filter, event, channelName]); // Dependency array önemli
 }
 `;
-writeFile("lib/moderation/engine.ts", engineContent);
+writeFile("hooks/use-realtime.ts", useRealtimeContent);
 
 // =============================================================================
-// 4. LIB/ACTIONS.TS (CREATE AD GÜNCELLEMESİ)
+// 3. HOOKS/USE-PRESENCE.TS (ONLINE KULLANICI TAKİBİ)
 // =============================================================================
-// createAdAction fonksiyonunu güncelleyerek moderasyon motorunu entegre ediyoruz.
+const usePresenceContent = `
+import { useEffect, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/AuthContext';
 
-const actionsContent = `
-'use server'
-import { createClient, createStaticClient } from '@/lib/supabase/server'
-import { revalidatePath, unstable_cache } from 'next/cache'
-import { adSchema } from '@/lib/schemas'
-import { logActivity } from '@/lib/logger'
-import { AdFormData } from '@/types'
-import { sendEmail, EMAIL_TEMPLATES } from '@/lib/mail'
-import { analyzeAdContent } from '@/lib/moderation/engine' // YENİ MOTOR
+/**
+ * Şu an sayfada olan kullanıcıları takip eder.
+ * @param roomId Hangi odadaki kullanıcılar? (Örn: 'ad_123' veya 'global')
+ */
+export function usePresence(roomId: string) {
+  const { user } = useAuth();
+  const supabase = createClient();
+  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
 
-// --- YARDIMCI FONKSİYONLAR ---
-async function checkRateLimit(userId: string, actionType: 'ad_creation' | 'review') {
-    const supabase = await createClient();
-    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  useEffect(() => {
+    if (!user) return;
 
-    if (actionType === 'ad_creation') {
-        const { count } = await supabase.from('ads')
-            .select('*', { count: 'exact', head: true })
-            .eq('user_id', userId)
-            .gte('created_at', oneDayAgo);
-        if ((count || 0) >= 5) return false;
-    }
-    return true;
+    const channel = supabase.channel(roomId);
+
+    channel
+      .on('presence', { event: 'sync' }, () => {
+        // Presence state'i senkronize olduğunda listeyi güncelle
+        const newState = channel.presenceState();
+        const users = Object.values(newState).flat();
+        setOnlineUsers(users);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          // Kanala bağlandığında kendini "Ben buradayım" diye kaydet
+          await channel.track({
+            user_id: user.id,
+            name: user.name,
+            avatar: user.avatar,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => {
+      channel.unsubscribe();
+    };
+  }, [user, roomId]);
+
+  return { onlineUsers, count: onlineUsers.length };
 }
-
-// --- CREATE AD (SENIOR UPGRADE: AUTO MODERATION) ---
-export async function createAdAction(formData: Partial<AdFormData>) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
-
-  const canCreate = await checkRateLimit(user.id, 'ad_creation');
-  if (!canCreate) {
-      await logActivity(user.id, 'SPAM_AD_CREATION', { reason: 'Rate limit exceeded' });
-      return { error: 'Günlük ilan verme limitine ulaştınız.' };
-  }
-
-  const validation = adSchema.safeParse(formData);
-  if (!validation.success) return { error: validation.error.issues[0].message };
-
-  // --- MODERASYON MOTORU ÇALIŞIYOR ---
-  const analysis = analyzeAdContent(validation.data.title, validation.data.description);
-
-  // Otomatik Ret Durumu
-  let initialStatus = 'onay_bekliyor';
-  if (analysis.autoReject) {
-      initialStatus = 'reddedildi';
-      // Kullanıcıya otomatik ret maili atılabilir (Mail servisi entegre ise)
-      // Ancak güvenlik gereği bazen sessizce reddetmek daha iyidir (Shadow ban)
-  }
-
-  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
-  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
-
-  const { data, error } = await supabase.from('ads').insert([{
-    ...validation.data,
-    user_id: user.id,
-    status: initialStatus,
-    is_vitrin: false,
-    is_urgent: false,
-    // Moderasyon Sonuçlarını Kaydet
-    moderation_score: analysis.score,
-    moderation_tags: analysis.flags,
-    admin_note: analysis.autoReject ? \`OTOMATİK RET: \${analysis.rejectReason}\` : null
-  }]).select('id').single()
-
-  if (error) return { error: 'Veritabanı hatası.' }
-
-  await logActivity(user.id, 'CREATE_AD', {
-      adId: data.id,
-      title: validation.data.title,
-      moderation: analysis // Loglara da moderasyon sonucunu ekle
-  });
-
-  if (analysis.autoReject) {
-      return { error: \`İlanınız güvenlik kurallarına uymadığı için otomatik olarak reddedildi: \${analysis.rejectReason}\` };
-  }
-
-  revalidatePath('/');
-  return { success: true, adId: data.id }
-}
-
-// --- MEVCUT SEARCH & GETTERS (KORUNDU) ---
-type SearchParams = {
-    q?: string;
-    category?: string;
-    minPrice?: string;
-    maxPrice?: string;
-    city?: string;
-    sort?: string;
-    page?: string;
-};
-
-export async function getAdsServer(searchParams: SearchParams) {
-  const supabase = await createClient()
-  const page = Number(searchParams?.page) || 1;
-  const limit = 20;
-  const from = (page - 1) * limit;
-  const to = from + limit - 1;
-
-  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)', { count: 'exact' }).eq('status', 'yayinda');
-
-  if (searchParams?.q) query = query.ilike('title', \`%\${searchParams.q}%\`);
-  if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice);
-  if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice);
-  if (searchParams?.city) query = query.eq('city', searchParams.city);
-
-  if (searchParams?.category) {
-      const slug = searchParams.category;
-      if (slug === 'emlak') query = query.or('category.ilike.konut%,category.ilike.isyeri%,category.ilike.arsa%');
-      else if (slug === 'konut') query = query.ilike('category', 'konut%');
-      else if (slug === 'is-yeri') query = query.ilike('category', 'isyeri%');
-      else if (slug === 'vasita') query = query.or('category.eq.otomobil,category.eq.suv,category.eq.motosiklet');
-      else query = query.eq('category', slug);
-  }
-
-  if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true });
-  else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false });
-  else query = query.order('created_at', { ascending: false });
-
-  query = query.range(from, to);
-  const { data, count, error } = await query;
-
-  if (error) return { data: [], count: 0, totalPages: 0 };
-  return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
-}
-
-export const getCategoryTreeServer = unstable_cache(
-  async () => {
-    const supabase = createStaticClient();
-    const { data } = await supabase.from('categories').select('*').order('title');
-    if (!data) return [];
-    const parents = data.filter(c => !c.parent_id);
-    return parents.map(p => ({ ...p, subs: data.filter(c => c.parent_id === p.id) }));
-  }, ['category-tree'], { revalidate: 3600 }
-);
-
-export async function getInfiniteAdsAction(page = 1, limit = 20) {
-    const supabase = await createClient();
-    const start = (page - 1) * limit;
-    const end = start + limit - 1;
-    const { data, count } = await supabase.from('ads').select('*, profiles(full_name)', { count: 'exact' }).eq('status', 'yayinda').order('created_at', { ascending: false }).range(start, end);
-    return { data: data || [], total: count || 0, hasMore: (count || 0) > end + 1 };
-}
-
-export async function getAdDetailServer(id: number) {
-  const supabase = await createClient()
-  const { data } = await supabase.from('ads').select('*, profiles(*), categories(title)').eq('id', id).single()
-  return data
-}
-
-export async function updateAdAction(id: number, formData: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Giriş yapmalısınız' }
-
-    // Update işleminde de moderasyon yapılmalı
-    const analysis = analyzeAdContent(formData.title, formData.description);
-
-    // Eğer update sırasında illegal içerik girdiyse direkt reddet veya pasife çek
-    const status = analysis.autoReject ? 'reddedildi' : 'onay_bekliyor';
-    const adminNote = analysis.autoReject ? \`OTOMATİK RET (Update): \${analysis.rejectReason}\` : null;
-
-    const { error } = await supabase.from('ads').update({
-        ...formData,
-        status,
-        moderation_score: analysis.score,
-        moderation_tags: analysis.flags,
-        admin_note: adminNote
-    }).eq('id', id).eq('user_id', user.id)
-
-    if (error) return { error: error.message }
-    await logActivity(user.id, 'UPDATE_AD', { adId: id, moderation: analysis });
-
-    if (analysis.autoReject) {
-        return { error: 'Düzenleme güvenlik politikalarına takıldı ve ilan reddedildi.' };
-    }
-
-    revalidatePath('/bana-ozel/ilanlarim')
-    return { success: true }
-}
-
-export async function activateDopingAction(adId: number, dopingTypes: string[]) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const updates: any = {};
-  if (dopingTypes.includes('1')) updates.is_vitrin = true;
-  if (dopingTypes.includes('2')) updates.is_urgent = true;
-
-  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
-  if (error) return { error: error.message };
-
-  if (user) await logActivity(user.id, 'ACTIVATE_DOPING', { adId, types: dopingTypes });
-
-  revalidatePath('/');
-  return { success: true };
-}
-
-export async function createReportAction(adId: number, reason: string, description: string) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Giriş yapmalısınız.' };
-    const { error } = await supabase.from('reports').insert([{
-        ad_id: adId, user_id: user.id, reason, description, status: 'pending'
-    }]);
-    if (error) return { error: 'İletilemedi.' };
-    return { success: true };
-}
-
-export async function getStoreBySlugServer(slug: string) {
-    const supabase = await createClient()
-    const { data } = await supabase.from('stores').select('*').eq('slug', slug).single()
-    return data
-}
-
-export async function getStoreAdsServer(userId: string) {
-    const supabase = await createClient()
-    const { data } = await supabase.from('ads').select('*').eq('user_id', userId).eq('status', 'yayinda')
-    return data || []
-}
-
-export async function createStoreAction(formData: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Giriş yapmalısınız' }
-    const { error } = await supabase.from('stores').insert([{ ...formData, user_id: user.id }])
-    if (error) return { error: error.message }
-    await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id)
-    await logActivity(user.id, 'CREATE_STORE', { name: formData.name });
-    revalidatePath('/bana-ozel/magazam')
-    return { success: true }
-}
-
-export async function updateStoreAction(formData: any) {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return { error: 'Giriş yapmalısınız' }
-    const { error } = await supabase.from('stores').update(formData).eq('user_id', user.id)
-    if (error) return { error: error.message }
-    await logActivity(user.id, 'UPDATE_STORE', { name: formData.name });
-    revalidatePath('/bana-ozel/magazam')
-    return { success: true }
-}
-
-export async function getMyStoreServer() {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
-    if(!user) return null
-    const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).single()
-    return data
-}
-
-export async function getAdminStatsServer() {
-    const supabase = await createClient();
-    const [users, ads, revenue] = await Promise.all([
-        supabase.from('profiles').select('*', { count: 'exact', head: true }),
-        supabase.from('ads').select('*', { count: 'exact', head: true }).eq('status', 'yayinda'),
-        supabase.from('ads').select('*', { count: 'exact', head: true }).or('is_vitrin.eq.true,is_urgent.eq.true')
-    ]);
-    const estimatedRevenue = (revenue.count || 0) * 100;
-    return { totalUsers: users.count || 0, activeAds: ads.count || 0, totalRevenue: estimatedRevenue };
-}
-
-export async function getPageBySlugServer(slug: string) {
-  const contentMap: any = {
-      'hakkimizda': { title: 'Hakkımızda', content: '<p>Sahibinden klon projesi...</p>' },
-      'kullanim-kosullari': { title: 'Kullanım Koşulları', content: '<p>Koşullar...</p>' },
-      'gizlilik-politikasi': { title: 'Gizlilik Politikası', content: '<p>Gizlilik...</p>' },
-  };
-  return contentMap[slug] || null;
-}
-
-export async function getHelpContentServer() {
-  return {
-      categories: [{id: 1, title: 'Üyelik', description: 'Giriş işlemleri'}],
-      faqs: [{id: 1, question: 'Şifremi unuttum?', answer: 'Şifremi unuttum linkine tıklayın.'}]
-  };
-}
-
-export async function getAdsByIds(ids: number[]) {
-    if (!ids || ids.length === 0) return [];
-    const supabase = await createClient();
-    const { data } = await supabase.from('ads').select('*, profiles(full_name)').in('id', ids);
-    return data || [];
-}
-
-export async function getShowcaseAdsServer() {
-  const supabase = await createClient()
-  const { data } = await supabase.from('ads').select('*').eq('status', 'yayinda').eq('is_vitrin', true).limit(20)
-  return data || []
-}
-
-export async function getAdminAdsClient() {
-  const supabase = await createClient();
-  const { data } = await supabase.from('ads').select('*, profiles(full_name)').order('created_at', { ascending: false });
-  return data || [];
-}
-
-export async function approveAdAction(adId: number) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // İlan sahibini bul
-    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
-    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
-
-    const { error } = await supabase.from('ads').update({ status: 'yayinda', published_at: new Date().toISOString() }).eq('id', adId);
-    if(error) return { error: error.message };
-
-    if (user) await logActivity(user.id, 'ADMIN_APPROVE_AD', { adId });
-
-    if (adOwner?.email) {
-        const mailData = EMAIL_TEMPLATES.AD_APPROVED(adOwner.full_name || 'Kullanıcı', ad.title, adId);
-        await sendEmail(adOwner.email, mailData.subject, mailData.html);
-    }
-
-    revalidatePath('/admin/ilanlar');
-    return { success: true };
-}
-
-export async function rejectAdAction(adId: number, reason: string) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
-    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
-
-    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
-    if(error) return { error: error.message };
-
-    if (user) await logActivity(user.id, 'ADMIN_REJECT_AD', { adId, reason });
-
-    if (adOwner?.email) {
-        const mailData = EMAIL_TEMPLATES.AD_REJECTED(adOwner.full_name || 'Kullanıcı', ad.title, reason);
-        await sendEmail(adOwner.email, mailData.subject, mailData.html);
-    }
-
-    revalidatePath('/admin/ilanlar');
-    return { success: true };
-}
-
-export async function getAdFavoriteCount(adId: number) {
-    const supabase = await createClient();
-    const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('ad_id', adId);
-    return count || 0;
-}
-
-export async function updateProfileAction(formData: any) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Oturum açmanız gerekiyor.' };
-    const updates = { full_name: formData.full_name, phone: formData.phone, avatar_url: formData.avatar_url, updated_at: new Date().toISOString() };
-    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
-    if (error) return { error: error.message };
-    await logActivity(user.id, 'UPDATE_PROFILE', {});
-    revalidatePath('/bana-ozel/ayarlar');
-    return { success: true };
-}
-
-export async function updatePasswordAction(password: string) {
-    const supabase = await createClient();
-    const { error } = await supabase.auth.updateUser({ password: password });
-    if (error) return { error: error.message };
-    return { success: true };
-}
-
-export async function getRelatedAdsServer(category: string, currentId: number, basePrice?: number) {
-    const supabase = await createClient();
-    let query = supabase.from('ads').select('*').eq('category', category).eq('status', 'yayinda').neq('id', currentId);
-    if (basePrice) {
-        const minPrice = basePrice * 0.7;
-        const maxPrice = basePrice * 1.3;
-        query = query.gte('price', minPrice).lte('price', maxPrice);
-    }
-    const { data } = await query.limit(5);
-    return data || [];
-}
-
-export async function incrementViewCountAction(adId: number) {
-    const supabase = await createClient();
-    await supabase.rpc('increment_view_count', { ad_id_input: adId });
-}
-
-export async function getAuditLogsServer() {
-    const supabase = await createClient();
-    const { data } = await supabase.from('audit_logs').select('*, profiles:user_id(full_name, email)').order('created_at', { ascending: false }).limit(100);
-    return data || [];
-}
-
-export async function createReviewAction(targetUserId: string, rating: number, comment: string, adId?: number) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return { error: 'Giriş yapmalısınız.' };
-    if (user.id === targetUserId) return { error: 'Kendinize yorum yapamazsınız.' };
-    const { error } = await supabase.from('reviews').insert([{ target_user_id: targetUserId, reviewer_id: user.id, ad_id: adId, rating, comment }]);
-    if (error) return { error: 'Yorum kaydedilemedi.' };
-    await logActivity(user.id, 'CREATE_REVIEW', { targetUserId, rating });
-    revalidatePath(\`/satici/\${targetUserId}\`);
-    return { success: true };
-}
-
-export async function getSellerReviewsServer(targetUserId: string) {
-    const supabase = await createClient();
-    const { data } = await supabase.from('reviews').select('*, reviewer:reviewer_id(full_name, avatar_url)').eq('target_user_id', targetUserId).order('created_at', { ascending: false });
-    return data || [];
-}
-
-export async function getUserDashboardStats() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
-    const { data: ads } = await supabase.from('ads').select('status, view_count, price').eq('user_id', user.id);
-    return ads || [];
-}
-
-import { getProvinces, getDistrictsByProvince, getCityAdCounts } from '@/lib/services/locationService';
-export async function getLocationsServer() { return await getProvinces(); }
-export async function getDistrictsServer(cityName: string) { return await getDistrictsByProvince(cityName); }
-export async function getFacetCountsServer() { return await getCityAdCounts(); }
 `;
-writeFile("lib/actions.ts", actionsContent);
+writeFile("hooks/use-presence.ts", usePresenceContent);
 
 // =============================================================================
-// 5. COMPONENTS/ADMIN/MODERATIONQUEUE.TSX (ADMIN PANELİ İÇİN)
+// 4. COMPONENTS/LIVEVISITORCOUNT.TSX (SOSYAL KANIT BİLEŞENİ)
 // =============================================================================
-// Admin panelinde moderasyona takılan riskli ilanları gösterecek bir bileşen (Fikir olarak eklendi, opsiyonel)
-const moderationQueueContent = `
+const liveVisitorContent = `
+"use client";
 import React from 'react';
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { usePresence } from '@/hooks/use-presence';
+import { Eye } from 'lucide-react';
 
-export default function ModerationQueue({ ads }: { ads: any[] }) {
-  // Bu bileşen, Admin > İlanlar sayfasında "Moderasyon Bekleyenler" sekmesinde kullanılabilir.
+export default function LiveVisitorCount({ adId }: { adId: number }) {
+  // Her ilan için benzersiz bir oda oluşturuyoruz: 'ad_presence_123'
+  const { count } = usePresence(\`ad_presence_\${adId}\`);
+
+  if (count <= 1) return null; // Sadece kendisi varsa gösterme
+
   return (
-    <div className="space-y-4">
-       {ads.map(ad => (
-           <div key={ad.id} className="border border-red-200 bg-red-50 p-4 rounded-md">
-               <div className="flex justify-between items-start">
-                   <div>
-                       <h4 className="font-bold text-red-900">{ad.title}</h4>
-                       <p className="text-xs text-red-700 mt-1">
-                           <span className="font-bold">Risk Skoru:</span> {ad.moderation_score} / 100
-                       </p>
-                       <div className="flex gap-2 mt-2">
-                           {ad.moderation_tags?.map((tag: string) => (
-                               <span key={tag} className="text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-bold">{tag}</span>
-                           ))}
-                       </div>
-                   </div>
-                   <div className="flex gap-2">
-                       <button className="bg-white border border-gray-300 p-1.5 rounded hover:bg-gray-100"><X size={16}/></button>
-                       <button className="bg-green-600 text-white p-1.5 rounded hover:bg-green-700"><Check size={16}/></button>
-                   </div>
-               </div>
-           </div>
-       ))}
+    <div className="flex items-center gap-1.5 text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-sm animate-pulse border border-red-100">
+      <Eye size={14} />
+      <span>Şu an {count} kişi inceliyor</span>
     </div>
   );
 }
 `;
-writeFile("components/admin/ModerationQueue.tsx", moderationQueueContent);
+writeFile("components/LiveVisitorCount.tsx", liveVisitorContent);
+
+// =============================================================================
+// 5. APP/ILAN/[ID]/PAGE.TSX (GÜNCELLEME: CANLI SAYAÇ EKLENMESİ)
+// =============================================================================
+// Not: Mevcut dosyanın yapısını koruyarak araya LiveVisitorCount'u ekliyoruz.
+const adDetailUpdate = `
+import React from 'react';
+import { notFound } from 'next/navigation';
+import { getAdDetailServer, getAdFavoriteCount } from '@/lib/actions';
+import Breadcrumb from '@/components/Breadcrumb';
+import Gallery from '@/components/Gallery';
+import MobileAdActionBar from '@/components/MobileAdActionBar';
+import AdActionButtons from '@/components/AdActionButtons';
+import StickyAdHeader from '@/components/StickyAdHeader';
+import SellerSidebar from '@/components/SellerSidebar';
+import Tabs from '@/components/AdDetail/Tabs';
+import FeaturesTab from '@/components/AdDetail/FeaturesTab';
+import LocationTab from '@/components/AdDetail/LocationTab';
+import LoanCalculator from '@/components/tools/LoanCalculator';
+import ViewTracker from '@/components/ViewTracker';
+import LiveVisitorCount from '@/components/LiveVisitorCount'; // YENİ
+import Badge from '@/components/ui/Badge';
+import { Eye, MapPin, Heart } from 'lucide-react';
+import type { Metadata, ResolvingMetadata } from 'next';
+
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }, parent: ResolvingMetadata): Promise<Metadata> {
+  const { id } = await params;
+  const ad = await getAdDetailServer(Number(id));
+  if (!ad) return { title: 'İlan Bulunamadı' };
+  return {
+    title: \`\${ad.title} - \${ad.price.toLocaleString()} \${ad.currency}\`,
+    description: \`\${ad.city}/\${ad.district} bölgesinde \${ad.title} ilanını inceleyin.\`,
+    openGraph: { images: [ad.image || ''] },
+  };
+}
+
+export default async function AdDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const ad = await getAdDetailServer(Number(id));
+  if (!ad) return notFound();
+
+  const favCount = await getAdFavoriteCount(Number(id));
+  const formattedPrice = ad.price?.toLocaleString('tr-TR');
+  const location = \`\${ad.city || ''} / \${ad.district || ''}\`;
+  const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '' };
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Product',
+    name: ad.title,
+    image: ad.image || [],
+    description: ad.description,
+    offers: {
+      '@type': 'Offer',
+      price: ad.price,
+      priceCurrency: ad.currency,
+      availability: 'https://schema.org/InStock',
+      url: \`https://sahibinden-klon.com/ilan/\${ad.id}\`,
+    },
+  };
+
+  return (
+    <div className="pb-20 relative font-sans">
+      <ViewTracker adId={ad.id} />
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
+      <StickyAdHeader title={ad.title} price={formattedPrice} currency={ad.currency} />
+
+      <div className="mb-4">
+        <Breadcrumb path={\`\${ad.category === 'emlak' ? 'Emlak' : 'Vasıta'} > \${location} > İlan Detayı\`} />
+      </div>
+
+      <div className="border-b border-gray-200 pb-4 mb-6">
+        <h1 className="text-[#333] font-bold text-xl mb-2">{ad.title}</h1>
+        <div className="flex flex-wrap gap-2 items-center">
+            {ad.is_urgent && <Badge variant="danger">Acil Satılık</Badge>}
+            {ad.is_vitrin && <Badge variant="warning">Vitrinde</Badge>}
+            <LiveVisitorCount adId={ad.id} /> {/* YENİ: SOSYAL KANIT */}
+            {favCount > 0 && (
+                <span className="text-xs text-red-600 flex items-center gap-1 ml-auto font-bold bg-red-50 px-2 py-1 rounded-sm">
+                    <Heart size={12} className="fill-red-600"/> {favCount} favori
+                </span>
+            )}
+        </div>
+      </div>
+
+      <div className="flex flex-col lg:flex-row gap-6">
+        <div className="lg:w-[600px] shrink-0">
+          <Gallery mainImage={ad.image || 'https://via.placeholder.com/800x600?text=Resim+Yok'} />
+          <div className="mt-4 hidden md:block"><AdActionButtons id={ad.id} title={ad.title} image={ad.image} sellerName={sellerInfo.full_name} /></div>
+          <Tabs items={[
+             { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-[14px] text-[#333] leading-relaxed whitespace-pre-wrap">{ad.description}</div> },
+             { id: 'features', label: 'İlan Özellikleri', content: <FeaturesTab ad={ad} /> },
+             { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
+          ]} />
+        </div>
+
+        <div className="flex-1 min-w-0">
+          <div className="mb-6">
+            <span className="block text-blue-700 font-bold text-2xl">{formattedPrice} {ad.currency}</span>
+            <span className="block text-gray-500 text-xs mt-1 flex items-center gap-1"><MapPin size={12}/> {location}</span>
+          </div>
+          <div className="bg-white border-t border-gray-200">
+             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">İlan No</span><span className="text-red-600 font-bold">{ad.id}</span></div>
+             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">İlan Tarihi</span><span>{new Date(ad.created_at).toLocaleDateString('tr-TR')}</span></div>
+             {ad.room && <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">Oda Sayısı</span><span>{ad.room}</span></div>}
+             {ad.km && <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">KM</span><span>{ad.km}</span></div>}
+             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm px-2 bg-gray-50">
+                <span className="font-bold text-[#333] flex items-center gap-2"><Eye size={14} className="text-gray-400"/> Görüntülenme</span>
+                <span>{ad.view_count || 0}</span>
+             </div>
+          </div>
+        </div>
+
+        <div className="lg:w-[280px] shrink-0 hidden md:block">
+           <SellerSidebar sellerId={ad.user_id} sellerName={sellerInfo.full_name || 'Kullanıcı'} sellerPhone={sellerInfo.phone || 'Telefon yok'} adId={ad.id} adTitle={ad.title} adImage={ad.image} price={formattedPrice} currency={ad.currency} />
+           {ad.category.includes('konut') && <LoanCalculator price={ad.price} />}
+        </div>
+      </div>
+      <MobileAdActionBar price={\`\${formattedPrice} \${ad.currency}\`} />
+    </div>
+  );
+}
+`;
+writeFile("app/ilan/[id]/page.tsx", adDetailUpdate);
+
+// =============================================================================
+// 6. APP/BANA-OZEL/MESAJLARIM/PAGE.TSX (CANLI SOHBET GÜNCELLEMESİ)
+// =============================================================================
+// Önceki polling mantığını silip yerine useRealtimeSubscription kullanan yapıyı koyuyoruz.
+const chatPageUpdate = `
+"use client";
+import React, { useState, useEffect, useRef } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useAuth } from '@/context/AuthContext';
+import { getConversationsClient, getMessagesClient, sendMessageClient, markMessagesAsReadClient } from '@/lib/services';
+import { Send, ArrowLeft, Loader2, MessageSquareOff, ExternalLink, MapPin } from 'lucide-react';
+import { useToast } from '@/context/ToastContext';
+import Link from 'next/link';
+import { useRealtimeSubscription } from '@/hooks/use-realtime';
+
+export default function MessagesPage() {
+  const { user } = useAuth();
+  const supabase = createClient();
+  const [conversations, setConversations] = useState<any[]>([]);
+  const [activeConvId, setActiveConvId] = useState<number | null>(null);
+  const [messages, setMessages] = useState<any[]>([]);
+  const [inputText, setInputText] = useState('');
+  const [loading, setLoading] = useState(true);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const { addToast } = useToast();
+
+  // 1. Sohbet Listesini Getir
+  useEffect(() => {
+    if (user) {
+      getConversationsClient(user.id)
+        .then((data) => {
+             if (Array.isArray(data)) setConversations(data);
+             else setConversations([]);
+        })
+        .finally(() => setLoading(false));
+    }
+  }, [user]);
+
+  // 2. Aktif Sohbetin Mesajlarını Getir
+  useEffect(() => {
+    if (!activeConvId || !user) return;
+
+    getMessagesClient(activeConvId).then(data => {
+      setMessages(data || []);
+      markMessagesAsReadClient(activeConvId, user.id);
+      scrollToBottom();
+    });
+  }, [activeConvId, user]);
+
+  // 3. REALTIME LİSTENER (Kanca kullanarak)
+  // Sadece aktif sohbet penceresi açıksa o sohbetin mesajlarını dinle
+  useRealtimeSubscription({
+      table: 'messages',
+      filter: activeConvId ? \`conversation_id=eq.\${activeConvId}\` : undefined,
+      event: 'INSERT',
+      callback: (payload) => {
+          // Yeni mesaj geldiğinde listeye ekle (eğer zaten yoksa)
+          setMessages(current => {
+              if (current.some(m => m.id === payload.new.id)) return current;
+              return [...current, payload.new];
+          });
+
+          if (user && payload.new.sender_id !== user.id && activeConvId) {
+             markMessagesAsReadClient(activeConvId, user.id);
+          }
+          scrollToBottom();
+      }
+  });
+
+  const activeConv = Array.isArray(conversations) ? conversations.find(c => c.id === activeConvId) : null;
+
+  const scrollToBottom = () => {
+    setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+  };
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!inputText.trim() || !user || !activeConvId) return;
+
+    const tempMsg = {
+        id: Date.now(),
+        conversation_id: activeConvId,
+        sender_id: user.id,
+        content: inputText,
+        created_at: new Date().toISOString(),
+        is_pending: true
+    };
+
+    setMessages(prev => [...prev, tempMsg]);
+    setInputText('');
+    scrollToBottom();
+
+    const { error } = await sendMessageClient(activeConvId, user.id, tempMsg.content);
+    if(error) addToast('Mesaj gönderilemedi', 'error');
+  };
+
+  if (!user) return <div className="p-10 text-center text-gray-500">Giriş yapmalısınız.</div>;
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm h-[calc(100vh-140px)] min-h-[600px] flex overflow-hidden dark:bg-[#1c1c1c] dark:border-gray-700">
+
+      {/* SOL: LİSTE */}
+      <div className={\`w-full md:w-[320px] border-r border-gray-200 flex flex-col dark:border-gray-700 \${activeConvId ? 'hidden md:flex' : 'flex'}\`}>
+        <div className="p-4 border-b border-gray-100 bg-gray-50 dark:bg-[#151515] dark:border-gray-700">
+          <h2 className="font-bold text-[#333] dark:text-white">Mesajlarım</h2>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? <div className="flex justify-center p-4"><Loader2 className="animate-spin"/></div> : conversations.length === 0 ? (
+             <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm p-4 text-center">
+                <MessageSquareOff size={32} className="mb-2"/> Henüz mesajınız yok.
+             </div>
+          ) : (
+             conversations.map(conv => {
+                const otherUser = conv.buyer_id === user.id ? conv.seller : conv.profiles;
+                return (
+                    <div key={conv.id} onClick={() => setActiveConvId(conv.id)} className={\`p-4 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors \${activeConvId === conv.id ? 'bg-blue-50 border-l-4 border-l-blue-600' : ''}\`}>
+                        <div className="flex justify-between items-start mb-1">
+                            <span className="font-bold text-[#333] text-sm truncate">{otherUser?.full_name || 'Kullanıcı'}</span>
+                            <span className="text-[10px] text-gray-400">{new Date(conv.updated_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                             <div className="w-8 h-8 bg-gray-200 rounded shrink-0 overflow-hidden">
+                                 {conv.ads?.image && <img src={conv.ads.image} className="w-full h-full object-cover"/>}
+                             </div>
+                             <div className="flex-1 min-w-0">
+                                 <p className="text-[11px] font-bold text-gray-700 truncate">{conv.ads?.title || 'Silinmiş İlan'}</p>
+                                 <p className="text-[10px] text-gray-500 truncate">İlan No: {conv.ads?.id}</p>
+                             </div>
+                        </div>
+                    </div>
+                );
+             })
+          )}
+        </div>
+      </div>
+
+      {/* SAĞ: SOHBET */}
+      <div className={\`flex-1 flex flex-col bg-[#e5ddd5] dark:bg-[#0b141a] \${!activeConvId ? 'hidden md:flex' : 'flex'}\`}>
+        {activeConv ? (
+          <>
+            <div className="bg-white border-b border-gray-200 shadow-sm z-10 dark:bg-[#1c1c1c] dark:border-gray-700">
+                <div className="md:hidden p-2 border-b border-gray-100 flex items-center">
+                    <button onClick={() => setActiveConvId(null)} className="flex items-center text-gray-600 font-bold text-sm"><ArrowLeft size={16} className="mr-1"/> Geri</button>
+                </div>
+                {activeConv.ads && (
+                    <div className="p-3 flex items-center gap-4">
+                        <div className="w-16 h-12 bg-gray-200 rounded border border-gray-200 overflow-hidden shrink-0">
+                            <img src={activeConv.ads.image || 'https://via.placeholder.com/100'} className="w-full h-full object-cover"/>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-[#333] text-sm truncate dark:text-white">{activeConv.ads.title}</h3>
+                            <div className="flex items-center gap-3 mt-1">
+                                <span className="text-blue-900 font-bold text-sm dark:text-blue-400">{activeConv.ads.price?.toLocaleString()} {activeConv.ads.currency}</span>
+                                <span className="text-[10px] text-gray-500 flex items-center gap-0.5"><MapPin size={10}/> {activeConv.ads.city}/{activeConv.ads.district}</span>
+                            </div>
+                        </div>
+                        <Link href={\`/ilan/\${activeConv.ads.id}\`} target="_blank" className="hidden sm:flex bg-[#ffe800] text-black text-xs font-bold px-4 py-2 rounded-sm hover:bg-yellow-400 items-center gap-1">
+                            İlana Git <ExternalLink size={12}/>
+                        </Link>
+                    </div>
+                )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2">
+              {messages.map(msg => (
+                <div key={msg.id} className={\`flex \${msg.sender_id === user.id ? 'justify-end' : 'justify-start'}\`}>
+                  <div className={\`max-w-[80%] px-3 py-1.5 rounded-lg text-sm shadow-sm relative \${msg.sender_id === user.id ? 'bg-[#dcf8c6] dark:bg-[#005c4b] text-black dark:text-white rounded-tr-none' : 'bg-white dark:bg-[#202c33] text-black dark:text-white rounded-tl-none'}\`}>
+                    <p className="break-words">{msg.content}</p>
+                    <div className="flex items-center justify-end gap-1 mt-1">
+                        <span className="text-[9px] text-gray-500 dark:text-gray-400">
+                            {msg.is_pending ? '...' : new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                        </span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <div ref={messagesEndRef} />
+            </div>
+
+            <form onSubmit={handleSend} className="p-3 bg-[#f0f2f5] dark:bg-[#202c33] flex gap-2 items-center">
+              <input value={inputText} onChange={e => setInputText(e.target.value)} className="flex-1 border-none rounded-full px-4 py-2.5 outline-none text-sm dark:bg-[#2a3942] dark:text-white placeholder:text-gray-500" placeholder="Mesaj yazın..." autoFocus />
+              <button type="submit" disabled={!inputText.trim()} className="bg-[#008a7c] text-white p-2.5 rounded-full hover:bg-[#006e63] transition-colors disabled:opacity-50 transform active:scale-95"><Send size={18}/></button>
+            </form>
+          </>
+        ) : (
+          <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-8 text-center bg-[#f0f2f5] dark:bg-[#111]">
+             <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800 opacity-20"><MessageSquareOff size={64}/></div>
+             <h3 className="font-bold text-lg mb-2">Sohbet Seçin</h3>
+             <p className="text-sm max-w-xs">Sol taraftaki listeden bir sohbet seçerek anlık mesajlaşmaya başlayın.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+`;
+writeFile("app/bana-ozel/mesajlarim/page.tsx", chatPageUpdate);
 
 console.log(
   colors.green +
-    "\\n✅ SENIOR UPGRADE V7 TAMAMLANDI! (Automated Moderation)" +
-    "\\n⚠️ GÖREV: 'supabase/moderation.sql' dosyasını Supabase'de çalıştırarak yeni sütunları ekleyin." +
-    "\\nBu sistem artık ilanları içeriklerine göre otomatik olarak puanlayacak ve riskli olanları işaretleyecek." +
+    "\\n✅ SENIOR UPGRADE V9 TAMAMLANDI! (Real-Time & Social Proof)" +
+    "\\n⚠️ GÖREV: 'supabase/realtime.sql' dosyasını Supabase SQL Editor'de çalıştırarak Realtime özelliğini aktif edin." +
+    "\\nArtık kullanıcılar mesajlaştığında sayfa yenilemeye gerek kalmayacak ve ilanlarda 'Şu an X kişi bakıyor' yazacak." +
     colors.reset,
 );
