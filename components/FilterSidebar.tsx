@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Filter, Check, RotateCcw, ChevronLeft } from 'lucide-react';
+import { Filter, Check, RotateCcw, ChevronLeft, Car, Home } from 'lucide-react';
 import { categories } from '@/lib/data';
 import { cities } from '@/lib/locations';
 
@@ -18,6 +18,8 @@ export default function FilterSidebar() {
     minYear: searchParams.get('minYear') || '',
     maxYear: searchParams.get('maxYear') || '',
     maxKm: searchParams.get('maxKm') || '',
+    gear: searchParams.get('gear') || '',
+    fuel: searchParams.get('fuel') || '',
   });
 
   const navData = useMemo(() => {
@@ -64,6 +66,8 @@ export default function FilterSidebar() {
       minYear: searchParams.get('minYear') || '',
       maxYear: searchParams.get('maxYear') || '',
       maxKm: searchParams.get('maxKm') || '',
+      gear: searchParams.get('gear') || '',
+      fuel: searchParams.get('fuel') || '',
     });
   }, [searchParams]);
 
@@ -96,15 +100,18 @@ export default function FilterSidebar() {
     router.push(`/search?${params.toString()}`);
   };
 
-  const showEmlak = currentCategorySlug?.includes('konut') || currentCategorySlug?.includes('emlak');
-  const showVasita = currentCategorySlug?.includes('vasita') || currentCategorySlug?.includes('oto');
+  // Kategori Tespiti (Senior Logic)
+  const isRealEstate = currentCategorySlug?.includes('konut') || currentCategorySlug?.includes('emlak') || currentCategorySlug?.includes('isyeri');
+  const isVehicle = currentCategorySlug?.includes('vasita') || currentCategorySlug?.includes('oto') || currentCategorySlug?.includes('motosiklet');
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-4 sticky top-20 dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors">
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-4 sticky top-20 dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors max-h-[calc(100vh-100px)] overflow-y-auto scrollbar-thin">
+
+      {/* Kategori Ağacı */}
       <div className="mb-6">
           <h3 className="font-bold text-[#333] text-sm mb-3 border-b border-gray-100 pb-2 dark:text-white dark:border-gray-700 flex justify-between items-center">
             {navData.title}
-            {currentCategorySlug && <button onClick={goUpLevel} className="text-blue-600 hover:text-blue-800"><ChevronLeft size={16}/></button>}
+            {currentCategorySlug && <button onClick={goUpLevel} className="text-blue-600 hover:text-blue-800 bg-blue-50 p-1 rounded-full"><ChevronLeft size={14}/></button>}
           </h3>
           <ul className="space-y-1">
               {navData.list.map((sub: any) => (
@@ -120,36 +127,90 @@ export default function FilterSidebar() {
 
       <h3 className="font-bold text-[#333] text-sm mb-4 flex items-center gap-2 border-b border-gray-100 pb-2 dark:text-white dark:border-gray-700"><Filter size={16} /> Filtrele</h3>
 
-      <div className="space-y-4">
+      <div className="space-y-5">
+        {/* Ortak Filtreler: Konum */}
         <div>
           <label className="text-[11px] font-bold text-gray-500 mb-1 block dark:text-gray-400">İL</label>
-          <select value={filters.city} onChange={(e) => updateFilter('city', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 focus:border-blue-500 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white">
+          <select value={filters.city} onChange={(e) => updateFilter('city', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 focus:border-blue-500 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white bg-white">
             <option value="">Tüm İller</option>
             {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
           </select>
         </div>
 
-        <div className="border-t border-gray-100 pt-3 dark:border-gray-700">
+        {/* Ortak Filtreler: Fiyat */}
+        <div>
           <label className="text-[11px] font-bold text-gray-500 mb-1 block dark:text-gray-400">FİYAT (TL)</label>
           <div className="flex gap-2">
-            <input type="number" placeholder="Min" value={filters.minPrice} onChange={(e) => updateFilter('minPrice', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
-            <input type="number" placeholder="Max" value={filters.maxPrice} onChange={(e) => updateFilter('maxPrice', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" />
+            <input type="number" placeholder="Min" value={filters.minPrice} onChange={(e) => updateFilter('minPrice', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:border-blue-500" />
+            <input type="number" placeholder="Max" value={filters.maxPrice} onChange={(e) => updateFilter('maxPrice', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white focus:border-blue-500" />
           </div>
         </div>
 
-        {showEmlak && (
-            <div className="border-t border-gray-100 pt-3 dark:border-gray-700 animate-in fade-in">
-                <label className="text-[11px] font-bold text-gray-500 mb-1 block dark:text-gray-400">ODA SAYISI</label>
-                <div className="grid grid-cols-3 gap-1">
-                   {['1+1', '2+1', '3+1', '4+1'].map(r => (
-                       <button key={r} onClick={() => updateFilter('room', r)} className={`text-[11px] border rounded-sm py-1 ${filters.room === r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{r}</button>
-                   ))}
+        {/* EMLAK FİLTRELERİ */}
+        {isRealEstate && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300 border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-800"><Home size={14}/> Emlak Detay</div>
+
+                <div>
+                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">ODA SAYISI</label>
+                    <div className="grid grid-cols-3 gap-1">
+                    {['1+1', '2+1', '3+1', '4+1', 'Villa'].map(r => (
+                        <button key={r} onClick={() => updateFilter('room', r)} className={`text-[10px] border rounded-sm py-1.5 transition-all ${filters.room === r ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}>{r}</button>
+                    ))}
+                    </div>
                 </div>
             </div>
         )}
 
-        <button onClick={applyFilters} className="w-full bg-blue-700 text-white text-[13px] font-bold py-2.5 mt-4 rounded-sm hover:bg-blue-800 transition-colors shadow-md flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700"><Check size={16} /> Sonuçları Göster</button>
-        <button onClick={clearFilters} className="w-full text-center text-[11px] text-gray-500 hover:text-red-600 underline flex items-center justify-center gap-1 mt-2 dark:text-gray-400 dark:hover:text-red-400"><RotateCcw size={12}/> Temizle</button>
+        {/* ARAÇ FİLTRELERİ */}
+        {isVehicle && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-left-2 duration-300 border-t border-gray-100 pt-4">
+                <div className="flex items-center gap-2 text-xs font-bold text-blue-800"><Car size={14}/> Araç Detay</div>
+
+                <div>
+                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">YIL</label>
+                    <div className="flex gap-2">
+                        <input type="number" placeholder="Min" value={filters.minYear} onChange={(e) => updateFilter('minYear', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none focus:border-blue-500" />
+                        <input type="number" placeholder="Max" value={filters.maxYear} onChange={(e) => updateFilter('maxYear', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none focus:border-blue-500" />
+                    </div>
+                </div>
+
+                <div>
+                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">KM (Maks)</label>
+                    <input type="number" placeholder="Maksimum KM" value={filters.maxKm} onChange={(e) => updateFilter('maxKm', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none focus:border-blue-500" />
+                </div>
+
+                <div>
+                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">VİTES</label>
+                    <select value={filters.gear} onChange={(e) => updateFilter('gear', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none bg-white">
+                        <option value="">Hepsi</option>
+                        <option value="Manuel">Manuel</option>
+                        <option value="Otomatik">Otomatik</option>
+                        <option value="Yarı Otomatik">Yarı Otomatik</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className="text-[11px] font-bold text-gray-500 mb-1 block">YAKIT</label>
+                    <select value={filters.fuel} onChange={(e) => updateFilter('fuel', e.target.value)} className="w-full border border-gray-300 rounded-sm text-[12px] p-2 outline-none bg-white">
+                        <option value="">Hepsi</option>
+                        <option value="Benzin">Benzin</option>
+                        <option value="Dizel">Dizel</option>
+                        <option value="LPG">Benzin & LPG</option>
+                        <option value="Elektrik">Elektrik</option>
+                    </select>
+                </div>
+            </div>
+        )}
+
+        <div className="pt-2 sticky bottom-0 bg-white pb-2 border-t border-gray-100">
+            <button onClick={applyFilters} className="w-full bg-blue-700 text-white text-[13px] font-bold py-3 rounded-sm hover:bg-blue-800 transition-colors shadow-md flex items-center justify-center gap-2 dark:bg-blue-600 dark:hover:bg-blue-700">
+                <Check size={16} /> Sonuçları Göster
+            </button>
+            <button onClick={clearFilters} className="w-full text-center text-[11px] text-gray-500 hover:text-red-600 underline flex items-center justify-center gap-1 mt-3 dark:text-gray-400 dark:hover:text-red-400">
+                <RotateCcw size={12}/> Temizle
+            </button>
+        </div>
       </div>
     </div>
   );

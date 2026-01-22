@@ -1,7 +1,7 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
-// SUNUCU TARAFI İÇİN SUPABASE CLIENT (Server Components & Server Actions)
+// 1. DYNAMIC CLIENT (Kullanıcı işlemleri için - Cookie Kullanır)
 export async function createClient() {
   const cookieStore = await cookies()
 
@@ -20,8 +20,26 @@ export async function createClient() {
             )
           } catch {
             // Server Component içinde cookie set edilemez, bu normaldir.
-            // Middleware bu işi halleder.
           }
+        },
+      },
+    }
+  )
+}
+
+// 2. STATIC CLIENT (Cache işlemleri için - Cookie KULLANMAZ)
+// Bu fonksiyon "unstable_cache" içinde güvenle kullanılabilir.
+export function createStaticClient() {
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return [] // Boş çerez döndür (Anonim erişim)
+        },
+        setAll(cookiesToSet) {
+          // Çerez yazma işlemini yoksay
         },
       },
     }

@@ -1,9 +1,9 @@
 'use server'
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createStaticClient } from '@/lib/supabase/server'
 import { revalidatePath, unstable_cache } from 'next/cache'
 import { adSchema } from '@/lib/schemas'
 
-// --- YORUM SİSTEMİ (YENİ) ---
+// --- YORUM SİSTEMİ ---
 export async function createReviewAction(targetUserId: string, rating: number, comment: string, adId?: number) {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -27,40 +27,20 @@ export async function createReviewAction(targetUserId: string, rating: number, c
 
 export async function getSellerStats(userId: string) {
     const supabase = await createClient();
-
-    // Yorumları çek
-    const { data: reviews } = await supabase
-        .from('reviews')
-        .select('rating');
-
-    // İlanları çek (Aktif ilanı var mı?)
+    const { data: reviews } = await supabase.from('reviews').select('rating');
     const { count: adCount } = await supabase
         .from('ads')
         .select('*', { count: 'exact', head: true })
         .eq('user_id', userId)
         .eq('status', 'yayinda');
 
-    // Ortalama hesapla
-    let avgRating = 0;
-    let reviewCount = 0;
-
-    // Not: Gerçek projede bunu SQL ile yapmak daha performanslıdır, şimdilik JS ile yapıyoruz.
-    // Supabase filter mantığı client tarafında sınırlı olabilir, sunucu tarafında RPC kullanmak en iyisidir.
-    // Simülasyon:
-    if (reviews && reviews.length > 0) {
-        // Bu demo olduğu için tüm reviews tablosunu çekip filtrelemek yerine,
-        // SQL tarafında "user_id"ye göre filtreli çekmeliyiz.
-        // Düzeltme: Aşağıdaki fonksiyon sadece o kullanıcının yorumlarını çekmeli.
-    }
-
     return {
-        avgRating: 0, // RPC fonksiyonu yazılmalı
+        avgRating: 0,
         reviewCount: 0,
         activeAds: adCount || 0
     };
 }
 
-// Daha doğru veri çekimi için yardımcı
 export async function getSellerReviewsServer(targetUserId: string) {
     const supabase = await createClient();
     const { data } = await supabase
@@ -72,7 +52,6 @@ export async function getSellerReviewsServer(targetUserId: string) {
     return data || [];
 }
 
-// --- DASHBOARD ANALİTİK (KULLANICI İÇİN) ---
 export async function getUserDashboardStats() {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -86,10 +65,12 @@ export async function getUserDashboardStats() {
     return ads || [];
 }
 
-// --- MEVCUT FONKSİYONLAR (KORUNDU) ---
+// --- KRİTİK DÜZELTME: STATIC CLIENT KULLANIMI ---
 export const getCategoryTreeServer = unstable_cache(
   async () => {
-    const supabase = await createClient();
+    // BURASI GÜNCELLENDİ: createClient() yerine createStaticClient()
+    const supabase = createStaticClient();
+
     const { data } = await supabase.from('categories').select('*').order('title');
     if (!data) return [];
     const parents = data.filter(c => !c.parent_id);
@@ -98,7 +79,7 @@ export const getCategoryTreeServer = unstable_cache(
 );
 
 export async function getAdsServer(searchParams: any) {
-  const supabase = await createClient()
+  const supabase = await createClient() // Arama kullanıcıya göre değişebilir, dinamik kalmalı
   const page = Number(searchParams?.page) || 1;
   const limit = 20;
   const from = (page - 1) * limit;

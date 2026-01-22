@@ -1,7 +1,8 @@
 "use client";
 import React, { createContext, useContext, useState } from 'react';
 
-type ModalType = 'SHARE' | 'REPORT' | 'OFFER' | null;
+// 'QUICK_VIEW' eklendi
+type ModalType = 'SHARE' | 'REPORT' | 'OFFER' | 'QUICK_VIEW' | null;
 type ModalProps = Record<string, any>;
 
 type ModalContextType = {
@@ -20,11 +21,14 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
   const openModal = (type: ModalType, props: ModalProps = {}) => {
     setActiveModal(type);
     setModalProps(props);
+    // Scrollu kilitle (UX İyileştirmesi)
+    document.body.style.overflow = 'hidden';
   };
 
   const closeModal = () => {
     setActiveModal(null);
     setModalProps({});
+    document.body.style.overflow = 'auto';
   };
 
   return (
@@ -37,7 +41,7 @@ export function ModalProvider({ children }: { children: React.ReactNode }) {
 export function useModal() {
   const context = useContext(ModalContext);
   if (context === undefined) {
-    throw new Error('useModal must be used within a ModalProvider');
+    throw new Error('useModal must be used within an ModalProvider');
   }
   return context;
 }
