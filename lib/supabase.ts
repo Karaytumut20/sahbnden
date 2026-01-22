@@ -1,4 +1,4 @@
-// BU DOSYA ARTIK KULLANILMAMALIDIR.
-// Lütfen 'lib/supabase/client' veya 'lib/supabase/server' kullanın.
-import { createClient as createBrowser } from './supabase/client';
-export const supabase = createBrowser();
+// BU DOSYA GÜVENLİ BİR ŞEKİLDE GÜNCELLENMİŞTİR
+// Eski importların kırılmaması için 'lib/supabase/client' re-export ediliyor.
+import { createClient } from './supabase/client';
+export const supabase = createClient();

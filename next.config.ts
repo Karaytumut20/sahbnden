@@ -9,12 +9,11 @@ const nextConfig: NextConfig = {
   },
   images: {
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**', // Tüm dış kaynaklara izin ver (Geliştirme için)
-      },
+      { protocol: 'https', hostname: '**' }, // Geliştirme kolaylığı için
+      { protocol: 'https', hostname: 'picsum.photos' },
+      { protocol: 'https', hostname: 'via.placeholder.com' },
+      { protocol: 'https', hostname: 'cdn.dummyjson.com' }
     ],
-    // SVG ve güvenlik ayarları
     dangerouslyAllowSVG: true,
     contentDispositionType: 'attachment',
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",

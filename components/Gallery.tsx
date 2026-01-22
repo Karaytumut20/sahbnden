@@ -1,4 +1,3 @@
-
 "use client";
 import React, { useState } from 'react';
 import { Maximize2, Camera } from 'lucide-react';
@@ -8,67 +7,45 @@ export default function Gallery({ mainImage }: { mainImage: string }) {
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
-  // Demo resimler (Gerçekte mainImage ve diğerleri API'den gelir)
-  const images = [
-    mainImage,
-    'https://picsum.photos/seed/101/800/600',
-    'https://picsum.photos/seed/102/800/600',
-    'https://picsum.photos/seed/103/800/600',
-    'https://picsum.photos/seed/104/800/600',
-    'https://picsum.photos/seed/105/800/600',
-  ];
-
-  const handleNext = () => setActiveImageIndex((prev) => (prev + 1) % images.length);
-  const handlePrev = () => setActiveImageIndex((prev) => (prev - 1 + images.length) % images.length);
+  // Demo Resimler
+  const images = [mainImage, 'https://picsum.photos/seed/101/800/600', 'https://picsum.photos/seed/102/800/600', 'https://picsum.photos/seed/103/800/600'];
 
   return (
-    <>
-      <div className="w-full select-none">
-
-        {/* Büyük Resim */}
+    <div className="space-y-3">
         <div
-          className="border border-gray-300 p-1 bg-white mb-2 relative aspect-[4/3] sm:aspect-video group cursor-pointer"
+          className="relative aspect-[4/3] bg-slate-100 rounded-xl overflow-hidden border border-slate-200 cursor-zoom-in group"
           onClick={() => setIsLightboxOpen(true)}
         >
-          <img src={images[activeImageIndex]} className="w-full h-full object-contain bg-gray-100" />
+          <img src={images[activeImageIndex]} className="w-full h-full object-contain" />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/5 transition-colors"></div>
 
-          {/* Büyüt İkonu */}
-          <div className="absolute top-3 right-3 bg-black/50 text-white p-2 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">
-            <Maximize2 size={20} />
-          </div>
-
-          {/* Resim Sayısı */}
-          <div className="absolute bottom-3 left-3 bg-black/60 text-white px-2 py-1 rounded text-xs flex items-center gap-1">
-            <Camera size={12} />
-            {activeImageIndex + 1} / {images.length}
+          <div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold text-slate-700 flex items-center gap-2 shadow-sm">
+            <Camera size={14}/> {activeImageIndex + 1} / {images.length}
           </div>
         </div>
 
-        {/* Küçük Resimler */}
-        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin">
+        <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
           {images.map((img, idx) => (
             <div
               key={idx}
               onMouseEnter={() => setActiveImageIndex(idx)}
-              onClick={() => { setActiveImageIndex(idx); setIsLightboxOpen(true); }}
-              className={`w-16 h-12 border cursor-pointer shrink-0 transition-all ${activeImageIndex === idx ? 'border-blue-600 ring-2 ring-blue-600 ring-offset-1' : 'border-gray-300 hover:border-gray-400'}`}
+              onClick={() => setActiveImageIndex(idx)}
+              className={`w-20 h-16 rounded-lg overflow-hidden cursor-pointer border-2 transition-all ${activeImageIndex === idx ? 'border-indigo-600 ring-2 ring-indigo-100' : 'border-transparent opacity-70 hover:opacity-100'}`}
             >
               <img src={img} className="w-full h-full object-cover" />
             </div>
           ))}
         </div>
-      </div>
 
-      {/* Lightbox Modal */}
-      <Lightbox
-        isOpen={isLightboxOpen}
-        onClose={() => setIsLightboxOpen(false)}
-        images={images}
-        currentIndex={activeImageIndex}
-        onNext={handleNext}
-        onPrev={handlePrev}
-        setIndex={setActiveImageIndex}
-      />
-    </>
+        <Lightbox
+          isOpen={isLightboxOpen}
+          onClose={() => setIsLightboxOpen(false)}
+          images={images}
+          currentIndex={activeImageIndex}
+          onNext={() => setActiveImageIndex((i) => (i + 1) % images.length)}
+          onPrev={() => setActiveImageIndex((i) => (i - 1 + images.length) % images.length)}
+          setIndex={setActiveImageIndex}
+        />
+    </div>
   );
 }

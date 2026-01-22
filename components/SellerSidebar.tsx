@@ -8,30 +8,13 @@ import { useRouter } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
 import { getSellerReviewsServer, createReviewAction } from '@/lib/actions';
 
-type SellerSidebarProps = {
-  sellerId: string;
-  sellerName: string;
-  sellerPhone: string;
-  adId: number;
-  adTitle: string;
-  adImage: string | null;
-  price: string;
-  currency: string;
-};
-
-export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId, adTitle, adImage, price, currency }: SellerSidebarProps) {
+export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId }: any) {
   const { user } = useAuth();
   const router = useRouter();
   const { addToast } = useToast();
   const [showPhone, setShowPhone] = useState(false);
-
-  // Rating State
   const [ratingData, setRatingData] = useState({ avg: 0, count: 0 });
-  const [showReviewForm, setShowReviewForm] = useState(false);
-  const [newRating, setNewRating] = useState(5);
-  const [comment, setComment] = useState('');
 
-  // Verileri çek
   useEffect(() => {
     async function fetchReviews() {
         const reviews = await getSellerReviewsServer(sellerId);
@@ -45,99 +28,56 @@ export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId,
 
   const handleSendMessage = async () => {
     if (!user) { router.push('/login'); return; }
-    if (user.id === sellerId) { addToast('Kendi ilanınıza mesaj atamazsınız', 'error'); return; }
-
     const { data, error } = await startConversationClient(adId, user.id, sellerId);
-    if(error) {
-        addToast('Mesaj başlatılamadı', 'error');
-    } else {
-        router.push(`/bana-ozel/mesajlarim?convId=${data.id}`);
-    }
-  };
-
-  const submitReview = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const res = await createReviewAction(sellerId, newRating, comment, adId);
-    if (res.error) {
-        addToast(res.error, 'error');
-    } else {
-        addToast('Değerlendirmeniz kaydedildi.', 'success');
-        setShowReviewForm(false);
-    }
+    if(error) addToast('Hata oluştu', 'error');
+    else router.push(`/bana-ozel/mesajlarim?convId=${data.id}`);
   };
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm p-4 sticky top-24 shadow-sm">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center border border-gray-200">
-           <User size={24} className="text-gray-400" />
+    /* STICKY KALDIRILDI: Artık sayfa ile birlikte kaybolacak */
+    <div className="bg-white rounded-xl shadow-card border border-gray-100 p-6">
+      {/* Profil Başlığı */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center border-2 border-white shadow-sm text-indigo-600">
+           <User size={28} />
         </div>
         <div>
-           <h3 className="font-bold text-[#333]">{sellerName}</h3>
-           <Link href={`/satici/${sellerId}`} className="text-xs text-blue-600 hover:underline">Tüm İlanları</Link>
+           <h3 className="font-bold text-slate-900 text-lg">{sellerName}</h3>
+           <Link href={`/satici/${sellerId}`} className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1">
+             Satıcının Tüm İlanları
+           </Link>
         </div>
       </div>
 
-      {/* PUANLAMA ALANI (Senior Feature) */}
-      <div className="mb-4 bg-gray-50 p-2 rounded-sm text-center">
-         <div className="flex justify-center items-center gap-1 text-yellow-500 mb-1">
-            {[1, 2, 3, 4, 5].map(star => (
-                <Star key={star} size={16} fill={star <= Math.round(ratingData.avg) ? "currentColor" : "none"} />
-            ))}
+      {/* Puan */}
+      <div className="mb-6 bg-slate-50 p-3 rounded-lg flex justify-between items-center">
+         <div className="flex text-yellow-400 gap-0.5">
+            {[...Array(5)].map((_,i) => <Star key={i} size={16} fill={i < Math.round(ratingData.avg) ? "currentColor" : "none"} />)}
          </div>
-         <p className="text-xs text-gray-500 font-bold">{ratingData.avg.toFixed(1)} / 5 ({ratingData.count} Değerlendirme)</p>
-
-         {user && user.id !== sellerId && (
-             <button onClick={() => setShowReviewForm(!showReviewForm)} className="text-[10px] text-blue-600 underline mt-1">
-                 Satıcıyı Değerlendir
-             </button>
-         )}
+         <span className="text-sm font-bold text-slate-700">{ratingData.avg.toFixed(1)} <span className="text-slate-400 font-normal">({ratingData.count})</span></span>
       </div>
 
-      {showReviewForm && (
-          <form onSubmit={submitReview} className="mb-4 bg-blue-50 p-3 rounded-sm border border-blue-100 animate-in fade-in zoom-in-95">
-              <p className="text-xs font-bold mb-2">Puanınız:</p>
-              <div className="flex gap-1 mb-2">
-                  {[1, 2, 3, 4, 5].map(s => (
-                      <button key={s} type="button" onClick={() => setNewRating(s)}>
-                          <Star size={18} className={s <= newRating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"} />
-                      </button>
-                  ))}
-              </div>
-              <textarea
-                value={comment}
-                onChange={e => setComment(e.target.value)}
-                className="w-full text-xs p-2 border rounded-sm mb-2 h-16 resize-none"
-                placeholder="Yorumunuz..."
-                required
-              />
-              <button type="submit" className="w-full bg-blue-600 text-white text-xs py-1.5 rounded-sm font-bold">Gönder</button>
-          </form>
-      )}
-
+      {/* Aksiyonlar */}
       <div className="space-y-3">
-        <div className="border border-gray-200 rounded-sm overflow-hidden">
+        <div className="rounded-lg overflow-hidden border border-slate-200">
             {!showPhone ? (
-                <button onClick={() => setShowPhone(true)} className="w-full bg-[#f1f1f1] hover:bg-[#e9e9e9] py-3 flex items-center justify-center gap-2 text-[#333] font-bold transition-colors">
-                    <Phone size={18} /> Cep 0532 123 ** **
+                <button onClick={() => setShowPhone(true)} className="w-full bg-slate-100 hover:bg-slate-200 py-3.5 flex items-center justify-center gap-2 text-slate-700 font-bold transition-colors">
+                    <Phone size={18} /> Telefonu Göster
                 </button>
             ) : (
-                <div className="bg-green-50 py-3 text-center text-green-800 font-bold text-lg select-all">
+                <div className="bg-green-50 py-3.5 text-center text-green-700 font-bold text-lg select-all border-green-100">
                     {sellerPhone}
                 </div>
             )}
         </div>
 
-        <button onClick={handleSendMessage} className="w-full border border-blue-600 text-blue-600 hover:bg-blue-50 py-3 rounded-sm font-bold flex items-center justify-center gap-2 transition-colors">
+        <button onClick={handleSendMessage} className="w-full bg-indigo-600 text-white hover:bg-indigo-700 py-3.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-100">
             <MessageCircle size={18} /> Mesaj Gönder
         </button>
       </div>
 
-      <div className="mt-4 pt-4 border-t border-gray-100">
-         <div className="flex items-center gap-2 text-xs text-gray-500 mb-2">
-            <ShieldCheck size={14} className="text-green-600"/> <span>Üyelik Tarihi: <strong>Ekim 2020</strong></span>
-         </div>
-         <p className="text-[10px] text-gray-400 text-center">İlan no: {adId} ile ilgili iletişime geçiniz.</p>
+      <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-500">
+         <ShieldCheck size={14} className="text-green-500"/> Hesap Onaylı
       </div>
     </div>
   );

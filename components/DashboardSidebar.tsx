@@ -1,40 +1,71 @@
 "use client";
 import React from 'react';
 import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { Home, List, Heart, MessageSquare, Settings, LogOut, Store, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function DashboardSidebar() {
   const { user, logout } = useAuth();
+  const pathname = usePathname();
+
+  const menuItems = [
+    { href: '/bana-ozel', label: 'Özet Durum', icon: Home },
+    { href: '/bana-ozel/cuzdan', label: 'Cüzdanım', icon: Wallet },
+    { href: '/bana-ozel/magazam', label: 'Mağaza Yönetimi', icon: Store },
+    { href: '/bana-ozel/ilanlarim', label: 'İlanlarım', icon: List },
+    { href: '/bana-ozel/favoriler', label: 'Favorilerim', icon: Heart },
+    { href: '/bana-ozel/mesajlarim', label: 'Mesajlar', icon: MessageSquare },
+    { href: '/bana-ozel/ayarlar', label: 'Ayarlar', icon: Settings },
+  ];
 
   return (
-    <aside className="w-[240px] shrink-0 bg-white border border-gray-200 rounded-sm shadow-sm h-fit dark:bg-[#1c1c1c] dark:border-gray-700 transition-colors">
-      <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-        <h3 className="font-bold text-[#333] dark:text-white">{user?.name || 'Kullanıcı'}</h3>
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">Bireysel Üye</p>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden sticky top-24">
+      {/* Kullanıcı Kartı */}
+      <div className="p-6 border-b border-gray-50 bg-gradient-to-br from-slate-50 to-white">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg border-2 border-white shadow-sm">
+            {user?.name?.charAt(0) || 'U'}
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-800">{user?.name || 'Kullanıcı'}</h3>
+            <p className="text-xs text-slate-500 font-medium">Bireysel Üye</p>
+          </div>
+        </div>
       </div>
-      <nav className="p-2">
-        <ul className="space-y-1 text-[13px] text-[#333] dark:text-gray-200">
-          <li><Link href="/bana-ozel" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Home size={16} /> Bana Özel Özet</Link></li>
 
-          {/* YENİ EKLENEN CÜZDAN LİNKİ */}
-          <li><Link href="/bana-ozel/cuzdan" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Wallet size={16} /> Cüzdanım</Link></li>
+      {/* Menü */}
+      <nav className="p-3">
+        <ul className="space-y-1">
+          {menuItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <li key={item.href}>
+                <Link
+                  href={item.href}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    isActive
+                      ? 'bg-indigo-50 text-indigo-700 shadow-sm'
+                      : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  }`}
+                >
+                  <item.icon size={18} className={isActive ? 'text-indigo-600' : 'text-slate-400'} />
+                  {item.label}
+                </Link>
+              </li>
+            );
+          })}
 
-          <li className="border-b border-gray-100 mb-2 pb-2 dark:border-gray-700"><Link href="/bana-ozel/magazam" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400 font-semibold text-blue-800 dark:text-blue-300"><Store size={16} /> Mağaza Yönetimi</Link></li>
-          <li><Link href="/bana-ozel/ilanlarim" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><List size={16} /> Yayındaki İlanlarım</Link></li>
-          <li><Link href="/bana-ozel/favoriler" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Heart size={16} /> Favori İlanlarım</Link></li>
-          <li><Link href="/bana-ozel/mesajlarim" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><MessageSquare size={16} /> Mesajlarım</Link></li>
-          <li className="border-t border-gray-100 my-2 pt-2 dark:border-gray-700"><Link href="/bana-ozel/ayarlar" className="flex items-center gap-2 px-3 py-2 hover:bg-blue-50 hover:text-blue-700 rounded-sm dark:hover:bg-blue-900/30 dark:hover:text-blue-400"><Settings size={16} /> Üyelik Bilgilerim</Link></li>
-          <li>
+          <li className="pt-2 mt-2 border-t border-gray-50">
             <button
               onClick={() => logout()}
-              className="w-full flex items-center gap-2 px-3 py-2 text-red-600 hover:bg-red-50 rounded-sm dark:hover:bg-red-900/20 text-left"
+              className="w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-red-600 hover:bg-red-50 rounded-lg transition-colors text-left"
             >
-              <LogOut size={16} /> Çıkış Yap
+              <LogOut size={18} /> Çıkış Yap
             </button>
           </li>
         </ul>
       </nav>
-    </aside>
+    </div>
   );
 }

@@ -12,21 +12,9 @@ import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
 import LoanCalculator from '@/components/tools/LoanCalculator';
 import ViewTracker from '@/components/ViewTracker';
-import LiveVisitorCount from '@/components/LiveVisitorCount'; // YENİ
+import LiveVisitorCount from '@/components/LiveVisitorCount';
 import Badge from '@/components/ui/Badge';
-import { Eye, MapPin, Heart } from 'lucide-react';
-import type { Metadata, ResolvingMetadata } from 'next';
-
-export async function generateMetadata({ params }: { params: Promise<{ id: string }> }, parent: ResolvingMetadata): Promise<Metadata> {
-  const { id } = await params;
-  const ad = await getAdDetailServer(Number(id));
-  if (!ad) return { title: 'İlan Bulunamadı' };
-  return {
-    title: `${ad.title} - ${ad.price.toLocaleString()} ${ad.currency}`,
-    description: `${ad.city}/${ad.district} bölgesinde ${ad.title} ilanını inceleyin.`,
-    openGraph: { images: [ad.image || ''] },
-  };
-}
+import { Eye, MapPin, Heart, Calendar } from 'lucide-react';
 
 export default async function AdDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -38,76 +26,84 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '' };
 
-  const jsonLd = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: ad.title,
-    image: ad.image || [],
-    description: ad.description,
-    offers: {
-      '@type': 'Offer',
-      price: ad.price,
-      priceCurrency: ad.currency,
-      availability: 'https://schema.org/InStock',
-      url: `https://sahibinden-klon.com/ilan/${ad.id}`,
-    },
-  };
-
   return (
-    <div className="pb-20 relative font-sans">
+    <div className="pb-20 relative font-sans bg-gray-50 min-h-screen">
       <ViewTracker adId={ad.id} />
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <StickyAdHeader title={ad.title} price={formattedPrice} currency={ad.currency} />
 
-      <div className="mb-4">
+      <div className="container mx-auto px-4 py-6 max-w-7xl">
         <Breadcrumb path={`${ad.category === 'emlak' ? 'Emlak' : 'Vasıta'} > ${location} > İlan Detayı`} />
-      </div>
 
-      <div className="border-b border-gray-200 pb-4 mb-6">
-        <h1 className="text-[#333] font-bold text-xl mb-2">{ad.title}</h1>
-        <div className="flex flex-wrap gap-2 items-center">
-            {ad.is_urgent && <Badge variant="danger">Acil Satılık</Badge>}
-            {ad.is_vitrin && <Badge variant="warning">Vitrinde</Badge>}
-            <LiveVisitorCount adId={ad.id} /> {/* YENİ: SOSYAL KANIT */}
-            {favCount > 0 && (
-                <span className="text-xs text-red-600 flex items-center gap-1 ml-auto font-bold bg-red-50 px-2 py-1 rounded-sm">
-                    <Heart size={12} className="fill-red-600"/> {favCount} favori
-                </span>
-            )}
-        </div>
-      </div>
-
-      <div className="flex flex-col lg:flex-row gap-6">
-        <div className="lg:w-[600px] shrink-0">
-          <Gallery mainImage={ad.image || 'https://via.placeholder.com/800x600?text=Resim+Yok'} />
-          <div className="mt-4 hidden md:block"><AdActionButtons id={ad.id} title={ad.title} image={ad.image} sellerName={sellerInfo.full_name} /></div>
-          <Tabs items={[
-             { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-[14px] text-[#333] leading-relaxed whitespace-pre-wrap">{ad.description}</div> },
-             { id: 'features', label: 'İlan Özellikleri', content: <FeaturesTab ad={ad} /> },
-             { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
-          ]} />
-        </div>
-
-        <div className="flex-1 min-w-0">
-          <div className="mb-6">
-            <span className="block text-blue-700 font-bold text-2xl">{formattedPrice} {ad.currency}</span>
-            <span className="block text-gray-500 text-xs mt-1 flex items-center gap-1"><MapPin size={12}/> {location}</span>
+        {/* BAŞLIK VE ETİKETLER */}
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
+          <div>
+            <h1 className="text-slate-900 font-bold text-2xl md:text-3xl leading-tight mb-2">{ad.title}</h1>
+            <div className="flex items-center gap-4 text-sm text-slate-500">
+               <span className="flex items-center gap-1"><MapPin size={16}/> {location}</span>
+               <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+               <span className="text-indigo-600 font-medium">#{ad.id}</span>
+            </div>
           </div>
-          <div className="bg-white border-t border-gray-200">
-             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">İlan No</span><span className="text-red-600 font-bold">{ad.id}</span></div>
-             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">İlan Tarihi</span><span>{new Date(ad.created_at).toLocaleDateString('tr-TR')}</span></div>
-             {ad.room && <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">Oda Sayısı</span><span>{ad.room}</span></div>}
-             {ad.km && <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">KM</span><span>{ad.km}</span></div>}
-             <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm px-2 bg-gray-50">
-                <span className="font-bold text-[#333] flex items-center gap-2"><Eye size={14} className="text-gray-400"/> Görüntülenme</span>
-                <span>{ad.view_count || 0}</span>
+          <div className="flex flex-wrap items-center gap-3">
+              {ad.is_urgent && <Badge variant="danger" className="text-sm px-3 py-1">ACİL</Badge>}
+              {ad.is_vitrin && <Badge variant="warning" className="text-sm px-3 py-1">VİTRİN</Badge>}
+              <LiveVisitorCount adId={ad.id} />
+          </div>
+        </div>
+
+        {/* 12-COLUMN GRID LAYOUT */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+
+          {/* SOL: GALERİ VE DETAYLAR (8/12) */}
+          <div className="lg:col-span-8 space-y-8">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-1">
+               <Gallery mainImage={ad.image || 'https://via.placeholder.com/800x600?text=Resim+Yok'} />
+            </div>
+
+            {/* Hızlı Bilgi Şeridi */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
+               <div>
+                 <p className="text-sm text-slate-500 mb-1">Fiyat</p>
+                 <p className="text-3xl font-extrabold text-indigo-700">{formattedPrice} <span className="text-xl text-slate-400 font-normal">{ad.currency}</span></p>
+               </div>
+               <div className="hidden md:block">
+                 <AdActionButtons id={ad.id} title={ad.title} image={ad.image} sellerName={sellerInfo.full_name} />
+               </div>
+            </div>
+
+            {/* Sekmeler ve İçerik */}
+            <Tabs items={[
+               { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-slate-700 leading-relaxed whitespace-pre-wrap text-base p-2">{ad.description}</div> },
+               { id: 'features', label: 'Özellikler', content: <FeaturesTab ad={ad} /> },
+               { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
+            ]} />
+          </div>
+
+          {/* SAĞ: SATICI VE ÖZET (4/12) */}
+          <div className="lg:col-span-4 space-y-6">
+             <SellerSidebar sellerId={ad.user_id} sellerName={sellerInfo.full_name || 'Kullanıcı'} sellerPhone={sellerInfo.phone || 'Telefon yok'} adId={ad.id} adTitle={ad.title} adImage={ad.image} price={formattedPrice} currency={ad.currency} />
+
+             {/* İlan Künyesi */}
+             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+                <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">İlan Künyesi</h3>
+                <ul className="space-y-3 text-sm">
+                   <li className="flex justify-between border-b border-gray-50 pb-2">
+                      <span className="text-slate-500">İlan Tarihi</span>
+                      <span className="font-medium text-slate-900">{new Date(ad.created_at).toLocaleDateString()}</span>
+                   </li>
+                   {ad.m2 && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">m² (Brüt)</span><span className="font-medium text-slate-900">{ad.m2}</span></li>}
+                   {ad.room && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Oda Sayısı</span><span className="font-medium text-slate-900">{ad.room}</span></li>}
+                   {ad.km && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Kilometre</span><span className="font-medium text-slate-900">{ad.km}</span></li>}
+                   <li className="flex justify-between pt-1">
+                      <span className="text-slate-500">Görüntülenme</span>
+                      <span className="font-medium text-slate-900 flex items-center gap-1"><Eye size={14}/> {ad.view_count || 0}</span>
+                   </li>
+                </ul>
              </div>
-          </div>
-        </div>
 
-        <div className="lg:w-[280px] shrink-0 hidden md:block">
-           <SellerSidebar sellerId={ad.user_id} sellerName={sellerInfo.full_name || 'Kullanıcı'} sellerPhone={sellerInfo.phone || 'Telefon yok'} adId={ad.id} adTitle={ad.title} adImage={ad.image} price={formattedPrice} currency={ad.currency} />
-           {ad.category.includes('konut') && <LoanCalculator price={ad.price} />}
+             {ad.category.includes('konut') && <LoanCalculator price={ad.price} />}
+          </div>
+
         </div>
       </div>
       <MobileAdActionBar price={`${formattedPrice} ${ad.currency}`} />

@@ -12,113 +12,119 @@ const colors = {
 console.log(
   colors.cyan +
     colors.bold +
-    "\n🚑 FINAL CSS REPAIR: MIGRATING TO TAILWIND V4...\n" +
+    "\n🎨 UI FINE-TUNING: REMOVING STICKY BEHAVIOR...\n" +
     colors.reset,
 );
 
 function writeFile(filePath, content) {
-  const absolutePath = path.join(__dirname, filePath);
-  const dir = path.dirname(absolutePath);
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(absolutePath, content.trim());
-  console.log(`${colors.green}✔ Düzeltildi:${colors.reset} ${filePath}`);
+  try {
+    const absolutePath = path.join(__dirname, filePath);
+    fs.writeFileSync(absolutePath, content.trim());
+    console.log(`${colors.green}✔ [GÜNCELLENDİ]${colors.reset} ${filePath}`);
+  } catch (error) {
+    console.error(
+      `${colors.red}✘ [HATA]${colors.reset} ${filePath}: ${error.message}`,
+    );
+  }
 }
 
 // =============================================================================
-// 1. APP/GLOBALS.CSS (TAILWIND V4 FORMATI)
+// SELLER SIDEBAR (STICKY KALDIRMA)
 // =============================================================================
-// Not: v4'te @tailwind direktifleri yerine @import kullanılır.
-// Renkler ve fontlar doğrudan CSS içinde @theme bloğunda tanımlanabilir.
-const globalCssContent = `
-@import "tailwindcss";
+// Kullanıcı geri bildirimi: "Sayfa kaydırıldıkça aşağı inmesin."
+// Çözüm: 'sticky' ve 'top-24' sınıflarını kaldırıyoruz.
 
-@theme {
-  /* Renk Paleti (Global Expansion Pack) */
-  --color-background: #F8FAFC;
-  --color-foreground: #0F172A;
+const sellerSidebarContent = `
+"use client";
+import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { Phone, ShieldCheck, User, MessageCircle, Star, Send } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
+import { startConversationClient } from '@/lib/services';
+import { useRouter } from 'next/navigation';
+import { useToast } from '@/context/ToastContext';
+import { getSellerReviewsServer, createReviewAction } from '@/lib/actions';
 
-  --color-brand-50: #EEF2FF;
-  --color-brand-100: #E0E7FF;
-  --color-brand-500: #6366F1;
-  --color-brand-600: #4F46E5;
-  --color-brand-700: #4338CA;
-  --color-brand-900: #312E81;
+export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId }: any) {
+  const { user } = useAuth();
+  const router = useRouter();
+  const { addToast } = useToast();
+  const [showPhone, setShowPhone] = useState(false);
+  const [ratingData, setRatingData] = useState({ avg: 0, count: 0 });
 
-  --color-accent-500: #f43f5e;
-  --color-accent-600: #e11d48;
+  useEffect(() => {
+    async function fetchReviews() {
+        const reviews = await getSellerReviewsServer(sellerId);
+        if (reviews.length > 0) {
+            const total = reviews.reduce((sum: number, r: any) => sum + r.rating, 0);
+            setRatingData({ avg: total / reviews.length, count: reviews.length });
+        }
+    }
+    fetchReviews();
+  }, [sellerId]);
 
-  --color-surface-50: #F9FAFB;
-  --color-surface-100: #F3F4F6;
-  --color-surface-200: #E5E7EB;
-  --color-surface-white: #FFFFFF;
+  const handleSendMessage = async () => {
+    if (!user) { router.push('/login'); return; }
+    const { data, error } = await startConversationClient(adId, user.id, sellerId);
+    if(error) addToast('Hata oluştu', 'error');
+    else router.push(\`/bana-ozel/mesajlarim?convId=\${data.id}\`);
+  };
 
-  /* Fontlar */
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  return (
+    /* STICKY KALDIRILDI: Artık sayfa ile birlikte kaybolacak */
+    <div className="bg-white rounded-xl shadow-card border border-gray-100 p-6">
+      {/* Profil Başlığı */}
+      <div className="flex items-center gap-4 mb-6">
+        <div className="w-14 h-14 bg-indigo-50 rounded-full flex items-center justify-center border-2 border-white shadow-sm text-indigo-600">
+           <User size={28} />
+        </div>
+        <div>
+           <h3 className="font-bold text-slate-900 text-lg">{sellerName}</h3>
+           <Link href={\`/satici/\${sellerId}\`} className="text-xs text-indigo-600 font-medium hover:underline flex items-center gap-1">
+             Satıcının Tüm İlanları
+           </Link>
+        </div>
+      </div>
 
-  /* Gölgeler */
-  --shadow-soft: 0 10px 40px -10px rgba(0,0,0,0.05);
-  --shadow-card: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
-  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+      {/* Puan */}
+      <div className="mb-6 bg-slate-50 p-3 rounded-lg flex justify-between items-center">
+         <div className="flex text-yellow-400 gap-0.5">
+            {[...Array(5)].map((_,i) => <Star key={i} size={16} fill={i < Math.round(ratingData.avg) ? "currentColor" : "none"} />)}
+         </div>
+         <span className="text-sm font-bold text-slate-700">{ratingData.avg.toFixed(1)} <span className="text-slate-400 font-normal">({ratingData.count})</span></span>
+      </div>
 
-  /* Kenarlıklar */
-  --radius-xl: 12px;
-  --radius-2xl: 16px;
-  --radius-3xl: 24px;
-}
+      {/* Aksiyonlar */}
+      <div className="space-y-3">
+        <div className="rounded-lg overflow-hidden border border-slate-200">
+            {!showPhone ? (
+                <button onClick={() => setShowPhone(true)} className="w-full bg-slate-100 hover:bg-slate-200 py-3.5 flex items-center justify-center gap-2 text-slate-700 font-bold transition-colors">
+                    <Phone size={18} /> Telefonu Göster
+                </button>
+            ) : (
+                <div className="bg-green-50 py-3.5 text-center text-green-700 font-bold text-lg select-all border-green-100">
+                    {sellerPhone}
+                </div>
+            )}
+        </div>
 
-/* Özel Stiller */
-body {
-  background-color: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans);
-  -webkit-font-smoothing: antialiased;
-}
+        <button onClick={handleSendMessage} className="w-full bg-indigo-600 text-white hover:bg-indigo-700 py-3.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-100">
+            <MessageCircle size={18} /> Mesaj Gönder
+        </button>
+      </div>
 
-/* Scrollbar Güzelleştirme */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #CBD5E1;
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: #94A3B8;
-}
-
-/* Animasyonlar */
-@keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-.animate-in {
-  animation: fadeIn 0.3s ease-out;
+      <div className="mt-6 pt-4 border-t border-slate-100 flex items-center justify-center gap-2 text-xs text-slate-500">
+         <ShieldCheck size={14} className="text-green-500"/> Hesap Onaylı
+      </div>
+    </div>
+  );
 }
 `;
-writeFile("app/globals.css", globalCssContent);
 
-// =============================================================================
-// 2. POSTCSS.CONFIG.MJS (V4 UYUMLU PLUGIN)
-// =============================================================================
-const postcssConfigContent = `
-const config = {
-  plugins: {
-    '@tailwindcss/postcss': {},
-  },
-};
-export default config;
-`;
-writeFile("postcss.config.mjs", postcssConfigContent);
+writeFile("components/SellerSidebar.tsx", sellerSidebarContent);
 
 console.log(
   colors.green +
-    "\\n✅ CSS MOTORU ONARILDI! (Tailwind v4 Upgrade)" +
-    "\\n⚠️ ÖNEMLİ: Değişikliklerin etkili olması için terminalde şu adımları yapmanız gerekebilir:" +
-    "\\n   1. Sunucuyu durdurun (Ctrl+C)" +
-    "\\n   2. '.next' klasörünü silin (Önbelleği temizlemek için)" +
-    "\\n   3. 'npm run dev' komutunu tekrar çalıştırın." +
+    "\n✅ DÜZELTME TAMAMLANDI: Satıcı paneli artık sayfayla birlikte kaymıyor (Statik)." +
     colors.reset,
 );
