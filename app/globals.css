@@ -1,36 +1,67 @@
 @import "tailwindcss";
-@plugin "tailwindcss-animate";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@theme {
+  /* Renk Paleti (Global Expansion Pack) */
+  --color-background: #F8FAFC;
+  --color-foreground: #0F172A;
 
-:root {
-  /* Açık Mod Renkleri */
-  --background: #f6f7f9;
-  --foreground: #171717;
-  --card: #ffffff;
-  --card-foreground: #09090b;
-  --border: #e5e7eb;
+  --color-brand-50: #EEF2FF;
+  --color-brand-100: #E0E7FF;
+  --color-brand-500: #6366F1;
+  --color-brand-600: #4F46E5;
+  --color-brand-700: #4338CA;
+  --color-brand-900: #312E81;
+
+  --color-accent-500: #f43f5e;
+  --color-accent-600: #e11d48;
+
+  --color-surface-50: #F9FAFB;
+  --color-surface-100: #F3F4F6;
+  --color-surface-200: #E5E7EB;
+  --color-surface-white: #FFFFFF;
+
+  /* Fontlar */
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Gölgeler */
+  --shadow-soft: 0 10px 40px -10px rgba(0,0,0,0.05);
+  --shadow-card: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.1);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.3);
+
+  /* Kenarlıklar */
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
 }
 
-.dark {
-  /* Koyu Mod Renkleri */
-  --background: #0a0a0a;
-  --foreground: #ededed;
-  --card: #1c1c1c;
-  --card-foreground: #ededed;
-  --border: #27272a;
-}
-
+/* Özel Stiller */
 body {
-  background-color: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
 }
 
-@layer utilities {
-  .bg-card {
-    background-color: var(--card);
-    color: var(--card-foreground);
-  }
+/* Scrollbar Güzelleştirme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #94A3B8;
+}
+
+/* Animasyonlar */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.animate-in {
+  animation: fadeIn 0.3s ease-out;
 }

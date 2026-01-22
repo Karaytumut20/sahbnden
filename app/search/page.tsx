@@ -1,102 +1,89 @@
 import React from 'react';
 import { getAdsServer } from '@/lib/actions';
-import FilterSidebar from '@/components/FilterSidebar';
-import MapView from '@/components/MapView';
-import SearchHeader from '@/components/SearchHeader';
 import AdCard from '@/components/AdCard';
+import FilterSidebar from '@/components/FilterSidebar';
+import Pagination from '@/components/Pagination';
 import ViewToggle from '@/components/ViewToggle';
-import SearchLoading from './loading';
-import { Metadata } from 'next';
-import { categories } from '@/lib/data';
+import { SearchX } from 'lucide-react';
 
-type Props = {
-  searchParams: Promise<{ q?: string; category?: string; minPrice?: string; maxPrice?: string; city?: string; sort?: string; view?: string }>;
-};
+// Next.js 15+ için searchParams Promise olabilir
+export default async function SearchPage(props: { searchParams: Promise<any> }) {
+  const searchParams = await props.searchParams;
 
-// DİNAMİK SEO (Senior Move)
-export async function generateMetadata({ searchParams }: Props): Promise<Metadata> {
-  const params = await searchParams;
-  let title = "Tüm İlanlar";
-  let desc = "Binlerce satılık ve kiralık ilan seçeneği sahibinden.com klon'da.";
+  // DÜZELTME: Veriyi 'data' olarak çekiyoruz (Destructuring)
+  const { data: ads, totalPages, count } = await getAdsServer(searchParams);
 
-  if (params.q) {
-    title = `"${params.q}" Arama Sonuçları`;
-    desc = `${params.q} için en uygun ilan fiyatlarını ve özelliklerini inceleyin.`;
-  } else if (params.category) {
-    // Kategoriyi bulmaya çalış
-    const catSlug = params.category;
-    const catName = categories.flatMap(c => [c, ...(c.subs || [])]).find(x => x.slug === catSlug)?.title || 'Kategori';
-    title = `${catName} İlanları`;
-    desc = `En güncel ${catName} ilanları, fiyatları ve özellikleri.`;
-  }
-
-  if (params.city) {
-    title += ` - ${params.city}`;
-  }
-
-  return {
-    title: `${title} | sahibinden.com Klon`,
-    description: desc,
-  };
-}
-
-export default async function SearchPage({ searchParams }: Props) {
-  const params = await searchParams;
-  const ads = await getAdsServer(params);
-  const viewMode = (params.view || 'table') as 'grid' | 'list' | 'table' | 'map';
+  const viewMode = (searchParams.view as 'grid' | 'list' | 'table') || 'list';
 
   return (
-    <div className="flex gap-4 pt-4">
-      {/* Sol Sidebar (Filtreler) */}
-      <div className="w-[240px] shrink-0 hidden md:block">
-        <FilterSidebar />
-      </div>
+    <div className="container mx-auto px-4 py-8 bg-gray-50/50 min-h-screen">
+      <div className="flex flex-col lg:flex-row gap-8">
 
-      {/* Ana İçerik */}
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-end mb-3 pb-2 border-b border-gray-200">
-            <SearchHeader total={ads.length} query={params.q} currentSort={params.sort} currentView={viewMode} />
-            <div className="ml-4">
-                <ViewToggle currentView={viewMode} />
-            </div>
-        </div>
+        {/* Sidebar */}
+        <aside className="w-full lg:w-[280px] shrink-0 space-y-6">
+          <FilterSidebar />
+        </aside>
 
-        {/* Görünüm Modları */}
-        {viewMode === 'map' ? (
-          <MapView ads={ads} />
-        ) : (
-          <>
-            {viewMode === 'table' ? (
-              <div className="bg-white border border-gray-200 rounded-sm shadow-sm overflow-hidden">
-                <table className="w-full text-left border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50 border-b border-gray-200 text-[11px] text-gray-500 font-semibold uppercase">
-                      <th className="p-3">Görsel</th>
-                      <th className="p-3">İlan Başlığı</th>
-                      <th className="p-3">Fiyat</th>
-                      <th className="p-3">İlan Tarihi</th>
-                      <th className="p-3">İl / İlçe</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode="table" />)}
-                  </tbody>
-                </table>
+        {/* Main Content */}
+        <main className="flex-1 min-w-0">
+           {/* Header */}
+           <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100 mb-6 flex flex-col sm:flex-row justify-between items-center gap-4 transition-all hover:shadow-md">
+              <div>
+                 <h1 className="font-bold text-gray-900 text-xl tracking-tight">Arama Sonuçları</h1>
+                 <p className="text-sm text-gray-500 font-medium">{count} ilan bulundu</p>
               </div>
-            ) : (
-              <div className={`grid gap-4 ${viewMode === 'grid' ? 'grid-cols-2 md:grid-cols-3 lg:grid-cols-4' : 'grid-cols-1'}`}>
-                {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode={viewMode} />)}
+              <div className="flex items-center gap-4">
+                 <ViewToggle currentView={viewMode} />
               </div>
-            )}
+           </div>
 
-            {ads.length === 0 && (
-              <div className="bg-white p-12 text-center border border-gray-200 rounded-sm">
-                <p className="text-gray-500 text-lg">Aradığınız kriterlere uygun ilan bulunamadı.</p>
-                <p className="text-sm text-gray-400 mt-2">Filtreleri değiştirerek tekrar deneyebilirsiniz.</p>
-              </div>
-            )}
-          </>
-        )}
+           {/* Ads Grid/List */}
+           {!ads || ads.length === 0 ? (
+             <div className="bg-white p-12 rounded-2xl border border-gray-200 text-center flex flex-col items-center justify-center shadow-sm">
+               <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mb-4 text-gray-400">
+                  <SearchX size={32} />
+               </div>
+               <h3 className="text-lg font-bold text-gray-900 mb-2">Sonuç Bulunamadı</h3>
+               <p className="text-gray-500 max-w-xs mx-auto">Aradığınız kriterlere uygun ilan maalesef mevcut değil. Filtreleri temizleyip tekrar deneyin.</p>
+             </div>
+           ) : (
+             <>
+               {viewMode === 'grid' && (
+                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                   {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode="grid" />)}
+                 </div>
+               )}
+               {viewMode === 'list' && (
+                 <div className="space-y-4">
+                   {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode="list" />)}
+                 </div>
+               )}
+               {viewMode === 'table' && (
+                 <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
+                   <table className="w-full text-left">
+                     <thead className="bg-gray-50 border-b border-gray-200 text-xs font-bold text-gray-500 uppercase tracking-wider">
+                        <tr>
+                          <th className="p-4">Görsel</th>
+                          <th className="p-4">İlan Başlığı</th>
+                          <th className="p-4">Fiyat</th>
+                          <th className="p-4">Tarih</th>
+                          <th className="p-4">Konum</th>
+                        </tr>
+                     </thead>
+                     <tbody className="divide-y divide-gray-100">
+                        {ads.map((ad: any) => <AdCard key={ad.id} ad={ad} viewMode="table" />)}
+                     </tbody>
+                   </table>
+                 </div>
+               )}
+             </>
+           )}
+
+           {/* Pagination */}
+           <div className="mt-10">
+             <Pagination totalPages={totalPages} />
+           </div>
+        </main>
       </div>
     </div>
   );

@@ -20,132 +20,67 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
   const liked = isFavorite(ad.id);
 
   const priceDisplay = formatPrice(ad.price, ad.currency);
-  const location = `${ad.city || ''} / ${ad.district || ''}`;
+  const location = `${ad.city || ''}, ${ad.district || ''}`;
   const dateDisplay = formatDate(ad.created_at);
-  const imageUrl = ad.image || 'https://via.placeholder.com/300x200?text=Resim+Yok';
+  const imageUrl = ad.image || 'https://via.placeholder.com/300x200?text=Görsel+Yok';
 
   const handleFavorite = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     toggleFavorite(ad.id);
   };
 
   const handleQuickView = (e: React.MouseEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     openModal('QUICK_VIEW', { ad });
   };
 
-  // --- TABLO GÖRÜNÜMÜ ---
-  if (viewMode === 'table') {
-    return (
-      <tr className="border-b border-gray-100 hover:bg-[#fff9e1] transition-colors group">
-        <td className="p-2 w-[120px]">
-          <div className="w-[100px] h-[75px] relative overflow-hidden border border-gray-200 rounded-sm cursor-pointer" onClick={handleQuickView}>
-            <Image src={imageUrl} alt={ad.title} fill className="object-cover group-hover:scale-105 transition-transform" />
-            {ad.is_vitrin && <div className="absolute top-0 left-0 bg-yellow-400 text-black text-[9px] font-bold px-1 z-10">VİTRİN</div>}
-            {/* Quick View Button Overlay */}
-            <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded">Hızlı Bak</span>
-            </div>
-          </div>
-        </td>
-        <td className="p-3 align-middle">
-          <Link href={`/ilan/${ad.id}`} className="block relative">
-            <span className="text-[#333] text-[13px] font-bold group-hover:underline block mb-1 line-clamp-1 pr-6">
-              {ad.title}
-            </span>
-            <div className="flex gap-2 items-center">
-                {ad.is_urgent && <Badge variant="danger" className="text-[9px] py-0">Acil</Badge>}
-                <span className="text-gray-400 text-[10px]">#{ad.id}</span>
-            </div>
-          </Link>
-        </td>
-        <td className="p-3 align-middle text-blue-900 font-bold text-[13px] whitespace-nowrap">{priceDisplay}</td>
-        <td className="p-3 align-middle text-[#333] text-[12px] whitespace-nowrap">{dateDisplay}</td>
-        <td className="p-3 align-middle text-[#333] text-[12px] whitespace-nowrap">
-          <div className="flex items-center gap-1 text-gray-600"><MapPin size={12} className="text-gray-400" />{location}</div>
-        </td>
-      </tr>
-    );
-  }
-
-  // --- LİSTE GÖRÜNÜMÜ ---
-  if (viewMode === 'list') {
-    return (
-      <div className="flex bg-white border border-gray-200 rounded-sm overflow-hidden hover:shadow-md transition-shadow group h-[160px]">
-        <div className="w-[220px] shrink-0 relative bg-gray-100 cursor-pointer" onClick={handleQuickView}>
-           <Image src={imageUrl} alt={ad.title} fill className="object-cover group-hover:scale-105 transition-transform" />
-           {ad.is_urgent && <div className="absolute top-2 left-2 bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm z-10">ACİL</div>}
-           <div className="absolute bottom-2 right-2 bg-white/80 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-white text-blue-600" title="Hızlı Bakış">
-              <Eye size={16} />
-           </div>
-        </div>
-        <div className="flex-1 p-4 flex flex-col justify-between">
-           <div>
-             <div className="flex justify-between items-start">
-                <Link href={`/ilan/${ad.id}`} className="text-[#333] text-base font-bold group-hover:underline line-clamp-1">
-                    {ad.title}
-                </Link>
-                <button onClick={handleFavorite} className="text-gray-300 hover:text-red-500 transition-colors">
-                    <Heart size={20} className={cn("transition-colors", liked && "fill-red-500 text-red-500")} />
-                </button>
-             </div>
-             <p className="text-xs text-gray-500 mt-1 line-clamp-2">{ad.description?.substring(0, 150)}...</p>
-           </div>
-           <div className="flex justify-between items-end">
-              <div className="text-gray-500 text-xs flex gap-4">
-                  <span className="flex items-center gap-1"><MapPin size={14}/> {location}</span>
-                  <span className="flex items-center gap-1"><Calendar size={14}/> {dateDisplay}</span>
-              </div>
-              <div className="text-lg font-bold text-blue-900">{priceDisplay}</div>
-           </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- GRID GÖRÜNÜMÜ (VİTRİN) ---
+  // --- GRID GÖRÜNÜMÜ (ULTRA MODERN) ---
   return (
     <div className="block group h-full relative">
       <Link href={`/ilan/${ad.id}`} className="block h-full">
-        <div className="bg-white border border-gray-200 rounded-sm shadow-sm hover:shadow-lg transition-all cursor-pointer h-full flex flex-col relative">
-          {/* Etiketler */}
-          {ad.is_urgent && <div className="absolute top-2 left-2 bg-red-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-sm z-10 shadow-sm">ACİL</div>}
-          {ad.is_vitrin && <div className="absolute top-2 right-2 bg-yellow-400 text-black text-[9px] font-bold px-1.5 py-0.5 rounded-sm z-10 shadow-sm">VİTRİN</div>}
+        {/* Kart Yapısı: Beyaz zemin, yuvarlak köşeler, hover'da yukarı kalkma */}
+        <div className="bg-white rounded-3xl shadow-card hover:shadow-2xl hover:-translate-y-1 transition-all duration-300 h-full flex flex-col relative overflow-hidden border border-gray-100">
 
-          <div className="relative aspect-[4/3] overflow-hidden bg-gray-100 rounded-t-sm">
-            <Image src={imageUrl} alt={ad.title} fill className="object-cover group-hover:scale-105 transition-transform duration-300" sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw" />
+          {/* Badge'ler (Floating) */}
+          <div className="absolute top-4 left-4 flex gap-2 z-10">
+             {ad.is_urgent && <span className="bg-rose-500/90 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg border border-rose-400">ACİL</span>}
+             {ad.is_vitrin && <span className="bg-indigo-600/90 backdrop-blur-sm text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-lg border border-indigo-400">VİTRİN</span>}
+          </div>
 
-            {/* Hover Actions */}
-            <div className="absolute inset-0 bg-black/10 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                <button
-                    onClick={handleQuickView}
-                    className="bg-white text-blue-600 p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
-                    title="Hızlı Bakış"
-                >
-                    <Eye size={18} />
-                </button>
-                <button
-                    onClick={handleFavorite}
-                    className="bg-white text-gray-400 hover:text-red-500 p-2 rounded-full shadow-lg hover:scale-110 transition-transform"
-                    title={liked ? "Favorilerden Çıkar" : "Favorilere Ekle"}
-                >
-                    <Heart size={18} className={cn("transition-colors", liked && "fill-red-500 text-red-500")} />
-                </button>
+          {/* Resim Alanı */}
+          <div className="relative aspect-[4/3] overflow-hidden bg-gray-100">
+            <Image
+                src={imageUrl}
+                alt={ad.title}
+                fill
+                className="object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            />
+
+            {/* Action Overlay (Yumuşak Geçiş) */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end justify-between p-4">
+               <div className="flex gap-2 w-full justify-end">
+                    <button onClick={handleQuickView} className="bg-white/90 hover:bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform backdrop-blur-md" title="Hızlı Bakış">
+                        <Eye size={18} />
+                    </button>
+                    <button onClick={handleFavorite} className="bg-white/90 hover:bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 transition-transform backdrop-blur-md">
+                        <Heart size={18} className={cn("transition-colors", liked && "fill-red-500 text-red-500")} />
+                    </button>
+               </div>
             </div>
           </div>
 
-          <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
-            <p className="text-[13px] text-[#333] font-semibold leading-tight group-hover:underline line-clamp-2 h-[2.4em] overflow-hidden">
-              {ad.title}
-            </p>
-            <div className="pt-2 border-t border-gray-50 mt-1">
-              <p className="text-[15px] font-bold text-blue-900">{priceDisplay}</p>
-              <div className="flex justify-between items-center mt-1">
-                  <p className="text-[10px] text-gray-500 truncate max-w-[60%]">{location}</p>
-                  <p className="text-[10px] text-gray-400">{dateDisplay}</p>
-              </div>
+          {/* İçerik Alanı */}
+          <div className="p-5 flex-1 flex flex-col">
+            <div className="flex justify-between items-start mb-2">
+                <h3 className="text-gray-900 font-bold text-[15px] leading-snug line-clamp-2 group-hover:text-indigo-600 transition-colors">{ad.title}</h3>
+            </div>
+
+            <div className="text-xl font-extrabold text-indigo-900 mb-4 tracking-tight">{priceDisplay}</div>
+
+            <div className="mt-auto pt-4 border-t border-gray-50 flex justify-between items-center text-xs font-medium text-gray-500">
+                <span className="flex items-center gap-1.5 bg-gray-50 px-2 py-1 rounded-md"><MapPin size={12} className="text-indigo-400"/> {ad.city}</span>
+                <span className="text-gray-400">{dateDisplay}</span>
             </div>
           </div>
         </div>
