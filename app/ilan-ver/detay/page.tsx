@@ -1,5 +1,5 @@
 "use client";
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react'; // Suspense Eklendi
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Loader2, ArrowLeft, CheckCircle, AlertCircle } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
@@ -8,7 +8,7 @@ import RealEstateFields from '@/components/form/RealEstateFields';
 import VehicleFields from '@/components/form/VehicleFields';
 import ImageUploader from '@/components/ui/ImageUploader';
 import { createAdAction } from '@/lib/actions';
-import { adSchema } from '@/lib/schemas'; // Zod şeması
+import { adSchema } from '@/lib/schemas';
 import { cities, getDistricts } from '@/lib/locations';
 
 function PostAdFormContent() {

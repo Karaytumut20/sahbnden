@@ -1,54 +1,104 @@
-
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Lock, Shield } from 'lucide-react';
+import { createClient } from '@/lib/supabase/client';
+import { Lock, Loader2, AlertCircle } from 'lucide-react';
 
-export default function AdminLogin() {
-  const router = useRouter();
+export default function AdminLoginPage() {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const supabase = createClient();
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    // Admin girişi simülasyonu
-    setTimeout(() => {
-      router.push('/admin');
-    }, 1000);
+    setError(null);
+
+    try {
+      // 1. Giriş Yap
+      const { data: { user }, error: authError } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (authError) throw authError;
+      if (!user) throw new Error('Kullanıcı bulunamadı.');
+
+      // 2. Rol Kontrolü (Client-side Check)
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+      if (profile?.role !== 'admin') {
+        await supabase.auth.signOut(); // Yetkisiz ise çıkış yap
+        throw new Error('Bu alana giriş yetkiniz yok.');
+      }
+
+      // 3. Yönlendir (Refresh ile Middleware'in yeni durumu algılamasını sağla)
+      window.location.href = '/admin';
+
+    } catch (err: any) {
+      setError(err.message || 'Giriş yapılamadı.');
+      setLoading(false);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-gray-900 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-        <div className="bg-[#2d405a] p-6 text-center">
-          <div className="w-16 h-16 bg-white/10 rounded-full flex items-center justify-center mx-auto mb-3">
-            <Shield size={32} className="text-[#ffe800]" />
+    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-lg shadow-md w-full max-w-sm border border-gray-200">
+        <div className="flex justify-center mb-6">
+          <div className="bg-blue-100 p-3 rounded-full">
+            <Lock className="text-blue-600" size={32} />
           </div>
-          <h1 className="text-white text-xl font-bold">Yönetim Paneli Girişi</h1>
-          <p className="text-blue-200 text-sm mt-1">Lütfen yetkili hesap bilgilerinizi giriniz.</p>
         </div>
 
-        <div className="p-8">
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Kullanıcı Adı</label>
-              <input type="text" defaultValue="admin" className="w-full border border-gray-300 rounded h-10 px-3 focus:border-blue-900 focus:outline-none" />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-1">Şifre</label>
-              <input type="password" defaultValue="admin123" className="w-full border border-gray-300 rounded h-10 px-3 focus:border-blue-900 focus:outline-none" />
-            </div>
+        <h1 className="text-xl font-bold text-center text-gray-800 mb-6">Yönetici Girişi</h1>
 
-            <button
-              disabled={loading}
-              className="w-full bg-[#2d405a] hover:bg-[#1f2d40] text-white font-bold h-11 rounded transition-colors flex items-center justify-center gap-2 mt-4"
-            >
-              {loading ? 'Giriş Yapılıyor...' : <><Lock size={16} /> Güvenli Giriş</>}
-            </button>
-          </form>
-        </div>
-        <div className="bg-gray-50 p-4 text-center text-xs text-gray-500 border-t border-gray-100">
-          Bu alan sadece yetkili personel içindir.
+        {error && (
+          <div className="bg-red-50 text-red-600 p-3 rounded-md text-sm mb-4 flex items-center gap-2">
+            <AlertCircle size={16} /> {error}
+          </div>
+        )}
+
+        <form onSubmit={handleLogin} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">E-Posta</label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full border border-gray-300 rounded-md h-10 px-3 outline-none focus:border-blue-500 transition-colors"
+              placeholder="admin@example.com"
+              required
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Şifre</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full border border-gray-300 rounded-md h-10 px-3 outline-none focus:border-blue-500 transition-colors"
+              placeholder="••••••••"
+              required
+            />
+          </div>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-blue-600 text-white font-bold h-10 rounded-md hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 disabled:opacity-70"
+          >
+            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Giriş Yap'}
+          </button>
+        </form>
+
+        <div className="mt-4 text-center text-xs text-gray-400">
+           Sadece yetkili personel içindir.
         </div>
       </div>
     </div>

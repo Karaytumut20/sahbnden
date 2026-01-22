@@ -29,23 +29,24 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  // Oturumu kontrol et
   const { data: { user } } = await supabase.auth.getUser()
+  const path = request.nextUrl.pathname;
 
-  // Korumalı Rotalar
-  if (request.nextUrl.pathname.startsWith('/bana-ozel') || request.nextUrl.pathname.startsWith('/ilan-ver')) {
+  // 1. KULLANICI KORUMASI
+  if (path.startsWith('/bana-ozel') || path.startsWith('/ilan-ver')) {
     if (!user) {
       return NextResponse.redirect(new URL('/login', request.url))
     }
   }
 
-  // Admin Koruması (Senior Security)
-  if (request.nextUrl.pathname.startsWith('/admin')) {
+  // 2. ADMIN KORUMASI (DÖNGÜYÜ ENGELLEYEN MANTIK)
+  // '/admin' ile başlayan sayfalarda... AMA '/admin/login' hariç!
+  if (path.startsWith('/admin') && path !== '/admin/login') {
     if (!user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
 
-    // Kullanıcının rolünü kontrol et
+    // Rol kontrolü
     const { data: profile } = await supabase
       .from('profiles')
       .select('role')
@@ -53,9 +54,25 @@ export async function middleware(request: NextRequest) {
       .single()
 
     if (profile?.role !== 'admin') {
-      // Admin değilse anasayfaya at
+      // Yetkisiz ise ana sayfaya at
       return NextResponse.redirect(new URL('/', request.url))
     }
+  }
+
+  // 3. LOGIN OLMUŞ KULLANICIYI LOGIN SAYFASINDAN UZAKLAŞTIR
+  if (user) {
+      if (path === '/login' || path === '/register') {
+          return NextResponse.redirect(new URL('/bana-ozel', request.url));
+      }
+      if (path === '/admin/login') {
+          // Admin ise panele, değilse anasayfaya
+          const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
+          if (profile?.role === 'admin') {
+              return NextResponse.redirect(new URL('/admin', request.url));
+          } else {
+              return NextResponse.redirect(new URL('/', request.url));
+          }
+      }
   }
 
   return response

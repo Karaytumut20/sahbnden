@@ -1,6 +1,6 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
-import { getAdDetailServer, getAdFavoriteCount } from '@/lib/actions'; // Yeni Action Eklendi
+import { getAdDetailServer, getAdFavoriteCount } from '@/lib/actions';
 import Breadcrumb from '@/components/Breadcrumb';
 import Gallery from '@/components/Gallery';
 import MobileAdActionBar from '@/components/MobileAdActionBar';
@@ -11,6 +11,7 @@ import Tabs from '@/components/AdDetail/Tabs';
 import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
 import LoanCalculator from '@/components/tools/LoanCalculator';
+import ViewTracker from '@/components/ViewTracker'; // YENİ EKLENDİ
 import Badge from '@/components/ui/Badge';
 import { Calendar, Eye, Hash, MapPin, Heart } from 'lucide-react';
 import type { Metadata, ResolvingMetadata } from 'next';
@@ -32,9 +33,7 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
   const ad = await getAdDetailServer(Number(id));
   if (!ad) return notFound();
 
-  // Favori sayısını çek (Senior Touch: Social Proof)
   const favCount = await getAdFavoriteCount(Number(id));
-
   const formattedPrice = ad.price?.toLocaleString('tr-TR');
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '' };
@@ -56,6 +55,7 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="pb-20 relative font-sans">
+      <ViewTracker adId={ad.id} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <StickyAdHeader title={ad.title} price={formattedPrice} currency={ad.currency} />
 
@@ -100,7 +100,7 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
              {ad.km && <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm hover:bg-gray-50 px-2"><span className="font-bold text-[#333]">KM</span><span>{ad.km}</span></div>}
              <div className="flex justify-between py-2.5 border-b border-gray-100 text-sm px-2 bg-gray-50">
                 <span className="font-bold text-[#333] flex items-center gap-2"><Eye size={14} className="text-gray-400"/> Görüntülenme</span>
-                <span>{Math.floor(Math.random() * 500) + 50}</span> {/* Demo Görüntülenme */}
+                <span>{ad.view_count || 0}</span> {/* ARTIK GERÇEK VERİ */}
              </div>
           </div>
         </div>
