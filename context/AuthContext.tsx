@@ -8,12 +8,14 @@ type User = {
   email: string;
   name: string;
   avatar?: string;
+  role?: 'user' | 'store' | 'admin'; // Rol eklendi
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>; // Kullanıcı bilgisini tazeleme
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,17 +26,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const supabase = createClient();
 
+  const fetchProfile = async (sessionUser: any) => {
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', sessionUser.id).single();
+      setUser({
+          id: sessionUser.id,
+          email: sessionUser.email!,
+          name: profile?.full_name || sessionUser.email?.split('@')[0] || 'Kullanıcı',
+          avatar: profile?.avatar_url,
+          role: profile?.role || 'user'
+      });
+  };
+
   useEffect(() => {
     const checkUser = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-        setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          name: profile?.full_name || session.user.email?.split('@')[0] || 'Kullanıcı',
-          avatar: profile?.avatar_url
-        });
+        await fetchProfile(session.user);
       }
       setLoading(false);
     };
@@ -43,13 +50,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
-         const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-         setUser({
-          id: session.user.id,
-          email: session.user.email!,
-          name: profile?.full_name || 'Kullanıcı',
-          avatar: profile?.avatar_url
-        });
+         await fetchProfile(session.user);
       } else {
         setUser(null);
         router.refresh();
@@ -61,18 +62,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = async () => {
-    try {
-      await supabase.auth.signOut();
-      setUser(null);
-      router.push('/login');
-      router.refresh();
-    } catch (error) {
-      console.error('Çıkış yapılırken hata oluştu:', error);
-    }
+    await supabase.auth.signOut();
+    setUser(null);
+    router.push('/login');
   };
 
+  const refreshUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) await fetchProfile(session.user);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, logout }}>
+    <AuthContext.Provider value={{ user, loading, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

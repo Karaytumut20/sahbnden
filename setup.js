@@ -5,16 +5,15 @@ const colors = {
   reset: "\x1b[0m",
   green: "\x1b[32m",
   cyan: "\x1b[36m",
-  yellow: "\x1b[33m",
   red: "\x1b[31m",
   bold: "\x1b[1m",
-  blue: "\x1b[34m",
+  yellow: "\x1b[33m",
 };
 
 console.log(
-  colors.blue +
+  colors.red +
     colors.bold +
-    "\n🚀 SENIOR UPGRADE V5: LIFECYCLE MANAGEMENT & NOTIFICATIONS...\n" +
+    "\n🚀 SENIOR UPGRADE V7: AUTOMATED MODERATION ENGINE...\n" +
     colors.reset,
 );
 
@@ -29,143 +28,124 @@ function writeFile(filePath, content) {
 }
 
 // =============================================================================
-// 1. SUPABASE/LIFECYCLE.SQL (SÜRE YÖNETİMİ SÜTUNLARI)
+// 1. SUPABASE/MODERATION.SQL (VERİTABANI GÜNCELLEMESİ)
 // =============================================================================
-const lifecycleSqlContent = `
+const moderationSqlContent = `
 -- BU KODU SUPABASE SQL EDITOR'DE ÇALIŞTIRIN --
 
--- 1. İlan tablosuna bitiş sürelerini ekleyelim
+-- 1. İlan tablosuna moderasyon skorlarını ekleyelim
 ALTER TABLE ads
-ADD COLUMN IF NOT EXISTS vitrin_expires_at timestamp with time zone,
-ADD COLUMN IF NOT EXISTS urgent_expires_at timestamp with time zone,
-ADD COLUMN IF NOT EXISTS published_at timestamp with time zone;
+ADD COLUMN IF NOT EXISTS moderation_score integer default 0, -- 0: Temiz, 100: Çok Riskli
+ADD COLUMN IF NOT EXISTS moderation_tags text[] default '{}', -- Örn: ['PHONE_DETECTED', 'BAD_WORD']
+ADD COLUMN IF NOT EXISTS admin_note text;
 
--- 2. İndeksler (Cron job sorguları için)
-CREATE INDEX IF NOT EXISTS idx_ads_vitrin_expire ON ads(vitrin_expires_at);
-CREATE INDEX IF NOT EXISTS idx_ads_urgent_expire ON ads(urgent_expires_at);
+-- 2. İndeks (Riskli ilanları bulmak için)
+CREATE INDEX IF NOT EXISTS idx_ads_mod_score ON ads(moderation_score);
 `;
-writeFile("supabase/lifecycle.sql", lifecycleSqlContent);
+writeFile("supabase/moderation.sql", moderationSqlContent);
 
 // =============================================================================
-// 2. LIB/ENV.TS (TİP GÜVENLİ ORTAM DEĞİŞKENLERİ)
+// 2. LIB/MODERATION/RULES.TS (KURALLAR VE YASAKLI KELİMELER)
 // =============================================================================
-const envContent = `
-import { z } from 'zod';
+const rulesContent = `
+// Yasaklı veya Riskli Kelimeler
+export const BLACKLIST = [
+  'dolandırıcı', 'kumar', 'bahis', 'illegal', 'kaçak', 'silah',
+  'hack', 'warez', 'iptv', 'crack'
+];
 
-const envSchema = z.object({
-  NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
-  CRON_SECRET: z.string().optional(), // Cron job güvenliği için
-  NEXT_PUBLIC_SITE_URL: z.string().url().optional().default('http://localhost:3000'),
-});
+// Rakip Site İsimleri (Platform dışına yönlendirmeyi önlemek için)
+export const COMPETITORS = [
+  'letgo', 'dolap', 'arabam.com', 'zingat', 'hepsiemlak'
+];
 
-// Build-time validation (Hata varsa build almaz)
-const processEnv = {
-  NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
-  NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-  CRON_SECRET: process.env.CRON_SECRET,
-  NEXT_PUBLIC_SITE_URL: process.env.NEXT_PUBLIC_SITE_URL,
-};
+// Regex Desenleri
+export const PATTERNS = {
+  // Telefon numarası yakalama (05XX, 5XX, aralara boşluk/nokta koyma vb.)
+  PHONE: /(0?5\d{2})[\s\.-]?\d{3}[\s\.-]?\d{2}[\s\.-]?\d{2}/g,
 
-// Validasyon sonucunu dışa aktar
-// Not: Bu dosyayı uygulamanın giriş noktasında (örn: app/layout.tsx) import ederek kontrolü sağlayabiliriz.
-export const env = envSchema.parse(processEnv);
-`;
-writeFile("lib/env.ts", envContent);
+  // Email yakalama
+  EMAIL: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g,
 
-// =============================================================================
-// 3. LIB/MAIL.TS (MOCK EMAIL SERVICE)
-// =============================================================================
-const mailContent = `
-import { logActivity } from './logger';
-
-/**
- * E-posta Gönderim Servisi (Simülasyon)
- * Gerçek projede: Resend, SendGrid veya AWS SES kullanılır.
- */
-export async function sendEmail(to: string, subject: string, html: string) {
-  console.log(\`
-  📧 [EMAIL SENT]
-  To: \${to}
-  Subject: \${subject}
-  ---------------------
-  \${html.substring(0, 100)}...
-  \`);
-
-  // Loglama sistemine de kayıt atalım
-  await logActivity('SYSTEM', 'SEND_EMAIL', { to, subject });
-
-  return { success: true };
-}
-
-export const EMAIL_TEMPLATES = {
-  AD_APPROVED: (userName: string, adTitle: string, adId: number) => ({
-    subject: 'İlanınız Yayında! 🎉',
-    html: \`<p>Sayın <strong>\${userName}</strong>,</p><p>"\${adTitle}" başlıklı ilanınız onaylanmış ve yayına alınmıştır.</p><a href="/ilan/\${adId}">İlanı Görüntüle</a>\`
-  }),
-  AD_REJECTED: (userName: string, adTitle: string, reason: string) => ({
-    subject: 'İlanınız Onaylanmadı ⚠️',
-    html: \`<p>Sayın <strong>\${userName}</strong>,</p><p>"\${adTitle}" başlıklı ilanınız şu nedenle reddedilmiştir:</p><blockquote>\${reason}</blockquote>\`
-  }),
-  DOPING_ACTIVE: (userName: string, type: string) => ({
-    subject: 'Doping Tanımlandı 🚀',
-    html: \`<p>Sayın <strong>\${userName}</strong>,</p><p>İlanınıza <strong>\${type}</strong> dopingi başarıyla tanımlanmıştır.</p>\`
-  })
+  // Büyük harf kullanımı (Bağırma tespiti)
+  ALL_CAPS: /^[^a-z]*$/
 };
 `;
-writeFile("lib/mail.ts", mailContent);
+writeFile("lib/moderation/rules.ts", rulesContent);
 
 // =============================================================================
-// 4. APP/API/CRON/ROUTE.TS (OTOMATİK TEMİZLİK SERVİSİ)
+// 3. LIB/MODERATION/ENGINE.TS (MODERASYON MOTORU)
 // =============================================================================
-const cronRouteContent = `
-import { NextResponse } from 'next/server';
-import { createStaticClient } from '@/lib/supabase/server';
+const engineContent = `
+import { BLACKLIST, COMPETITORS, PATTERNS } from './rules';
 
-// Bu endpoint Vercel Cron veya harici bir scheduler tarafından her gün çağrılmalı
-export async function GET(request: Request) {
-  // Güvenlik Kontrolü (Bearer Token)
-  const authHeader = request.headers.get('authorization');
-  if (process.env.CRON_SECRET && authHeader !== \`Bearer \${process.env.CRON_SECRET}\`) {
-    return new NextResponse('Unauthorized', { status: 401 });
+type ModerationResult = {
+  score: number; // 0-100 (100 = En Riskli)
+  flags: string[];
+  autoReject: boolean;
+  rejectReason?: string;
+};
+
+export function analyzeAdContent(title: string, description: string): ModerationResult {
+  let score = 0;
+  const flags: string[] = [];
+  const content = (title + ' ' + description).toLowerCase();
+
+  // 1. Yasaklı Kelime Kontrolü (Ağır İhlal)
+  const foundBadWords = BLACKLIST.filter(word => content.includes(word));
+  if (foundBadWords.length > 0) {
+    score += 100;
+    flags.push('ILLEGAL_CONTENT');
+    return { score, flags, autoReject: true, rejectReason: \`Yasaklı içerik tespit edildi: \${foundBadWords.join(', ')}\` };
   }
 
-  const supabase = createStaticClient();
-  const now = new Date().toISOString();
-
-  // 1. Süresi dolan Vitrin dopinglerini temizle
-  const { error: vitrinError, count: vitrinCount } = await supabase
-    .from('ads')
-    .update({ is_vitrin: false, vitrin_expires_at: null })
-    .lt('vitrin_expires_at', now)
-    .select('id', { count: 'exact' });
-
-  // 2. Süresi dolan Acil etiketlerini temizle
-  const { error: urgentError, count: urgentCount } = await supabase
-    .from('ads')
-    .update({ is_urgent: false, urgent_expires_at: null })
-    .lt('urgent_expires_at', now)
-    .select('id', { count: 'exact' });
-
-  if (vitrinError || urgentError) {
-    return NextResponse.json({ error: 'Database error' }, { status: 500 });
+  // 2. Rakip Site Kontrolü
+  const foundCompetitors = COMPETITORS.filter(comp => content.includes(comp));
+  if (foundCompetitors.length > 0) {
+    score += 50;
+    flags.push('COMPETITOR_MENTION');
   }
 
-  return NextResponse.json({
-    success: true,
-    message: 'Cron job executed successfully',
-    stats: {
-      vitrin_removed: vitrinCount,
-      urgent_removed: urgentCount
-    }
-  });
+  // 3. İletişim Bilgisi Sızdırma (Komisyon Atlatma)
+  if (PATTERNS.PHONE.test(title) || PATTERNS.PHONE.test(description)) {
+    score += 40;
+    flags.push('PHONE_DETECTED');
+  }
+  if (PATTERNS.EMAIL.test(title) || PATTERNS.EMAIL.test(description)) {
+    score += 30;
+    flags.push('EMAIL_DETECTED');
+  }
+
+  // 4. Kalite Kontrolü (Hepsi Büyük Harf)
+  // Sadece title'a bakıyoruz, description uzun olabilir
+  if (title.length > 10 && PATTERNS.ALL_CAPS.test(title)) {
+    score += 20;
+    flags.push('ALL_CAPS_TITLE');
+  }
+
+  // 5. Kısa Açıklama (Spam Belirtisi)
+  if (description.length < 20) {
+    score += 10;
+    flags.push('LOW_QUALITY_DESC');
+  }
+
+  // Skor Tavanı
+  score = Math.min(score, 100);
+
+  return {
+    score,
+    flags,
+    autoReject: score >= 100, // 100 puan direkt ret
+  };
 }
 `;
-writeFile("app/api/cron/route.ts", cronRouteContent);
+writeFile("lib/moderation/engine.ts", engineContent);
 
 // =============================================================================
-// 5. LIB/ACTIONS.TS (GÜNCELLEME: MAİL & TARİH ENTEGRASYONU)
+// 4. LIB/ACTIONS.TS (CREATE AD GÜNCELLEMESİ)
 // =============================================================================
+// createAdAction fonksiyonunu güncelleyerek moderasyon motorunu entegre ediyoruz.
+
 const actionsContent = `
 'use server'
 import { createClient, createStaticClient } from '@/lib/supabase/server'
@@ -173,7 +153,8 @@ import { revalidatePath, unstable_cache } from 'next/cache'
 import { adSchema } from '@/lib/schemas'
 import { logActivity } from '@/lib/logger'
 import { AdFormData } from '@/types'
-import { sendEmail, EMAIL_TEMPLATES } from '@/lib/mail' // Mail Servisi
+import { sendEmail, EMAIL_TEMPLATES } from '@/lib/mail'
+import { analyzeAdContent } from '@/lib/moderation/engine' // YENİ MOTOR
 
 // --- YARDIMCI FONKSİYONLAR ---
 async function checkRateLimit(userId: string, actionType: 'ad_creation' | 'review') {
@@ -188,6 +169,63 @@ async function checkRateLimit(userId: string, actionType: 'ad_creation' | 'revie
         if ((count || 0) >= 5) return false;
     }
     return true;
+}
+
+// --- CREATE AD (SENIOR UPGRADE: AUTO MODERATION) ---
+export async function createAdAction(formData: Partial<AdFormData>) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
+
+  const canCreate = await checkRateLimit(user.id, 'ad_creation');
+  if (!canCreate) {
+      await logActivity(user.id, 'SPAM_AD_CREATION', { reason: 'Rate limit exceeded' });
+      return { error: 'Günlük ilan verme limitine ulaştınız.' };
+  }
+
+  const validation = adSchema.safeParse(formData);
+  if (!validation.success) return { error: validation.error.issues[0].message };
+
+  // --- MODERASYON MOTORU ÇALIŞIYOR ---
+  const analysis = analyzeAdContent(validation.data.title, validation.data.description);
+
+  // Otomatik Ret Durumu
+  let initialStatus = 'onay_bekliyor';
+  if (analysis.autoReject) {
+      initialStatus = 'reddedildi';
+      // Kullanıcıya otomatik ret maili atılabilir (Mail servisi entegre ise)
+      // Ancak güvenlik gereği bazen sessizce reddetmek daha iyidir (Shadow ban)
+  }
+
+  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
+  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
+
+  const { data, error } = await supabase.from('ads').insert([{
+    ...validation.data,
+    user_id: user.id,
+    status: initialStatus,
+    is_vitrin: false,
+    is_urgent: false,
+    // Moderasyon Sonuçlarını Kaydet
+    moderation_score: analysis.score,
+    moderation_tags: analysis.flags,
+    admin_note: analysis.autoReject ? \`OTOMATİK RET: \${analysis.rejectReason}\` : null
+  }]).select('id').single()
+
+  if (error) return { error: 'Veritabanı hatası.' }
+
+  await logActivity(user.id, 'CREATE_AD', {
+      adId: data.id,
+      title: validation.data.title,
+      moderation: analysis // Loglara da moderasyon sonucunu ekle
+  });
+
+  if (analysis.autoReject) {
+      return { error: \`İlanınız güvenlik kurallarına uymadığı için otomatik olarak reddedildi: \${analysis.rejectReason}\` };
+  }
+
+  revalidatePath('/');
+  return { success: true, adId: data.id }
 }
 
 // --- MEVCUT SEARCH & GETTERS (KORUNDU) ---
@@ -235,125 +273,6 @@ export async function getAdsServer(searchParams: SearchParams) {
   return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
 }
 
-// --- CREATE AD ---
-export async function createAdAction(formData: Partial<AdFormData>) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
-
-  const canCreate = await checkRateLimit(user.id, 'ad_creation');
-  if (!canCreate) {
-      await logActivity(user.id, 'SPAM_AD_CREATION', { reason: 'Rate limit exceeded' });
-      return { error: 'Günlük ilan verme limitine ulaştınız.' };
-  }
-
-  const validation = adSchema.safeParse(formData);
-  if (!validation.success) return { error: validation.error.issues[0].message };
-
-  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
-  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
-
-  const { data, error } = await supabase.from('ads').insert([{
-    ...validation.data,
-    user_id: user.id,
-    status: 'onay_bekliyor',
-    is_vitrin: false,
-    is_urgent: false
-  }]).select('id').single()
-
-  if (error) return { error: 'Veritabanı hatası.' }
-
-  await logActivity(user.id, 'CREATE_AD', { adId: data.id, title: validation.data.title });
-  revalidatePath('/');
-  return { success: true, adId: data.id }
-}
-
-// --- ADMIN ONAYI (SENIOR UPGRADE: EMAİL BİLDİRİMİ) ---
-export async function approveAdAction(adId: number) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // İlan sahibini bul
-    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
-    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
-
-    const { error } = await supabase.from('ads').update({ status: 'yayinda', published_at: new Date().toISOString() }).eq('id', adId);
-    if(error) return { error: error.message };
-
-    if (user) await logActivity(user.id, 'ADMIN_APPROVE_AD', { adId });
-
-    // E-posta Gönder
-    if (adOwner?.email) {
-        const mailData = EMAIL_TEMPLATES.AD_APPROVED(adOwner.full_name || 'Kullanıcı', ad.title, adId);
-        await sendEmail(adOwner.email, mailData.subject, mailData.html);
-    }
-
-    revalidatePath('/admin/ilanlar');
-    return { success: true };
-}
-
-// --- ADMIN RED (SENIOR UPGRADE: EMAİL BİLDİRİMİ) ---
-export async function rejectAdAction(adId: number, reason: string) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
-    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
-
-    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
-    if(error) return { error: error.message };
-
-    if (user) await logActivity(user.id, 'ADMIN_REJECT_AD', { adId, reason });
-
-    if (adOwner?.email) {
-        const mailData = EMAIL_TEMPLATES.AD_REJECTED(adOwner.full_name || 'Kullanıcı', ad.title, reason);
-        await sendEmail(adOwner.email, mailData.subject, mailData.html);
-    }
-
-    revalidatePath('/admin/ilanlar');
-    return { success: true };
-}
-
-// --- DOPING AKTİVASYONU (SENIOR UPGRADE: SÜRELİ TANIMLAMA) ---
-export async function activateDopingAction(adId: number, dopingTypes: string[]) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const now = new Date();
-
-  const updates: any = {};
-
-  if (dopingTypes.includes('1')) { // Vitrin (14 Gün)
-      updates.is_vitrin = true;
-      const vitrinExpiry = new Date();
-      vitrinExpiry.setDate(now.getDate() + 14);
-      updates.vitrin_expires_at = vitrinExpiry.toISOString();
-  }
-
-  if (dopingTypes.includes('2')) { // Acil (7 Gün)
-      updates.is_urgent = true;
-      const urgentExpiry = new Date();
-      urgentExpiry.setDate(now.getDate() + 7);
-      updates.urgent_expires_at = urgentExpiry.toISOString();
-  }
-
-  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
-  if (error) return { error: error.message };
-
-  if (user) {
-      await logActivity(user.id, 'ACTIVATE_DOPING', { adId, types: dopingTypes });
-      // Burada kullanıcıya ödeme faturası da mail atılabilir
-      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user.id).single();
-      if(profile?.email) {
-          const mailData = EMAIL_TEMPLATES.DOPING_ACTIVE(profile.full_name || 'Kullanıcı', 'Vitrin/Acil Paket');
-          await sendEmail(profile.email, mailData.subject, mailData.html);
-      }
-  }
-
-  revalidatePath('/');
-  return { success: true };
-}
-
-// --- DİĞER FONKSİYONLAR (KORUNDU) ---
 export const getCategoryTreeServer = unstable_cache(
   async () => {
     const supabase = createStaticClient();
@@ -382,11 +301,47 @@ export async function updateAdAction(id: number, formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
-    const { error } = await supabase.from('ads').update({ ...formData, status: 'onay_bekliyor' }).eq('id', id).eq('user_id', user.id)
+
+    // Update işleminde de moderasyon yapılmalı
+    const analysis = analyzeAdContent(formData.title, formData.description);
+
+    // Eğer update sırasında illegal içerik girdiyse direkt reddet veya pasife çek
+    const status = analysis.autoReject ? 'reddedildi' : 'onay_bekliyor';
+    const adminNote = analysis.autoReject ? \`OTOMATİK RET (Update): \${analysis.rejectReason}\` : null;
+
+    const { error } = await supabase.from('ads').update({
+        ...formData,
+        status,
+        moderation_score: analysis.score,
+        moderation_tags: analysis.flags,
+        admin_note: adminNote
+    }).eq('id', id).eq('user_id', user.id)
+
     if (error) return { error: error.message }
-    await logActivity(user.id, 'UPDATE_AD', { adId: id });
+    await logActivity(user.id, 'UPDATE_AD', { adId: id, moderation: analysis });
+
+    if (analysis.autoReject) {
+        return { error: 'Düzenleme güvenlik politikalarına takıldı ve ilan reddedildi.' };
+    }
+
     revalidatePath('/bana-ozel/ilanlarim')
     return { success: true }
+}
+
+export async function activateDopingAction(adId: number, dopingTypes: string[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const updates: any = {};
+  if (dopingTypes.includes('1')) updates.is_vitrin = true;
+  if (dopingTypes.includes('2')) updates.is_urgent = true;
+
+  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
+  if (error) return { error: error.message };
+
+  if (user) await logActivity(user.id, 'ACTIVATE_DOPING', { adId, types: dopingTypes });
+
+  revalidatePath('/');
+  return { success: true };
 }
 
 export async function createReportAction(adId: number, reason: string, description: string) {
@@ -489,6 +444,49 @@ export async function getAdminAdsClient() {
   return data || [];
 }
 
+export async function approveAdAction(adId: number) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // İlan sahibini bul
+    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
+    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
+
+    const { error } = await supabase.from('ads').update({ status: 'yayinda', published_at: new Date().toISOString() }).eq('id', adId);
+    if(error) return { error: error.message };
+
+    if (user) await logActivity(user.id, 'ADMIN_APPROVE_AD', { adId });
+
+    if (adOwner?.email) {
+        const mailData = EMAIL_TEMPLATES.AD_APPROVED(adOwner.full_name || 'Kullanıcı', ad.title, adId);
+        await sendEmail(adOwner.email, mailData.subject, mailData.html);
+    }
+
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
+export async function rejectAdAction(adId: number, reason: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
+    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
+
+    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
+    if(error) return { error: error.message };
+
+    if (user) await logActivity(user.id, 'ADMIN_REJECT_AD', { adId, reason });
+
+    if (adOwner?.email) {
+        const mailData = EMAIL_TEMPLATES.AD_REJECTED(adOwner.full_name || 'Kullanıcı', ad.title, reason);
+        await sendEmail(adOwner.email, mailData.subject, mailData.html);
+    }
+
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
 export async function getAdFavoriteCount(adId: number) {
     const supabase = await createClient();
     const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('ad_id', adId);
@@ -563,7 +561,6 @@ export async function getUserDashboardStats() {
     return ads || [];
 }
 
-// LOCATION ACTIONS (V4'ten korundu)
 import { getProvinces, getDistrictsByProvince, getCityAdCounts } from '@/lib/services/locationService';
 export async function getLocationsServer() { return await getProvinces(); }
 export async function getDistrictsServer(cityName: string) { return await getDistrictsByProvince(cityName); }
@@ -571,12 +568,49 @@ export async function getFacetCountsServer() { return await getCityAdCounts(); }
 `;
 writeFile("lib/actions.ts", actionsContent);
 
+// =============================================================================
+// 5. COMPONENTS/ADMIN/MODERATIONQUEUE.TSX (ADMIN PANELİ İÇİN)
+// =============================================================================
+// Admin panelinde moderasyona takılan riskli ilanları gösterecek bir bileşen (Fikir olarak eklendi, opsiyonel)
+const moderationQueueContent = `
+import React from 'react';
+import { AlertTriangle, Check, X } from 'lucide-react';
+
+export default function ModerationQueue({ ads }: { ads: any[] }) {
+  // Bu bileşen, Admin > İlanlar sayfasında "Moderasyon Bekleyenler" sekmesinde kullanılabilir.
+  return (
+    <div className="space-y-4">
+       {ads.map(ad => (
+           <div key={ad.id} className="border border-red-200 bg-red-50 p-4 rounded-md">
+               <div className="flex justify-between items-start">
+                   <div>
+                       <h4 className="font-bold text-red-900">{ad.title}</h4>
+                       <p className="text-xs text-red-700 mt-1">
+                           <span className="font-bold">Risk Skoru:</span> {ad.moderation_score} / 100
+                       </p>
+                       <div className="flex gap-2 mt-2">
+                           {ad.moderation_tags?.map((tag: string) => (
+                               <span key={tag} className="text-[10px] bg-red-200 text-red-800 px-2 py-0.5 rounded-full font-bold">{tag}</span>
+                           ))}
+                       </div>
+                   </div>
+                   <div className="flex gap-2">
+                       <button className="bg-white border border-gray-300 p-1.5 rounded hover:bg-gray-100"><X size={16}/></button>
+                       <button className="bg-green-600 text-white p-1.5 rounded hover:bg-green-700"><Check size={16}/></button>
+                   </div>
+               </div>
+           </div>
+       ))}
+    </div>
+  );
+}
+`;
+writeFile("components/admin/ModerationQueue.tsx", moderationQueueContent);
+
 console.log(
   colors.green +
-    "\\n✅ SENIOR UPGRADE V5 TAMAMLANDI! (Lifecycle & Notification)" +
-    "\\n⚠️ GÖREVLER:" +
-    "\\n1. 'supabase/lifecycle.sql' dosyasını SQL Editor'de çalıştırarak yeni sütunları ekleyin." +
-    "\\n2. 'lib/mail.ts' içindeki 'sendEmail' fonksiyonuna gerçek bir SMTP/Resend entegrasyonu yapabilirsiniz." +
-    "\\n3. 'app/api/cron/route.ts' yoluna dışarıdan (örn: Vercel Cron) istek atarak otomatik temizliği başlatabilirsiniz." +
+    "\\n✅ SENIOR UPGRADE V7 TAMAMLANDI! (Automated Moderation)" +
+    "\\n⚠️ GÖREV: 'supabase/moderation.sql' dosyasını Supabase'de çalıştırarak yeni sütunları ekleyin." +
+    "\\nBu sistem artık ilanları içeriklerine göre otomatik olarak puanlayacak ve riskli olanları işaretleyecek." +
     colors.reset,
 );

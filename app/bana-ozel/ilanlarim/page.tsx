@@ -1,14 +1,13 @@
 "use client";
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Eye, Edit, Trash2, Loader2 } from 'lucide-react';
+import { Edit, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
-import { getUserAdsClient, updateAdStatusClient } from '@/lib/services';
-import { useToast } from '@/context/ToastContext';
+import { getUserAdsClient } from '@/lib/services';
+import DeleteAdButton from '@/components/DeleteAdButton'; // Yeni Bileşen
 
 export default function MyAdsPage() {
   const { user } = useAuth();
-  const { addToast } = useToast();
   const [ads, setAds] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -21,11 +20,6 @@ export default function MyAdsPage() {
   };
 
   useEffect(() => { fetchMyAds(); }, [user]);
-
-  const handleStatusChange = async (id: number, newStatus: string) => {
-    const { error } = await updateAdStatusClient(id, newStatus);
-    if (!error) { addToast('İlan durumu güncellendi.', 'success'); fetchMyAds(); }
-  };
 
   if (!user) return <div className="p-6">Giriş yapmalısınız.</div>;
 
@@ -56,9 +50,8 @@ export default function MyAdsPage() {
                       <Link href={`/ilan-duzenle/${ad.id}`} className="p-1.5 border border-gray-300 rounded hover:bg-blue-50 text-blue-600" title="Düzenle">
                         <Edit size={14} />
                       </Link>
-                      <button onClick={() => { if(confirm('Silmek istiyor musunuz?')) handleStatusChange(ad.id, 'pasif'); }} className="p-1.5 border border-gray-300 rounded hover:bg-red-50 text-red-600" title="Kaldır">
-                        <Trash2 size={14} />
-                      </button>
+                      {/* GÜVENLİ VE MİMARİYE UYGUN BUTON */}
+                      <DeleteAdButton adId={ad.id} />
                     </div>
                   </td>
                 </tr>

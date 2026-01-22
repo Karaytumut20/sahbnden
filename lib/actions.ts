@@ -4,7 +4,8 @@ import { revalidatePath, unstable_cache } from 'next/cache'
 import { adSchema } from '@/lib/schemas'
 import { logActivity } from '@/lib/logger'
 import { AdFormData } from '@/types'
-import { sendEmail, EMAIL_TEMPLATES } from '@/lib/mail' // Mail Servisi
+import { sendEmail, EMAIL_TEMPLATES } from '@/lib/mail'
+import { analyzeAdContent } from '@/lib/moderation/engine' // YENİ MOTOR
 
 // --- YARDIMCI FONKSİYONLAR ---
 async function checkRateLimit(userId: string, actionType: 'ad_creation' | 'review') {
@@ -19,6 +20,63 @@ async function checkRateLimit(userId: string, actionType: 'ad_creation' | 'revie
         if ((count || 0) >= 5) return false;
     }
     return true;
+}
+
+// --- CREATE AD (SENIOR UPGRADE: AUTO MODERATION) ---
+export async function createAdAction(formData: Partial<AdFormData>) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
+
+  const canCreate = await checkRateLimit(user.id, 'ad_creation');
+  if (!canCreate) {
+      await logActivity(user.id, 'SPAM_AD_CREATION', { reason: 'Rate limit exceeded' });
+      return { error: 'Günlük ilan verme limitine ulaştınız.' };
+  }
+
+  const validation = adSchema.safeParse(formData);
+  if (!validation.success) return { error: validation.error.issues[0].message };
+
+  // --- MODERASYON MOTORU ÇALIŞIYOR ---
+  const analysis = analyzeAdContent(validation.data.title, validation.data.description);
+
+  // Otomatik Ret Durumu
+  let initialStatus = 'onay_bekliyor';
+  if (analysis.autoReject) {
+      initialStatus = 'reddedildi';
+      // Kullanıcıya otomatik ret maili atılabilir (Mail servisi entegre ise)
+      // Ancak güvenlik gereği bazen sessizce reddetmek daha iyidir (Shadow ban)
+  }
+
+  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
+  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
+
+  const { data, error } = await supabase.from('ads').insert([{
+    ...validation.data,
+    user_id: user.id,
+    status: initialStatus,
+    is_vitrin: false,
+    is_urgent: false,
+    // Moderasyon Sonuçlarını Kaydet
+    moderation_score: analysis.score,
+    moderation_tags: analysis.flags,
+    admin_note: analysis.autoReject ? `OTOMATİK RET: ${analysis.rejectReason}` : null
+  }]).select('id').single()
+
+  if (error) return { error: 'Veritabanı hatası.' }
+
+  await logActivity(user.id, 'CREATE_AD', {
+      adId: data.id,
+      title: validation.data.title,
+      moderation: analysis // Loglara da moderasyon sonucunu ekle
+  });
+
+  if (analysis.autoReject) {
+      return { error: `İlanınız güvenlik kurallarına uymadığı için otomatik olarak reddedildi: ${analysis.rejectReason}` };
+  }
+
+  revalidatePath('/');
+  return { success: true, adId: data.id }
 }
 
 // --- MEVCUT SEARCH & GETTERS (KORUNDU) ---
@@ -66,125 +124,6 @@ export async function getAdsServer(searchParams: SearchParams) {
   return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
 }
 
-// --- CREATE AD ---
-export async function createAdAction(formData: Partial<AdFormData>) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
-
-  const canCreate = await checkRateLimit(user.id, 'ad_creation');
-  if (!canCreate) {
-      await logActivity(user.id, 'SPAM_AD_CREATION', { reason: 'Rate limit exceeded' });
-      return { error: 'Günlük ilan verme limitine ulaştınız.' };
-  }
-
-  const validation = adSchema.safeParse(formData);
-  if (!validation.success) return { error: validation.error.issues[0].message };
-
-  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
-  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
-
-  const { data, error } = await supabase.from('ads').insert([{
-    ...validation.data,
-    user_id: user.id,
-    status: 'onay_bekliyor',
-    is_vitrin: false,
-    is_urgent: false
-  }]).select('id').single()
-
-  if (error) return { error: 'Veritabanı hatası.' }
-
-  await logActivity(user.id, 'CREATE_AD', { adId: data.id, title: validation.data.title });
-  revalidatePath('/');
-  return { success: true, adId: data.id }
-}
-
-// --- ADMIN ONAYI (SENIOR UPGRADE: EMAİL BİLDİRİMİ) ---
-export async function approveAdAction(adId: number) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    // İlan sahibini bul
-    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
-    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
-
-    const { error } = await supabase.from('ads').update({ status: 'yayinda', published_at: new Date().toISOString() }).eq('id', adId);
-    if(error) return { error: error.message };
-
-    if (user) await logActivity(user.id, 'ADMIN_APPROVE_AD', { adId });
-
-    // E-posta Gönder
-    if (adOwner?.email) {
-        const mailData = EMAIL_TEMPLATES.AD_APPROVED(adOwner.full_name || 'Kullanıcı', ad.title, adId);
-        await sendEmail(adOwner.email, mailData.subject, mailData.html);
-    }
-
-    revalidatePath('/admin/ilanlar');
-    return { success: true };
-}
-
-// --- ADMIN RED (SENIOR UPGRADE: EMAİL BİLDİRİMİ) ---
-export async function rejectAdAction(adId: number, reason: string) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
-    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
-
-    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
-    if(error) return { error: error.message };
-
-    if (user) await logActivity(user.id, 'ADMIN_REJECT_AD', { adId, reason });
-
-    if (adOwner?.email) {
-        const mailData = EMAIL_TEMPLATES.AD_REJECTED(adOwner.full_name || 'Kullanıcı', ad.title, reason);
-        await sendEmail(adOwner.email, mailData.subject, mailData.html);
-    }
-
-    revalidatePath('/admin/ilanlar');
-    return { success: true };
-}
-
-// --- DOPING AKTİVASYONU (SENIOR UPGRADE: SÜRELİ TANIMLAMA) ---
-export async function activateDopingAction(adId: number, dopingTypes: string[]) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const now = new Date();
-
-  const updates: any = {};
-
-  if (dopingTypes.includes('1')) { // Vitrin (14 Gün)
-      updates.is_vitrin = true;
-      const vitrinExpiry = new Date();
-      vitrinExpiry.setDate(now.getDate() + 14);
-      updates.vitrin_expires_at = vitrinExpiry.toISOString();
-  }
-
-  if (dopingTypes.includes('2')) { // Acil (7 Gün)
-      updates.is_urgent = true;
-      const urgentExpiry = new Date();
-      urgentExpiry.setDate(now.getDate() + 7);
-      updates.urgent_expires_at = urgentExpiry.toISOString();
-  }
-
-  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
-  if (error) return { error: error.message };
-
-  if (user) {
-      await logActivity(user.id, 'ACTIVATE_DOPING', { adId, types: dopingTypes });
-      // Burada kullanıcıya ödeme faturası da mail atılabilir
-      const { data: profile } = await supabase.from('profiles').select('email, full_name').eq('id', user.id).single();
-      if(profile?.email) {
-          const mailData = EMAIL_TEMPLATES.DOPING_ACTIVE(profile.full_name || 'Kullanıcı', 'Vitrin/Acil Paket');
-          await sendEmail(profile.email, mailData.subject, mailData.html);
-      }
-  }
-
-  revalidatePath('/');
-  return { success: true };
-}
-
-// --- DİĞER FONKSİYONLAR (KORUNDU) ---
 export const getCategoryTreeServer = unstable_cache(
   async () => {
     const supabase = createStaticClient();
@@ -213,11 +152,47 @@ export async function updateAdAction(id: number, formData: any) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return { error: 'Giriş yapmalısınız' }
-    const { error } = await supabase.from('ads').update({ ...formData, status: 'onay_bekliyor' }).eq('id', id).eq('user_id', user.id)
+
+    // Update işleminde de moderasyon yapılmalı
+    const analysis = analyzeAdContent(formData.title, formData.description);
+
+    // Eğer update sırasında illegal içerik girdiyse direkt reddet veya pasife çek
+    const status = analysis.autoReject ? 'reddedildi' : 'onay_bekliyor';
+    const adminNote = analysis.autoReject ? `OTOMATİK RET (Update): ${analysis.rejectReason}` : null;
+
+    const { error } = await supabase.from('ads').update({
+        ...formData,
+        status,
+        moderation_score: analysis.score,
+        moderation_tags: analysis.flags,
+        admin_note: adminNote
+    }).eq('id', id).eq('user_id', user.id)
+
     if (error) return { error: error.message }
-    await logActivity(user.id, 'UPDATE_AD', { adId: id });
+    await logActivity(user.id, 'UPDATE_AD', { adId: id, moderation: analysis });
+
+    if (analysis.autoReject) {
+        return { error: 'Düzenleme güvenlik politikalarına takıldı ve ilan reddedildi.' };
+    }
+
     revalidatePath('/bana-ozel/ilanlarim')
     return { success: true }
+}
+
+export async function activateDopingAction(adId: number, dopingTypes: string[]) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  const updates: any = {};
+  if (dopingTypes.includes('1')) updates.is_vitrin = true;
+  if (dopingTypes.includes('2')) updates.is_urgent = true;
+
+  const { error } = await supabase.from('ads').update(updates).eq('id', adId);
+  if (error) return { error: error.message };
+
+  if (user) await logActivity(user.id, 'ACTIVATE_DOPING', { adId, types: dopingTypes });
+
+  revalidatePath('/');
+  return { success: true };
 }
 
 export async function createReportAction(adId: number, reason: string, description: string) {
@@ -320,6 +295,49 @@ export async function getAdminAdsClient() {
   return data || [];
 }
 
+export async function approveAdAction(adId: number) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    // İlan sahibini bul
+    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
+    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
+
+    const { error } = await supabase.from('ads').update({ status: 'yayinda', published_at: new Date().toISOString() }).eq('id', adId);
+    if(error) return { error: error.message };
+
+    if (user) await logActivity(user.id, 'ADMIN_APPROVE_AD', { adId });
+
+    if (adOwner?.email) {
+        const mailData = EMAIL_TEMPLATES.AD_APPROVED(adOwner.full_name || 'Kullanıcı', ad.title, adId);
+        await sendEmail(adOwner.email, mailData.subject, mailData.html);
+    }
+
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
+export async function rejectAdAction(adId: number, reason: string) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+
+    const { data: ad } = await supabase.from('ads').select('user_id, title').eq('id', adId).single();
+    const { data: adOwner } = await supabase.from('profiles').select('email, full_name').eq('id', ad.user_id).single();
+
+    const { error } = await supabase.from('ads').update({ status: 'reddedildi' }).eq('id', adId);
+    if(error) return { error: error.message };
+
+    if (user) await logActivity(user.id, 'ADMIN_REJECT_AD', { adId, reason });
+
+    if (adOwner?.email) {
+        const mailData = EMAIL_TEMPLATES.AD_REJECTED(adOwner.full_name || 'Kullanıcı', ad.title, reason);
+        await sendEmail(adOwner.email, mailData.subject, mailData.html);
+    }
+
+    revalidatePath('/admin/ilanlar');
+    return { success: true };
+}
+
 export async function getAdFavoriteCount(adId: number) {
     const supabase = await createClient();
     const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('ad_id', adId);
@@ -394,7 +412,6 @@ export async function getUserDashboardStats() {
     return ads || [];
 }
 
-// LOCATION ACTIONS (V4'ten korundu)
 import { getProvinces, getDistrictsByProvince, getCityAdCounts } from '@/lib/services/locationService';
 export async function getLocationsServer() { return await getProvinces(); }
 export async function getDistrictsServer(cityName: string) { return await getDistrictsByProvince(cityName); }
