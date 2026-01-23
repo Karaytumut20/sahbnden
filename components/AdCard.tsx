@@ -15,21 +15,31 @@ type AdCardProps = {
 export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
   const { openModal } = useModal();
-  const liked = isFavorite(ad.id);
+
+  // ID'nin number olduğundan emin olalım
+  const adId = Number(ad.id);
+  const liked = isFavorite(adId);
 
   const priceDisplay = formatPrice(ad.price, ad.currency);
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const imageUrl = ad.image || 'https://via.placeholder.com/600x400?text=No+Image';
 
   const handleQuickView = (e: React.MouseEvent) => {
-    e.preventDefault(); e.stopPropagation();
+    e.preventDefault();
+    e.stopPropagation();
     openModal('QUICK_VIEW', { ad });
+  };
+
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation(); // Link'e gitmesini engelle
+    toggleFavorite(adId);
   };
 
   // LIST VIEW (Yatay)
   if (viewMode === 'list') {
     return (
-      <Link href={`/ilan/${ad.id}`} className="group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
+      <Link href={`/ilan/${adId}`} className="group block bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden">
         <div className="flex flex-col sm:flex-row gap-4 p-3">
           <div className="relative w-full sm:w-48 aspect-[4/3] rounded-lg overflow-hidden shrink-0">
             <Image src={imageUrl} alt={ad.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500" />
@@ -39,8 +49,11 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
             <div>
               <div className="flex justify-between items-start">
                 <h3 className="font-bold text-gray-800 group-hover:text-indigo-600 transition-colors line-clamp-1">{ad.title}</h3>
-                <button onClick={(e) => { e.preventDefault(); toggleFavorite(ad.id); }} className="text-gray-400 hover:text-red-500 transition-colors">
-                  <Heart size={18} className={liked ? "fill-red-500 text-red-500" : ""} />
+                <button
+                  onClick={handleFavoriteClick}
+                  className="p-1 rounded-full hover:bg-red-50 transition-colors group/heart"
+                >
+                  <Heart size={18} className={liked ? "fill-red-500 text-red-500" : "text-gray-400 group-hover/heart:text-red-500"} />
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {location}</p>
@@ -57,7 +70,7 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
 
   // GRID VIEW (Dikey - Premium)
   return (
-    <Link href={`/ilan/${ad.id}`} className="group block h-full">
+    <Link href={`/ilan/${adId}`} className="group block h-full">
       <div className="bg-white rounded-2xl border border-gray-100 shadow-card hover:shadow-xl hover:-translate-y-1 transition-all duration-300 h-full flex flex-col relative overflow-hidden">
 
         {/* Görsel Alanı */}
@@ -78,10 +91,18 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
 
           {/* Hover Actions Overlay */}
           <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3 backdrop-blur-[2px]">
-            <button onClick={handleQuickView} className="bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 hover:text-indigo-600 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 delay-75" title="Hızlı Bakış">
+            <button
+              onClick={handleQuickView}
+              className="bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 hover:text-indigo-600 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 delay-75"
+              title="Hızlı Bakış"
+            >
               <Eye size={18} />
             </button>
-            <button onClick={(e) => { e.preventDefault(); toggleFavorite(ad.id); }} className="bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 hover:text-red-500 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 delay-100" title="Favorile">
+            <button
+              onClick={handleFavoriteClick}
+              className="bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 hover:text-red-500 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 delay-100"
+              title={liked ? "Favorilerden Kaldır" : "Favoriye Ekle"}
+            >
               <Heart size={18} className={liked ? "fill-red-500 text-red-500" : ""} />
             </button>
           </div>
