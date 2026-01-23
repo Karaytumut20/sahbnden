@@ -1,45 +1,42 @@
 "use client";
 import React, { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Star, Zap, Layout, CheckCircle, ArrowRight } from 'lucide-react';
+import { Star, Zap, Layout, CheckCircle, ArrowRight, ShieldCheck } from 'lucide-react';
 
 const dopings = [
   {
     id: 1,
     title: 'Ana Sayfa Vitrini',
-    desc: 'İlanınız ana sayfada milyonlarca kişinin göreceği vitrin alanında yayınlansın.',
+    desc: 'Milyonlarca ziyaretçinin gördüğü ana sayfada ilanınız döner.',
     price: 350,
     icon: Star,
-    color: 'text-yellow-600',
-    bg: 'bg-yellow-50',
-    border: 'border-yellow-200'
+    color: 'text-yellow-500',
+    tag: 'Popüler'
   },
   {
     id: 2,
     title: 'Acil Acil',
-    desc: 'İlanınız "Acil Acil" kategorisinde listelensin ve kırmızı etiketle dikkat çeksin.',
+    desc: 'Acil satılık kategorisinde kırmızı etiketle listelenir.',
     price: 150,
     icon: Zap,
-    color: 'text-red-600',
-    bg: 'bg-red-50',
-    border: 'border-red-200'
+    color: 'text-red-500',
+    tag: 'Hızlı Satış'
   },
   {
     id: 3,
-    title: 'Kalın Yazı & Renkli Çerçeve',
-    desc: 'Arama sonuçlarında ilanınızın başlığı kalın yazılsın ve renkli çerçeve ile ayrılsın.',
+    title: 'Kalın Yazı & Çerçeve',
+    desc: 'Liste görünümünde diğer ilanlardan ayrışır ve dikkat çeker.',
     price: 90,
     icon: Layout,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50',
-    border: 'border-blue-200'
+    color: 'text-indigo-500',
+    tag: null
   },
 ];
 
 function DopingContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const adId = searchParams.get('adId'); // İlan oluşturma adımından gelen ID
+  const adId = searchParams.get('adId');
   const [selectedDopings, setSelectedDopings] = useState<number[]>([]);
 
   const toggleDoping = (id: number) => {
@@ -62,79 +59,102 @@ function DopingContent() {
   };
 
   return (
-    <div className="max-w-[900px] mx-auto py-8 px-4">
-      <h1 className="text-xl font-bold text-[#333] mb-6 border-b pb-2">Adım 3: İlanınızı Öne Çıkarın (Doping)</h1>
+    <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-      <div className="flex flex-col md:flex-row gap-6">
+      {/* SOL: SEÇENEKLER */}
+      <div className="flex-1 w-full">
+        <h1 className="text-xl font-bold text-slate-800 mb-2">İlanınızı Öne Çıkarın</h1>
+        <p className="text-sm text-slate-500 mb-6">Doping seçenekleri ile ilanınızın görüntülenme sayısını 10 kata kadar artırabilirsiniz.</p>
 
-        <div className="flex-1 space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {dopings.map((doping) => {
             const isSelected = selectedDopings.includes(doping.id);
             return (
               <div
                 key={doping.id}
                 onClick={() => toggleDoping(doping.id)}
-                className={`relative border rounded-md p-4 cursor-pointer transition-all flex items-start gap-4 ${isSelected ? `border-blue-500 ring-1 ring-blue-500 ${doping.bg}` : 'border-gray-200 hover:border-gray-300 bg-white'}`}
+                className={`
+                  relative cursor-pointer rounded-2xl border-2 p-6 transition-all duration-300 hover:shadow-lg
+                  flex flex-col justify-between h-[280px] group
+                  ${isSelected ? 'border-indigo-600 bg-indigo-50/50 shadow-md' : 'border-gray-200 bg-white hover:border-indigo-200'}
+                `}
               >
-                <div className={`p-3 rounded-full ${doping.bg} ${doping.color} border ${doping.border}`}>
-                  <doping.icon size={24} />
+                {/* Check Icon */}
+                <div className={`absolute top-4 right-4 w-6 h-6 rounded-full flex items-center justify-center transition-colors ${isSelected ? 'bg-indigo-600 text-white' : 'bg-gray-200 text-white group-hover:bg-gray-300'}`}>
+                  <CheckCircle size={14} fill="currentColor" className="text-white" strokeWidth={3} />
                 </div>
-                <div className="flex-1">
-                  <div className="flex justify-between items-center mb-1">
-                    <h3 className="font-bold text-[#333]">{doping.title}</h3>
-                    <span className="font-bold text-[#333]">{doping.price} TL</span>
-                  </div>
-                  <p className="text-sm text-gray-600">{doping.desc}</p>
-                </div>
-                {isSelected && (
-                  <div className="absolute top-4 right-4 text-blue-600">
-                    <CheckCircle size={20} fill="currentColor" className="text-white" />
-                  </div>
+
+                {/* Tag */}
+                {doping.tag && (
+                  <span className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-orange-500 to-pink-500 text-white text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">
+                    {doping.tag}
+                  </span>
                 )}
+
+                <div className="text-center pt-6">
+                  <doping.icon size={48} className={`mx-auto mb-4 ${doping.color} drop-shadow-sm`} />
+                  <h3 className="font-bold text-slate-900 mb-2">{doping.title}</h3>
+                  <p className="text-xs text-slate-500 leading-relaxed px-2">{doping.desc}</p>
+                </div>
+
+                <div className="text-center pt-4 border-t border-gray-100/50 mt-4">
+                  <span className={`text-2xl font-bold ${isSelected ? 'text-indigo-700' : 'text-slate-800'}`}>
+                    {doping.price} <span className="text-sm font-normal text-slate-500">TL</span>
+                  </span>
+                </div>
               </div>
             );
           })}
         </div>
+      </div>
 
-        <div className="w-full md:w-[300px] shrink-0">
-          <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-4 sticky top-4">
-            <h3 className="font-bold text-[#333] border-b border-gray-100 pb-2 mb-3">Sipariş Özeti</h3>
+      {/* SAĞ: ÖZET */}
+      <div className="w-full lg:w-[320px] shrink-0 sticky top-28">
+        <div className="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
+          <div className="p-5 border-b border-gray-100 bg-gray-50/50">
+            <h3 className="font-bold text-slate-800 text-sm">Sipariş Özeti</h3>
+          </div>
 
-            <div className="space-y-2 mb-4">
-              <div className="flex justify-between text-sm text-gray-600">
-                <span>İlan Ücreti</span>
-                <span>Ücretsiz</span>
-              </div>
-              {selectedDopings.map(id => {
-                const d = dopings.find(x => x.id === id);
-                return (
-                  <div key={id} className="flex justify-between text-sm text-[#333]">
-                    <span className="truncate pr-2">{d?.title}</span>
-                    <span className="font-bold">{d?.price} TL</span>
-                  </div>
-                );
-              })}
+          <div className="p-5 space-y-3">
+            <div className="flex justify-between text-sm text-slate-600">
+              <span>Standart İlan</span>
+              <span className="text-green-600 font-bold">Ücretsiz</span>
             </div>
 
-            <div className="border-t border-gray-200 pt-3 flex justify-between items-center mb-4">
-              <span className="font-bold text-[#333]">Toplam Tutar</span>
-              <span className="text-xl font-bold text-blue-900">{totalPrice} TL</span>
-            </div>
+            {selectedDopings.map(id => {
+              const d = dopings.find(x => x.id === id);
+              return (
+                <div key={id} className="flex justify-between text-sm text-slate-800 animate-in fade-in slide-in-from-left-2">
+                  <span>{d?.title}</span>
+                  <span className="font-bold">{d?.price} TL</span>
+                </div>
+              );
+            })}
 
+            <div className="border-t border-gray-100 pt-4 mt-2 flex justify-between items-center">
+              <span className="font-bold text-slate-900 text-lg">Toplam</span>
+              <span className="font-extrabold text-2xl text-indigo-700">{totalPrice} TL</span>
+            </div>
+          </div>
+
+          <div className="p-5 pt-0 bg-white">
             <button
               onClick={handleContinue}
-              className="w-full bg-[#ffe800] text-black font-bold py-3 rounded-sm hover:bg-yellow-400 transition-colors flex items-center justify-center gap-2 text-sm shadow-sm"
+              className="w-full bg-indigo-600 text-white font-bold py-4 rounded-xl hover:bg-indigo-700 transition-all shadow-lg hover:shadow-indigo-200 flex items-center justify-center gap-2 group"
             >
-              Devam Et <ArrowRight size={16} />
+              Ödemeye Geç <ArrowRight size={18} className="group-hover:translate-x-1 transition-transform"/>
             </button>
+            <p className="text-[10px] text-gray-400 text-center mt-3 flex items-center justify-center gap-1">
+              <ShieldCheck size={12}/> Güvenli Ödeme Altyapısı
+            </p>
           </div>
         </div>
-
       </div>
+
     </div>
   );
 }
 
 export default function DopingPage() {
-    return <Suspense fallback={<div>Yükleniyor...</div>}><DopingContent /></Suspense>
+    return <Suspense fallback={<div className="p-10 text-center"><div className="animate-spin w-8 h-8 border-4 border-indigo-600 border-t-transparent rounded-full mx-auto"></div></div>}><DopingContent /></Suspense>
 }

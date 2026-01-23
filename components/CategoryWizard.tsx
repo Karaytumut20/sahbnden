@@ -1,80 +1,107 @@
 "use client";
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, ArrowLeft, Home, Car, ShoppingCart, CheckCircle } from 'lucide-react';
+import { ChevronRight, ArrowLeft, Home, Car, ShoppingCart, Smartphone, Monitor, Camera, Briefcase, CheckCircle2 } from 'lucide-react';
 import { categories } from '@/lib/data';
 
-const iconMap: any = { Home: <Home size={20} />, Car: <Car size={20} />, ShoppingCart: <ShoppingCart size={20} /> };
+// İkon Haritası (Genişletilebilir)
+const iconMap: any = {
+  Home: <Home size={28} />,
+  Car: <Car size={28} />,
+  ShoppingCart: <ShoppingCart size={28} />,
+  Smartphone: <Smartphone size={28} />,
+  Monitor: <Monitor size={28} />,
+  Camera: <Camera size={28} />,
+  Briefcase: <Briefcase size={28} />
+};
 
 export default function CategoryWizard() {
   const router = useRouter();
-
-  const [step, setStep] = useState(0);
   const [history, setHistory] = useState<any[]>([]);
   const [currentList, setCurrentList] = useState<any[]>(categories);
   const [selectedPath, setSelectedPath] = useState<string[]>([]);
 
   const handleSelect = (item: any) => {
     const newPath = [...selectedPath, item.title];
-    setSelectedPath(newPath);
 
     if (item.subs && item.subs.length > 0) {
+      // Alt kategoriye in
       setHistory([...history, currentList]);
       setCurrentList(item.subs);
-      setStep(step + 1);
+      setSelectedPath(newPath);
     } else {
+      // Son kategori, yönlendir
       const categorySlug = item.slug;
       router.push(`/ilan-ver/detay?cat=${categorySlug}&path=${newPath.join(' > ')}`);
     }
   };
 
   const handleBack = () => {
-    if (step === 0) return;
+    if (history.length === 0) return;
     const prevList = history[history.length - 1];
-    const newHistory = history.slice(0, -1);
-    const newPath = selectedPath.slice(0, -1);
-
+    setHistory(history.slice(0, -1));
     setCurrentList(prevList);
-    setHistory(newHistory);
-    setSelectedPath(newPath);
-    setStep(step - 1);
+    setSelectedPath(selectedPath.slice(0, -1));
   };
 
   return (
-    <div className="bg-white border border-gray-200 shadow-sm rounded-sm overflow-hidden min-h-[400px] flex flex-col">
-      <div className="bg-gray-50 border-b border-gray-200 p-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-            {step > 0 && (
-                <button onClick={handleBack} className="p-1 hover:bg-gray-200 rounded-full transition-colors mr-2">
-                    <ArrowLeft size={18} className="text-gray-600"/>
-                </button>
-            )}
-            <div>
-                <h2 className="font-bold text-[#333] text-sm">
-                    {step === 0 ? 'Kategori Seçimi' : selectedPath[selectedPath.length - 1]}
-                </h2>
-                <p className="text-[11px] text-gray-500">
-                    {selectedPath.length > 0 ? selectedPath.join(' > ') : 'Lütfen ilan vereceğiniz kategoriyi seçin.'}
-                </p>
-            </div>
+    <div className="w-full">
+      {/* Başlık ve Geri Butonu */}
+      <div className="flex items-center gap-4 mb-6">
+        {history.length > 0 && (
+          <button
+            onClick={handleBack}
+            className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
+          >
+            <ArrowLeft size={20} />
+          </button>
+        )}
+        <div>
+          <h2 className="text-xl font-bold text-slate-900">
+            {history.length === 0 ? 'İlan Kategorisini Seçin' : selectedPath[selectedPath.length - 1]}
+          </h2>
+          <p className="text-sm text-slate-500">
+            {history.length === 0 ? 'İlanınız için en uygun ana kategoriyi belirleyin.' : selectedPath.join(' > ')}
+          </p>
         </div>
-        <div className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full">Adım {step + 1}</div>
       </div>
 
-      <div className="flex-1 overflow-y-auto">
-        <ul className="divide-y divide-gray-100">
-            {currentList.map((item) => (
-                <li key={item.id}>
-                    <button onClick={() => handleSelect(item)} className="w-full text-left px-6 py-4 hover:bg-blue-50 transition-colors flex items-center justify-between group">
-                        <div className="flex items-center gap-3">
-                            {step === 0 && <span className="text-gray-400 group-hover:text-blue-600">{iconMap[item.icon] || <CheckCircle size={20}/>}</span>}
-                            <span className={`text-sm ${step === 0 ? 'font-bold' : 'font-medium'} text-gray-700 group-hover:text-blue-700`}>{item.title}</span>
-                        </div>
-                        {item.subs && item.subs.length > 0 ? <ChevronRight size={18} className="text-gray-300 group-hover:text-blue-500" /> : <span className="text-[10px] font-bold bg-blue-600 text-white px-3 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity">Seç</span>}
-                    </button>
-                </li>
-            ))}
-        </ul>
+      {/* Grid List */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {currentList.map((item) => {
+          const Icon = iconMap[item.icon] || <div className="w-2 h-2 bg-indigo-600 rounded-full" />;
+          const isLeaf = !item.subs || item.subs.length === 0;
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => handleSelect(item)}
+              className="group relative flex items-center p-5 bg-white border border-gray-200 rounded-xl hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all duration-200 text-left"
+            >
+              {/* İkon Kutusu */}
+              <div className={`
+                w-14 h-14 rounded-lg flex items-center justify-center mr-4 transition-colors
+                ${history.length === 0 ? 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-indigo-100 group-hover:text-indigo-700'}
+              `}>
+                {history.length === 0 ? Icon : <ChevronRight size={24} className={isLeaf ? "text-green-500" : ""} />}
+              </div>
+
+              <div className="flex-1">
+                <span className="block font-bold text-slate-700 group-hover:text-indigo-900 text-base mb-0.5">
+                  {item.title}
+                </span>
+                <span className="text-xs text-slate-400 group-hover:text-indigo-500 font-medium">
+                  {isLeaf ? 'Seç ve Devam Et' : 'Alt Kategorileri Gör'}
+                </span>
+              </div>
+
+              {/* Sağ Ok veya Check */}
+              <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1">
+                {isLeaf ? <CheckCircle2 size={20} className="text-green-500" /> : <ChevronRight size={20} className="text-indigo-400" />}
+              </div>
+            </button>
+          );
+        })}
       </div>
     </div>
   );

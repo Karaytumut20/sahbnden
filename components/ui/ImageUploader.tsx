@@ -4,38 +4,6 @@ import { Upload, X, Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { uploadImageClient } from '@/lib/services';
 import { useToast } from '@/context/ToastContext';
 
-// Basit Canvas Tabanlı Resim Sıkıştırma
-const compressImage = async (file: File): Promise<File> => {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.src = URL.createObjectURL(file);
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      const maxWidth = 1200; // Maksimum genişlik
-      const scaleSize = maxWidth / img.width;
-
-      canvas.width = maxWidth;
-      canvas.height = img.height * scaleSize;
-
-      ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
-
-      canvas.toBlob((blob) => {
-        if (blob) {
-          const compressedFile = new File([blob], file.name, {
-            type: 'image/jpeg',
-            lastModified: Date.now(),
-          });
-          resolve(compressedFile);
-        } else {
-          reject(new Error('Compression failed'));
-        }
-      }, 'image/jpeg', 0.7); // %70 kalite
-    };
-    img.onerror = (err) => reject(err);
-  });
-};
-
 type ImageUploaderProps = {
   onImagesChange: (urls: string[]) => void;
   initialImages?: string[];
@@ -69,8 +37,19 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
 
     const files = Array.from(e.target.files);
 
+    // Maksimum dosya boyutu kontrolü (5MB)
+    const validFiles = files.filter(file => {
+        if (file.size > 5 * 1024 * 1024) {
+            addToast(`${file.name} çok büyük (Max 5MB).`, 'error');
+            return false;
+        }
+        return true;
+    });
+
+    if (validFiles.length === 0) return;
+
     // Önizleme Ekle
-    const newItems: UploadItem[] = files.map(file => ({
+    const newItems: UploadItem[] = validFiles.map(file => ({
       id: Math.random().toString(36).substr(2, 9),
       url: URL.createObjectURL(file),
       file: file,
@@ -80,26 +59,34 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
     setItems(prev => [...prev, ...newItems]);
     setIsGlobalUploading(true);
 
-    // Yükleme İşlemi (Sıkıştırmalı)
+    // Yükleme İşlemi (Sırayla)
+    const updatedItems = [...items, ...newItems]; // Mevcut + Yeniler referansı
+
     for (const item of newItems) {
       if (!item.file) continue;
 
       try {
-        // Sıkıştır
-        const compressedFile = await compressImage(item.file);
+        // Sıkıştırma adımını kaldırdık (Hata kaynağı olabiliyor)
+        // Doğrudan yükleme yapıyoruz.
 
-        // Yükle
-        const publicUrl = await uploadImageClient(compressedFile);
+        console.log("Yükleme başlıyor:", item.file.name);
+        const publicUrl = await uploadImageClient(item.file);
+        console.log("Yükleme başarılı:", publicUrl);
 
-        setItems(prev => prev.map(i =>
+        // State'i güncelle (Başarılı)
+        setItems(current => current.map(i =>
           i.id === item.id ? { ...i, status: 'success', remoteUrl: publicUrl } : i
         ));
-      } catch (error) {
+
+      } catch (error: any) {
         console.error("Yükleme hatası:", error);
-        setItems(prev => prev.map(i =>
+
+        // State'i güncelle (Hatalı)
+        setItems(current => current.map(i =>
           i.id === item.id ? { ...i, status: 'error' } : i
         ));
-        addToast(`${item.file.name} yüklenemedi.`, 'error');
+
+        addToast(`${item.file?.name} yüklenemedi: ${error.message || 'Hata'}`, 'error');
       }
     }
 
@@ -107,6 +94,7 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // URL listesini üst bileşene bildir
   React.useEffect(() => {
     const successUrls = items
       .filter(i => i.status === 'success' && i.remoteUrl)
@@ -121,12 +109,16 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-4">
+        {/* Yükleme Butonu */}
         <div
           onClick={() => !isGlobalUploading && fileInputRef.current?.click()}
           className={`w-28 h-28 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer transition-colors hover:bg-blue-50 hover:border-blue-400 ${isGlobalUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
           {isGlobalUploading ? (
-            <Loader2 size={24} className="animate-spin text-blue-600" />
+            <div className="text-center">
+                <Loader2 size={24} className="animate-spin text-blue-600 mx-auto mb-1" />
+                <span className="text-[10px] text-gray-500 font-bold">Yükleniyor...</span>
+            </div>
           ) : (
             <>
               <Upload size={24} className="text-gray-400 mb-2" />
@@ -139,24 +131,31 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
             onChange={handleFileChange}
             className="hidden"
             multiple
-            accept="image/*"
+            accept="image/png, image/jpeg, image/jpg, image/webp"
             disabled={isGlobalUploading}
           />
         </div>
 
+        {/* Resim Listesi */}
         {items.map((item, idx) => (
           <div key={item.id} className="relative w-28 h-28 bg-gray-100 rounded-md border border-gray-200 overflow-hidden group">
-            <img src={item.url} alt="preview" className="w-full h-full object-cover" />
+            <img src={item.url} alt="preview" className={`w-full h-full object-cover transition-opacity ${item.status === 'error' ? 'opacity-50 grayscale' : ''}`} />
+
+            {/* Durum İkonları */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               {item.status === 'uploading' && <div className="bg-white/80 p-2 rounded-full shadow"><Loader2 size={20} className="animate-spin text-blue-600" /></div>}
               {item.status === 'error' && <div className="bg-red-100 p-2 rounded-full shadow text-red-600"><AlertCircle size={20} /></div>}
             </div>
+
+            {/* Vitrin Etiketi (İlk Resim) */}
             {idx === 0 && item.status === 'success' && (
-              <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10">VİTRİN</div>
+              <div className="absolute top-0 left-0 bg-green-500 text-white text-[9px] font-bold px-2 py-0.5 rounded-br-sm z-10 shadow-sm">VİTRİN</div>
             )}
+
+            {/* Silme Butonu */}
             <button
               onClick={() => removeImage(item.id)}
-              className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-20 cursor-pointer"
+              className="absolute top-1 right-1 bg-red-600 text-white p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-700 z-20 cursor-pointer shadow-md"
               title="Kaldır"
             >
               <X size={12} />
@@ -165,9 +164,10 @@ export default function ImageUploader({ onImagesChange, initialImages = [] }: Im
         ))}
       </div>
 
-      {items.length === 0 && (
-        <p className="text-xs text-gray-400">Vitrin görseli için en az 1 adet fotoğraf yüklemeniz önerilir. (Otomatik sıkıştırılır)</p>
-      )}
+      <div className="flex items-start gap-2 text-xs text-gray-500 bg-gray-50 p-3 rounded border border-gray-100">
+        <AlertCircle size={16} className="text-blue-500 shrink-0 mt-0.5"/>
+        <p>İlanınızın daha hızlı satılması için en az 3 fotoğraf yüklemenizi öneririz. Vitrin fotoğrafı olarak ilk yüklediğiniz görsel kullanılacaktır.</p>
+      </div>
     </div>
   );
 }
