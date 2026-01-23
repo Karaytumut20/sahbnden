@@ -1,42 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-
-const colors = {
-  reset: "\x1b[0m",
-  green: "\x1b[32m",
-  blue: "\x1b[34m",
-  yellow: "\x1b[33m",
-  bold: "\x1b[1m",
-  red: "\x1b[31m",
-};
-
-console.log(
-  colors.blue +
-    colors.bold +
-    "\n💬 MESSAGING MODULE SETUP (FIXED)\n" +
-    colors.reset,
-);
-
-function writeFile(filePath, content) {
-  try {
-    const absolutePath = path.join(process.cwd(), filePath);
-    const dir = path.dirname(absolutePath);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(absolutePath, content.trim());
-    console.log(
-      `${colors.green}✔ [DOSYA OLUŞTURULDU]${colors.reset} ${filePath}`,
-    );
-  } catch (error) {
-    console.error(
-      `${colors.red}✘ [HATA]${colors.reset} ${filePath}: ${error.message}`,
-    );
-  }
-}
-
-// =============================================================================
-// MESSAGING SQL (Idempotent - Tekrar Çalıştırılabilir)
-// =============================================================================
-const messagingSqlContent = `
 -- BU KODU SUPABASE SQL EDITOR EKRANINDA ÇALIŞTIRIN --
 
 -- 1. Tabloları Oluştur (Eğer yoksa)
@@ -128,13 +89,3 @@ begin
   end if;
 end
 $$;
-`;
-
-writeFile("supabase/messaging.sql", messagingSqlContent);
-
-console.log(
-  colors.green +
-    "\n✅ MESSAGING SQL GÜNCELLENDİ: supabase/messaging.sql" +
-    colors.reset,
-);
-console.log("Lütfen Supabase SQL Editor'e gidip bu YENİ içeriği çalıştırın.");
