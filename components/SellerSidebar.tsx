@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Phone, ShieldCheck, User, MessageCircle, Star, Send } from 'lucide-react';
+import { Phone, ShieldCheck, User, MessageCircle, Star, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { startConversationClient } from '@/lib/services';
 import { useRouter } from 'next/navigation';
@@ -14,6 +14,7 @@ export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId 
   const { addToast } = useToast();
   const [showPhone, setShowPhone] = useState(false);
   const [ratingData, setRatingData] = useState({ avg: 0, count: 0 });
+  const [isMsgLoading, setIsMsgLoading] = useState(false);
 
   useEffect(() => {
     async function fetchReviews() {
@@ -27,14 +28,36 @@ export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId 
   }, [sellerId]);
 
   const handleSendMessage = async () => {
-    if (!user) { router.push('/login'); return; }
-    const { data, error } = await startConversationClient(adId, user.id, sellerId);
-    if(error) addToast('Hata oluştu', 'error');
-    else router.push(`/bana-ozel/mesajlarim?convId=${data.id}`);
+    if (!user) {
+        addToast('Mesaj göndermek için giriş yapmalısınız.', 'info');
+        router.push('/login');
+        return;
+    }
+
+    if (user.id === sellerId) {
+        addToast('Kendi ilanınıza mesaj gönderemezsiniz.', 'warning');
+        return;
+    }
+
+    setIsMsgLoading(true);
+    try {
+        // Gerçek API Çağrısı
+        const { data, error } = await startConversationClient(adId, user.id, sellerId);
+
+        if(error) {
+            console.error(error);
+            addToast('Sohbet başlatılamadı. Lütfen tekrar deneyin.', 'error');
+        } else if (data) {
+            router.push(`/bana-ozel/mesajlarim?convId=${data.id}`);
+        }
+    } catch (err) {
+        addToast('Beklenmedik bir hata oluştu.', 'error');
+    } finally {
+        setIsMsgLoading(false);
+    }
   };
 
   return (
-    /* STICKY KALDIRILDI: Artık sayfa ile birlikte kaybolacak */
     <div className="bg-white rounded-xl shadow-card border border-gray-100 p-6">
       {/* Profil Başlığı */}
       <div className="flex items-center gap-4 mb-6">
@@ -71,8 +94,13 @@ export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId 
             )}
         </div>
 
-        <button onClick={handleSendMessage} className="w-full bg-indigo-600 text-white hover:bg-indigo-700 py-3.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-100">
-            <MessageCircle size={18} /> Mesaj Gönder
+        <button
+            onClick={handleSendMessage}
+            disabled={isMsgLoading}
+            className="w-full bg-indigo-600 text-white hover:bg-indigo-700 py-3.5 rounded-lg font-bold flex items-center justify-center gap-2 transition-all shadow-md shadow-indigo-100 disabled:opacity-70"
+        >
+            {isMsgLoading ? <Loader2 size={18} className="animate-spin" /> : <MessageCircle size={18} />}
+            Mesaj Gönder
         </button>
       </div>
 
