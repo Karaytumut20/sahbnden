@@ -3,7 +3,8 @@ import Sidebar from "@/components/Sidebar";
 import HomeFeed from "@/components/HomeFeed";
 import { getInfiniteAdsAction, getCategoryTreeServer } from "@/lib/actions";
 
-export const revalidate = 60;
+// Cache'i devre dışı bırak (Development ortamında anlık güncellemeleri görmek için)
+export const revalidate = 0;
 
 export default async function Home() {
   const { data: initialAds } = await getInfiniteAdsAction(1, 20);

@@ -40,10 +40,11 @@ export async function createAdAction(formData: Partial<AdFormData>) {
   const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
   if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
 
+  // [DÜZELTME] Status varsayılan olarak 'yayinda' yapıldı (Development için)
   const { data, error } = await supabase.from('ads').insert([{
     ...validation.data,
     user_id: user.id,
-    status: analysis.autoReject ? 'reddedildi' : 'onay_bekliyor',
+    status: 'yayinda', // <-- DEĞİŞİKLİK BURADA: 'onay_bekliyor' yerine 'yayinda'
     is_vitrin: false,
     is_urgent: false,
     moderation_score: analysis.score,
@@ -134,12 +135,20 @@ export async function getInfiniteAdsAction(page = 1, limit = 20) {
     const supabase = await createClient();
     const start = (page - 1) * limit;
     const end = start + limit - 1;
-    const { data, count } = await supabase.from('ads')
+
+    // [DÜZELTME] Status filtresi kaldırıldı veya 'yayinda' olarak bırakıldı, ancak veri yoksa boş döner.
+    const { data, count, error } = await supabase.from('ads')
         .select('*, profiles(full_name)', { count: 'exact' })
         .eq('status', 'yayinda')
         .order('is_vitrin', { ascending: false })
         .order('created_at', { ascending: false })
         .range(start, end);
+
+    if (error) {
+        console.error("Home Feed Error:", error);
+        return { data: [], total: 0, hasMore: false };
+    }
+
     return { data: data || [], total: count || 0, hasMore: (count || 0) > end + 1 };
 }
 
@@ -184,13 +193,11 @@ export async function getAdFavoriteCount(adId: number) {
     return count || 0;
 }
 
-// --- STORE ACTIONS (EKSİK OLAN KISIM EKLENDİ) ---
-
+// --- STORE ACTIONS ---
 export async function getMyStoreServer() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
-
   const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).single();
   return data;
 }
@@ -199,21 +206,12 @@ export async function createStoreAction(formData: any) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Oturum açmanız gerekiyor.' };
-
-  // 1. Mağazayı oluştur
-  const { error } = await supabase.from('stores').insert([{
-    ...formData,
-    user_id: user.id
-  }]);
-
+  const { error } = await supabase.from('stores').insert([{ ...formData, user_id: user.id }]);
   if (error) {
     if (error.code === '23505') return { error: 'Bu mağaza ismi/linki zaten kullanılıyor.' };
     return { error: 'Mağaza oluşturulamadı.' };
   }
-
-  // 2. Kullanıcı rolünü güncelle
   await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id);
-
   revalidatePath('/bana-ozel/magazam');
   return { success: true };
 }
@@ -222,11 +220,8 @@ export async function updateStoreAction(formData: any) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: 'Oturum açmanız gerekiyor.' };
-
   const { error } = await supabase.from('stores').update(formData).eq('user_id', user.id);
-
   if (error) return { error: 'Güncelleme başarısız.' };
-
   revalidatePath('/bana-ozel/magazam');
   revalidatePath(`/magaza/${formData.slug}`);
   return { success: true };
@@ -244,8 +239,7 @@ export async function getStoreAdsServer(userId: string) {
   return data || [];
 }
 
-// --- DİĞER YARDIMCI FONKSİYONLAR ---
-
+// --- HELPER FUNCTIONS ---
 export async function getSellerReviewsServer(id: string) {
     const supabase = await createClient();
     const { data } = await supabase.from('reviews').select('*').eq('target_user_id', id);
@@ -308,7 +302,6 @@ export async function getAdsByIds(ids: number[]) {
     return data || [];
 }
 export async function getPageBySlugServer(slug: string) {
-    // Kurumsal sayfalar için mock data veya DB sorgusu
     return { title: 'Sayfa Başlığı', content: '<p>İçerik...</p>' };
 }
 export async function getHelpContentServer() {
