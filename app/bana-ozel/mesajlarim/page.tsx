@@ -2,367 +2,366 @@
 import React, { useState, useEffect, useRef, Suspense } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
-import {
-  getConversationsClient,
-  getMessagesClient,
-  sendMessageClient,
-  markMessagesAsReadClient,
-} from "@/lib/services";
-import {
-  Send,
-  ArrowLeft,
-  Loader2,
-  MessageSquareOff,
-  ExternalLink,
-  MapPin,
-} from "lucide-react";
+import { getConversationsClient, getMessagesClient, sendMessageClient, markMessagesAsReadClient } from "@/lib/services";
+import { Send, ArrowLeft, Loader2, MessageSquare, ExternalLink, MapPin, Search, MoreVertical, Check, CheckCheck, Image as ImageIcon } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useRealtimeSubscription } from "@/hooks/use-realtime";
 
+// Yardımcı: Tarih Formatlama
+function getRelativeDate(dateString: string) {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+  if (days === 0) return 'Bugün';
+  if (days === 1) return 'Dün';
+  if (days < 7) return date.toLocaleDateString('tr-TR', { weekday: 'long' });
+  return date.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+}
+
 function MessagesContent() {
-  const { user } = useAuth();
-  const supabase = createClient();
+  const { user, loading: authLoading } = useAuth();
   const [conversations, setConversations] = useState<any[]>([]);
+  const [filteredConversations, setFilteredConversations] = useState<any[]>([]);
   const [activeConvId, setActiveConvId] = useState<number | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [inputText, setInputText] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
 
-  // SCROLL REF: Sadece mesaj alanını kaydırmak için
   const messageContainerRef = useRef<HTMLDivElement>(null);
-
   const { addToast } = useToast();
-
   const searchParams = useSearchParams();
   const initialConvId = searchParams.get("convId");
 
-  // 1. Sohbet Listesini Getir ve URL'deki Sohbeti Seç
+  // 1. Sohbetleri Getir
   useEffect(() => {
+    if (authLoading) return;
     if (user) {
+      setLoading(true);
       getConversationsClient(user.id)
         .then((data) => {
-          if (Array.isArray(data)) {
-            setConversations(data);
-            if (initialConvId) {
-              const targetId = Number(initialConvId);
-              if (data.find((c) => c.id === targetId)) {
-                setActiveConvId(targetId);
-              }
-            }
-          } else {
-            setConversations([]);
+          const validData = data || [];
+          setConversations(validData);
+          setFilteredConversations(validData);
+
+          if (initialConvId) {
+             const tId = Number(initialConvId);
+             if(validData.find((c:any) => c.id === tId)) setActiveConvId(tId);
           }
         })
         .finally(() => setLoading(false));
+    } else {
+        setLoading(false);
     }
-  }, [user, initialConvId]);
+  }, [user, initialConvId, authLoading]);
 
-  // 2. Aktif Sohbetin Mesajlarını Getir
+  // 2. Arama Filtresi
+  useEffect(() => {
+    if (!searchTerm) {
+        setFilteredConversations(conversations);
+    } else {
+        const lowerTerm = searchTerm.toLowerCase();
+        setFilteredConversations(conversations.filter(c =>
+            c.profiles?.full_name?.toLowerCase().includes(lowerTerm) ||
+            c.seller?.full_name?.toLowerCase().includes(lowerTerm) ||
+            c.ads?.title?.toLowerCase().includes(lowerTerm)
+        ));
+    }
+  }, [searchTerm, conversations]);
+
+  // 3. Mesajları Getir
   useEffect(() => {
     if (!activeConvId || !user) return;
-
     getMessagesClient(activeConvId).then((data) => {
       setMessages(data || []);
       markMessagesAsReadClient(activeConvId, user.id);
-      scrollToBottom(false); // İlk yüklemede animasyonsuz git
+      setTimeout(() => scrollToBottom(false), 100);
     });
   }, [activeConvId, user]);
 
-  // 3. Anlık Mesajları Dinle (Realtime) - Gelişmiş Mantık
+  // 4. Realtime (DUPLICATE FIX)
   useRealtimeSubscription({
     table: "messages",
     filter: activeConvId ? `conversation_id=eq.${activeConvId}` : undefined,
     event: "INSERT",
     callback: (payload) => {
       setMessages((current) => {
-        // 1. Eğer mesaj zaten ID ile varsa ekleme
+        // A. Eğer bu ID zaten listede varsa ekleme
         if (current.some((m) => m.id === payload.new.id)) return current;
 
-        // 2. Eğer "pending" (gönderiliyor) olan mesajın aynısı geldiyse (kendi gönderdiğimiz), onu güncelle
+        // B. Bekleyen mesaj kontrolü (Deduplication)
         const pendingIndex = current.findIndex(
           (m) =>
             m.is_pending &&
             m.content === payload.new.content &&
-            m.sender_id === payload.new.sender_id,
+            m.sender_id === payload.new.sender_id
         );
 
         if (pendingIndex !== -1) {
           const updated = [...current];
-          updated[pendingIndex] = payload.new; // Geçiciyi gerçekle değiştir
+          updated[pendingIndex] = payload.new;
           return updated;
         }
 
-        // 3. Hiçbiri değilse yeni mesaj olarak ekle
+        // C. Yeni mesaj
         return [...current, payload.new];
       });
 
-      // Eğer mesaj karşıdan geldiyse okundu yap
-      if (user && payload.new.sender_id !== user.id && activeConvId) {
-        markMessagesAsReadClient(activeConvId, user.id);
+      if (user && payload.new.sender_id !== user.id) {
+          markMessagesAsReadClient(activeConvId!, user.id);
       }
-      scrollToBottom();
+      setTimeout(() => scrollToBottom(), 100);
     },
   });
 
-  const activeConv = Array.isArray(conversations)
-    ? conversations.find((c) => c.id === activeConvId)
-    : null;
-
-  // SCROLL FIX: Sayfayı değil, sadece kutuyu kaydır
   const scrollToBottom = (smooth = true) => {
     if (messageContainerRef.current) {
-      const { scrollHeight, clientHeight } = messageContainerRef.current;
-      const maxScrollTop = scrollHeight - clientHeight;
-
       messageContainerRef.current.scrollTo({
-        top: maxScrollTop > 0 ? maxScrollTop : 0,
+        top: messageContainerRef.current.scrollHeight,
         behavior: smooth ? "smooth" : "auto",
       });
     }
   };
 
   const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!inputText.trim() || !user || !activeConvId) return;
+      e.preventDefault();
+      if (!inputText.trim() || !user || !activeConvId) return;
 
-    const tempId = Date.now(); // Geçici ID
-    const tempMsg = {
-      id: tempId,
-      conversation_id: activeConvId,
-      sender_id: user.id,
-      content: inputText,
-      created_at: new Date().toISOString(),
-      is_pending: true, // Bu flag ile stil verebiliriz (soluk renk vb.)
-    };
+      const content = inputText;
+      setInputText("");
+      setSending(true);
 
-    // Optimistic Update: Hemen ekrana bas
-    setMessages((prev) => [...prev, tempMsg]);
-    setInputText("");
-    scrollToBottom();
+      // Optimistic UI
+      const tempId = Date.now();
+      const tempMsg = {
+          id: tempId,
+          conversation_id: activeConvId,
+          sender_id: user.id,
+          content,
+          created_at: new Date().toISOString(),
+          is_pending: true
+      };
 
-    // Sunucuya Gönder
-    const { data, error } = await sendMessageClient(
-      activeConvId,
-      user.id,
-      tempMsg.content,
-    );
+      setMessages(prev => [...prev, tempMsg]);
+      scrollToBottom();
 
-    if (error) {
-      addToast("Mesaj gönderilemedi", "error");
-      // Hata durumunda mesajı kaldır
-      setMessages((prev) => prev.filter((m) => m.id !== tempId));
-    } else if (data) {
-      // Başarılı olursa geçici mesajı sunucudan gelen gerçek veriyle değiştir
-      setMessages((prev) => prev.map((m) => (m.id === tempId ? data : m)));
-    }
+      const { data, error } = await sendMessageClient(activeConvId, user.id, content);
+
+      setSending(false);
+
+      if(error) {
+          addToast("Mesaj gönderilemedi", "error");
+          setMessages(prev => prev.filter(m => m.id !== tempId));
+      } else if (data) {
+          setMessages(prev => {
+              if (prev.some(m => m.id === data.id)) {
+                  return prev.filter(m => m.id !== tempId);
+              }
+              return prev.map(m => m.id === tempId ? data : m);
+          });
+      }
   };
 
-  if (!user)
-    return (
-      <div className="p-10 text-center text-gray-500">Giriş yapmalısınız.</div>
-    );
+  const activeConv = conversations.find((c) => c.id === activeConvId);
+
+  if (authLoading || (loading && user)) return <div className="flex justify-center items-center h-[calc(100vh-100px)]"><Loader2 className="animate-spin text-indigo-600" size={40}/></div>;
+  if (!user) return <div className="p-10 text-center">Giriş yapmalısınız.</div>;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm h-[calc(100vh-140px)] min-h-[600px] flex overflow-hidden dark:bg-[#1c1c1c] dark:border-gray-700">
-      {/* SOL: SOHBET LİSTESİ */}
-      <div
-        className={`w-full md:w-[320px] border-r border-gray-200 flex flex-col dark:border-gray-700 ${activeConvId ? "hidden md:flex" : "flex"}`}
-      >
-        <div className="p-4 border-b border-gray-100 bg-gray-50 dark:bg-[#151515] dark:border-gray-700">
-          <h2 className="font-bold text-[#333] dark:text-white">Mesajlarım</h2>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex justify-center p-4">
-              <Loader2 className="animate-spin" />
-            </div>
-          ) : conversations.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-full text-gray-400 text-sm p-4 text-center">
-              <MessageSquareOff size={32} className="mb-2" /> Henüz mesajınız
-              yok.
-            </div>
-          ) : (
-            conversations.map((conv) => {
-              const otherUser =
-                conv.buyer_id === user.id ? conv.seller : conv.profiles;
-              const displayName = otherUser?.full_name || "Kullanıcı";
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg h-[calc(100vh-140px)] min-h-[600px] flex overflow-hidden dark:bg-[#1c1c1c] dark:border-gray-700">
 
-              return (
-                <div
-                  key={conv.id}
-                  onClick={() => setActiveConvId(conv.id)}
-                  className={`p-4 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${activeConvId === conv.id ? "bg-blue-50 border-l-4 border-l-blue-600" : ""}`}
-                >
-                  <div className="flex justify-between items-start mb-1">
-                    <span className="font-bold text-[#333] text-sm truncate">
-                      {displayName}
-                    </span>
-                    <span className="text-[10px] text-gray-400">
-                      {new Date(conv.updated_at).toLocaleDateString()}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-200 rounded shrink-0 overflow-hidden">
-                      {conv.ads?.image && (
-                        <img
-                          src={conv.ads.image}
-                          className="w-full h-full object-cover"
-                        />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-bold text-gray-700 truncate">
-                        {conv.ads?.title || "Silinmiş İlan"}
-                      </p>
-                      <p className="text-[10px] text-gray-500 truncate">
-                        İlan No: {conv.ads?.id}
-                      </p>
-                    </div>
-                  </div>
+      {/* SOL: SOHBET LİSTESİ */}
+      <div className={`w-full md:w-[350px] border-r border-gray-200 flex flex-col bg-white dark:bg-[#151515] dark:border-gray-700 ${activeConvId ? "hidden md:flex" : "flex"}`}>
+
+        <div className="p-4 border-b border-gray-100 dark:border-gray-700">
+            <h2 className="font-bold text-xl text-gray-800 mb-4 px-1 dark:text-white">Mesajlar</h2>
+            <div className="relative">
+                <Search size={16} className="absolute left-3 top-3 text-gray-400" />
+                <input
+                    type="text"
+                    placeholder="Sohbet ara..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-gray-100 pl-10 pr-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:bg-gray-800 dark:text-white"
+                />
+            </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto custom-scrollbar">
+            {filteredConversations.length === 0 ? (
+                <div className="p-8 text-center text-gray-500 text-sm flex flex-col items-center">
+                    <MessageSquare size={32} className="mb-2 opacity-20"/>
+                    <p>Sohbet bulunamadı.</p>
                 </div>
-              );
-            })
-          )}
+            ) : (
+                filteredConversations.map(conv => {
+                    const otherUser = conv.buyer_id === user.id ? conv.seller : conv.profiles;
+                    const isActive = activeConvId === conv.id;
+                    return (
+                        <div
+                            key={conv.id}
+                            onClick={() => setActiveConvId(conv.id)}
+                            className={`p-4 border-b border-gray-50 cursor-pointer transition-all hover:bg-gray-50 group ${isActive ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent dark:hover:bg-gray-800'}`}
+                        >
+                            <div className="flex justify-between items-start mb-1">
+                                <div className="flex items-center gap-2">
+                                    <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-indigo-600' : 'bg-transparent'}`}></div>
+                                    <span className={`font-bold text-sm truncate max-w-[160px] ${isActive ? 'text-indigo-900' : 'text-gray-800 dark:text-gray-200'}`}>
+                                        {otherUser?.full_name || 'Kullanıcı'}
+                                    </span>
+                                </div>
+                                <span className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
+                                    {getRelativeDate(conv.updated_at)}
+                                </span>
+                            </div>
+
+                            <div className="flex items-center gap-3 pl-4">
+                                <div className="w-10 h-10 bg-gray-200 rounded-lg shrink-0 overflow-hidden border border-gray-200">
+                                    {conv.ads?.image ? (
+                                        <img src={conv.ads.image} className="w-full h-full object-cover" alt="İlan" />
+                                    ) : (
+                                        <div className="w-full h-full flex items-center justify-center text-gray-400"><ImageIcon size={16}/></div>
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-[11px] font-bold text-gray-600 truncate dark:text-gray-400">{conv.ads?.title || 'Silinmiş İlan'}</p>
+                                    <p className="text-xs text-gray-500 truncate mt-0.5 opacity-80">Mesajı görüntüle...</p>
+                                </div>
+                            </div>
+                        </div>
+                    );
+                })
+            )}
         </div>
       </div>
 
       {/* SAĞ: SOHBET PENCERESİ */}
-      <div
-        className={`flex-1 flex flex-col bg-[#e5ddd5] dark:bg-[#0b141a] ${!activeConvId ? "hidden md:flex" : "flex"}`}
-      >
+      <div className={`flex-1 flex flex-col bg-[#e5ddd5] dark:bg-[#0b141a] relative ${!activeConvId ? "hidden md:flex" : "flex"}`}>
+
+        <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')" }}></div>
+
         {activeConv ? (
-          <>
-            {/* Sohbet Başlığı */}
-            <div className="bg-white border-b border-gray-200 shadow-sm z-10 dark:bg-[#1c1c1c] dark:border-gray-700">
-              <div className="md:hidden p-2 border-b border-gray-100 flex items-center">
-                <button
-                  onClick={() => setActiveConvId(null)}
-                  className="flex items-center text-gray-600 font-bold text-sm"
-                >
-                  <ArrowLeft size={16} className="mr-1" /> Geri
-                </button>
-              </div>
-              {activeConv.ads && (
-                <div className="p-3 flex items-center gap-4">
-                  <div className="w-16 h-12 bg-gray-200 rounded border border-gray-200 overflow-hidden shrink-0">
-                    <img
-                      src={
-                        activeConv.ads.image ||
-                        "https://via.placeholder.com/100"
-                      }
-                      className="w-full h-full object-cover"
+            <>
+                <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm z-20 px-4 py-3 flex items-center justify-between dark:bg-[#1c1c1c] dark:border-gray-700">
+                    <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
+                        <button onClick={() => setActiveConvId(null)} className="md:hidden text-gray-600 p-1 hover:bg-gray-100 rounded-full"><ArrowLeft size={20}/></button>
+
+                        {activeConv.ads && (
+                            <Link href={`/ilan/${activeConv.ads.id}`} target="_blank" className="flex items-center gap-3 group min-w-0">
+                                <div className="w-12 h-12 bg-gray-100 rounded-md border border-gray-200 overflow-hidden shrink-0 relative group-hover:scale-105 transition-transform">
+                                    <img src={activeConv.ads.image || "https://via.placeholder.com/100"} className="w-full h-full object-cover"/>
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="font-bold text-gray-800 text-sm truncate group-hover:text-indigo-600 transition-colors dark:text-white">
+                                        {activeConv.ads.title}
+                                    </h3>
+                                    <div className="flex items-center gap-2 mt-0.5">
+                                        <span className="text-indigo-700 font-extrabold text-sm dark:text-indigo-400">
+                                            {activeConv.ads.price?.toLocaleString()} {activeConv.ads.currency}
+                                        </span>
+                                        <span className="hidden sm:flex text-[10px] text-gray-500 items-center gap-0.5 bg-gray-100 px-1.5 py-0.5 rounded">
+                                            <MapPin size={10} /> {activeConv.ads.city}
+                                        </span>
+                                    </div>
+                                </div>
+                            </Link>
+                        )}
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        {activeConv.ads && (
+                             <Link
+                                href={`/ilan/${activeConv.ads.id}`}
+                                className="hidden sm:flex items-center gap-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs font-bold px-3 py-2 rounded-lg transition-colors"
+                             >
+                                <ExternalLink size={14}/> İlana Git
+                             </Link>
+                        )}
+                        <button className="p-2 text-gray-500 hover:bg-gray-100 rounded-full"><MoreVertical size={18}/></button>
+                    </div>
+                </div>
+
+                <div ref={messageContainerRef} className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth z-10 custom-scrollbar">
+
+                    <div className="flex justify-center mb-4">
+                        <span className="bg-gray-200/80 text-gray-600 text-[10px] font-bold px-3 py-1 rounded-full shadow-sm">
+                            Sohbet Başlangıcı
+                        </span>
+                    </div>
+
+                    {messages.map((msg, index) => {
+                        const isMe = msg.sender_id === user.id;
+                        const isFirst = index === 0 || messages[index-1].sender_id !== msg.sender_id;
+
+                        return (
+                            <div key={msg.id} className={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
+                                <div
+                                    className={`
+                                        relative max-w-[85%] sm:max-w-[70%] px-3 py-2 rounded-2xl text-sm shadow-sm
+                                        ${isMe ? 'bg-[#dcf8c6] dark:bg-[#005c4b] text-slate-900 dark:text-white rounded-tr-none' : 'bg-white dark:bg-[#202c33] text-slate-800 dark:text-white rounded-tl-none'}
+                                        ${msg.is_pending ? 'opacity-70' : ''}
+                                    `}
+                                >
+                                    <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+                                    <div className="flex items-center justify-end gap-1 mt-1 select-none">
+                                        <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium">
+                                            {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                        {isMe && (
+                                            msg.is_pending ? <Loader2 size={10} className="animate-spin text-gray-500"/> :
+                                            msg.is_read ? <CheckCheck size={14} className="text-blue-500"/> : <Check size={14} className="text-gray-400"/>
+                                        )}
+                                    </div>
+
+                                    {isFirst && (
+                                        <div className={`absolute top-0 w-3 h-3 ${isMe ? '-right-1.5 bg-[#dcf8c6] dark:bg-[#005c4b]' : '-left-1.5 bg-white dark:bg-[#202c33]'} [clip-path:polygon(0_0,100%_0,100%_100%)] transform ${isMe ? '' : 'scale-x-[-1]'}`}></div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <form onSubmit={handleSend} className="bg-white p-3 border-t border-gray-200 z-20 flex items-center gap-2 dark:bg-[#1c1c1c] dark:border-gray-700">
+                    <button type="button" className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
+                        <MoreVertical size={20} className="rotate-90"/>
+                    </button>
+                    <input
+                        value={inputText}
+                        onChange={e => setInputText(e.target.value)}
+                        className="flex-1 bg-gray-100 border-none rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm dark:bg-gray-800 dark:text-white"
+                        placeholder="Bir mesaj yazın..."
                     />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-[#333] text-sm truncate dark:text-white">
-                      {activeConv.ads.title}
-                    </h3>
-                    <div className="flex items-center gap-3 mt-1">
-                      <span className="text-blue-900 font-bold text-sm dark:text-blue-400">
-                        {activeConv.ads.price?.toLocaleString()}{" "}
-                        {activeConv.ads.currency}
-                      </span>
-                      <span className="text-[10px] text-gray-500 flex items-center gap-0.5">
-                        <MapPin size={10} /> {activeConv.ads.city}/
-                        {activeConv.ads.district}
-                      </span>
-                    </div>
-                  </div>
-                  <Link
-                    href={`/ilan/${activeConv.ads.id}`}
-                    target="_blank"
-                    className="hidden sm:flex bg-[#ffe800] text-black text-xs font-bold px-4 py-2 rounded-sm hover:bg-yellow-400 items-center gap-1"
-                  >
-                    İlana Git <ExternalLink size={12} />
-                  </Link>
-                </div>
-              )}
-            </div>
-
-            {/* Mesaj Alanı (Scroll Buraya Eklendi) */}
-            <div
-              ref={messageContainerRef}
-              className="flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth"
-            >
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`flex ${msg.sender_id === user.id ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[80%] px-3 py-1.5 rounded-lg text-sm shadow-sm relative ${msg.sender_id === user.id ? "bg-[#dcf8c6] dark:bg-[#005c4b] text-black dark:text-white rounded-tr-none" : "bg-white dark:bg-[#202c33] text-black dark:text-white rounded-tl-none"} ${msg.is_pending ? "opacity-70" : ""}`}
-                  >
-                    <p className="break-words">{msg.content}</p>
-                    <div className="flex items-center justify-end gap-1 mt-1">
-                      {msg.is_pending && (
-                        <Loader2
-                          size={10}
-                          className="animate-spin text-gray-500"
-                        />
-                      )}
-                      <span className="text-[9px] text-gray-500 dark:text-gray-400">
-                        {new Date(msg.created_at).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* Mesaj Yazma Alanı */}
-            <form
-              onSubmit={handleSend}
-              className="p-3 bg-[#f0f2f5] dark:bg-[#202c33] flex gap-2 items-center"
-            >
-              <input
-                value={inputText}
-                onChange={(e) => setInputText(e.target.value)}
-                className="flex-1 border-none rounded-full px-4 py-2.5 outline-none text-sm dark:bg-[#2a3942] dark:text-white placeholder:text-gray-500 shadow-sm"
-                placeholder="Mesaj yazın..."
-                autoFocus
-              />
-              <button
-                type="submit"
-                disabled={!inputText.trim()}
-                className="bg-[#008a7c] text-white p-2.5 rounded-full hover:bg-[#006e63] transition-colors disabled:opacity-50 transform active:scale-95 shadow-md flex items-center justify-center"
-              >
-                <Send size={18} />
-              </button>
-            </form>
-          </>
+                    <button
+                        type="submit"
+                        disabled={!inputText.trim() || sending}
+                        className="bg-indigo-600 text-white p-3 rounded-full hover:bg-indigo-700 transition-transform active:scale-95 disabled:opacity-50 disabled:scale-100 shadow-md flex items-center justify-center"
+                    >
+                        {sending ? <Loader2 size={18} className="animate-spin"/> : <Send size={18} className="ml-0.5"/>}
+                    </button>
+                </form>
+            </>
         ) : (
-          <div className="flex-1 flex flex-col items-center justify-center text-gray-500 dark:text-gray-400 p-8 text-center bg-[#f0f2f5] dark:bg-[#111]">
-            <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center mb-4 dark:bg-gray-800 opacity-20">
-              <MessageSquareOff size={64} />
+            <div className="flex-1 flex flex-col items-center justify-center text-gray-400 p-8 text-center select-none">
+                <div className="w-32 h-32 bg-gray-200/50 rounded-full flex items-center justify-center mb-6 animate-in zoom-in duration-500">
+                    <MessageSquare size={64} className="opacity-40"/>
+                </div>
+                <h3 className="font-bold text-xl text-gray-600 mb-2 dark:text-gray-300">Sohbet Başlatın</h3>
+                <p className="text-sm max-w-xs opacity-80">
+                    Mesajlaşmak için sol menüden bir konuşma seçin veya yeni bir ilana mesaj gönderin.
+                </p>
             </div>
-            <h3 className="font-bold text-lg mb-2">Sohbet Seçin</h3>
-            <p className="text-sm max-w-xs">
-              Sol taraftaki listeden bir sohbet seçerek anlık mesajlaşmaya
-              başlayın.
-            </p>
-          </div>
         )}
       </div>
     </div>
   );
 }
 
-// Suspense Wrapper
 export default function MessagesPage() {
-  return (
-    <Suspense
-      fallback={
-        <div className="p-10 flex justify-center">
-          <Loader2 className="animate-spin text-blue-600" />
-        </div>
-      }
-    >
-      <MessagesContent />
-    </Suspense>
-  );
+    return <Suspense fallback={<div className="p-10 flex justify-center"><Loader2 className="animate-spin text-indigo-600"/></div>}><MessagesContent /></Suspense>
 }
