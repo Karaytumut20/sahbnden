@@ -1,6 +1,5 @@
 "use client";
 import React, { useState, useEffect, useRef, Suspense } from "react";
-import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/context/AuthContext";
 import { getConversationsClient, getMessagesClient, sendMessageClient, markMessagesAsReadClient } from "@/lib/services";
 import { Send, ArrowLeft, Loader2, MessageSquare, ExternalLink, MapPin, Search, MoreVertical, Check, CheckCheck, Image as ImageIcon } from "lucide-react";
@@ -38,7 +37,6 @@ function MessagesContent() {
   const searchParams = useSearchParams();
   const initialConvId = searchParams.get("convId");
 
-  // 1. Sohbetleri Getir
   useEffect(() => {
     if (authLoading) return;
     if (user) {
@@ -60,7 +58,6 @@ function MessagesContent() {
     }
   }, [user, initialConvId, authLoading]);
 
-  // 2. Arama Filtresi
   useEffect(() => {
     if (!searchTerm) {
         setFilteredConversations(conversations);
@@ -74,7 +71,6 @@ function MessagesContent() {
     }
   }, [searchTerm, conversations]);
 
-  // 3. Mesajları Getir
   useEffect(() => {
     if (!activeConvId || !user) return;
     getMessagesClient(activeConvId).then((data) => {
@@ -84,31 +80,24 @@ function MessagesContent() {
     });
   }, [activeConvId, user]);
 
-  // 4. Realtime (DUPLICATE FIX)
   useRealtimeSubscription({
     table: "messages",
     filter: activeConvId ? `conversation_id=eq.${activeConvId}` : undefined,
     event: "INSERT",
     callback: (payload) => {
       setMessages((current) => {
-        // A. Eğer bu ID zaten listede varsa ekleme
         if (current.some((m) => m.id === payload.new.id)) return current;
-
-        // B. Bekleyen mesaj kontrolü (Deduplication)
         const pendingIndex = current.findIndex(
           (m) =>
             m.is_pending &&
             m.content === payload.new.content &&
             m.sender_id === payload.new.sender_id
         );
-
         if (pendingIndex !== -1) {
           const updated = [...current];
           updated[pendingIndex] = payload.new;
           return updated;
         }
-
-        // C. Yeni mesaj
         return [...current, payload.new];
       });
 
@@ -136,7 +125,6 @@ function MessagesContent() {
       setInputText("");
       setSending(true);
 
-      // Optimistic UI
       const tempId = Date.now();
       const tempMsg = {
           id: tempId,
@@ -173,13 +161,13 @@ function MessagesContent() {
   if (!user) return <div className="p-10 text-center">Giriş yapmalısınız.</div>;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-xl shadow-lg h-[calc(100vh-140px)] min-h-[600px] flex overflow-hidden dark:bg-[#1c1c1c] dark:border-gray-700">
+    <div className="bg-white border border-gray-200 rounded-xl shadow-lg h-[calc(100vh-140px)] min-h-[600px] flex overflow-hidden">
 
       {/* SOL: SOHBET LİSTESİ */}
-      <div className={`w-full md:w-[350px] border-r border-gray-200 flex flex-col bg-white dark:bg-[#151515] dark:border-gray-700 ${activeConvId ? "hidden md:flex" : "flex"}`}>
+      <div className={`w-full md:w-[350px] border-r border-gray-200 flex flex-col bg-white ${activeConvId ? "hidden md:flex" : "flex"}`}>
 
-        <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-            <h2 className="font-bold text-xl text-gray-800 mb-4 px-1 dark:text-white">Mesajlar</h2>
+        <div className="p-4 border-b border-gray-100">
+            <h2 className="font-bold text-xl text-gray-800 mb-4 px-1">Mesajlar</h2>
             <div className="relative">
                 <Search size={16} className="absolute left-3 top-3 text-gray-400" />
                 <input
@@ -187,7 +175,7 @@ function MessagesContent() {
                     placeholder="Sohbet ara..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full bg-gray-100 pl-10 pr-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all dark:bg-gray-800 dark:text-white"
+                    className="w-full bg-gray-100 pl-10 pr-4 py-2.5 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-gray-700"
                 />
             </div>
         </div>
@@ -206,12 +194,12 @@ function MessagesContent() {
                         <div
                             key={conv.id}
                             onClick={() => setActiveConvId(conv.id)}
-                            className={`p-4 border-b border-gray-50 cursor-pointer transition-all hover:bg-gray-50 group ${isActive ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent dark:hover:bg-gray-800'}`}
+                            className={`p-4 border-b border-gray-50 cursor-pointer transition-all hover:bg-gray-50 group ${isActive ? 'bg-indigo-50/60 border-l-4 border-l-indigo-600' : 'border-l-4 border-l-transparent'}`}
                         >
                             <div className="flex justify-between items-start mb-1">
                                 <div className="flex items-center gap-2">
                                     <div className={`w-2 h-2 rounded-full ${isActive ? 'bg-indigo-600' : 'bg-transparent'}`}></div>
-                                    <span className={`font-bold text-sm truncate max-w-[160px] ${isActive ? 'text-indigo-900' : 'text-gray-800 dark:text-gray-200'}`}>
+                                    <span className={`font-bold text-sm truncate max-w-[160px] ${isActive ? 'text-indigo-900' : 'text-gray-800'}`}>
                                         {otherUser?.full_name || 'Kullanıcı'}
                                     </span>
                                 </div>
@@ -229,7 +217,7 @@ function MessagesContent() {
                                     )}
                                 </div>
                                 <div className="flex-1 min-w-0">
-                                    <p className="text-[11px] font-bold text-gray-600 truncate dark:text-gray-400">{conv.ads?.title || 'Silinmiş İlan'}</p>
+                                    <p className="text-[11px] font-bold text-gray-600 truncate">{conv.ads?.title || 'Silinmiş İlan'}</p>
                                     <p className="text-xs text-gray-500 truncate mt-0.5 opacity-80">Mesajı görüntüle...</p>
                                 </div>
                             </div>
@@ -241,13 +229,13 @@ function MessagesContent() {
       </div>
 
       {/* SAĞ: SOHBET PENCERESİ */}
-      <div className={`flex-1 flex flex-col bg-[#e5ddd5] dark:bg-[#0b141a] relative ${!activeConvId ? "hidden md:flex" : "flex"}`}>
+      <div className={`flex-1 flex flex-col bg-[#e5ddd5] relative ${!activeConvId ? "hidden md:flex" : "flex"}`}>
 
         <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: "url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png')" }}></div>
 
         {activeConv ? (
             <>
-                <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm z-20 px-4 py-3 flex items-center justify-between dark:bg-[#1c1c1c] dark:border-gray-700">
+                <div className="bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-sm z-20 px-4 py-3 flex items-center justify-between">
                     <div className="flex items-center gap-3 md:gap-4 overflow-hidden">
                         <button onClick={() => setActiveConvId(null)} className="md:hidden text-gray-600 p-1 hover:bg-gray-100 rounded-full"><ArrowLeft size={20}/></button>
 
@@ -257,11 +245,11 @@ function MessagesContent() {
                                     <img src={activeConv.ads.image || "https://via.placeholder.com/100"} className="w-full h-full object-cover"/>
                                 </div>
                                 <div className="min-w-0">
-                                    <h3 className="font-bold text-gray-800 text-sm truncate group-hover:text-indigo-600 transition-colors dark:text-white">
+                                    <h3 className="font-bold text-gray-800 text-sm truncate group-hover:text-indigo-600 transition-colors">
                                         {activeConv.ads.title}
                                     </h3>
                                     <div className="flex items-center gap-2 mt-0.5">
-                                        <span className="text-indigo-700 font-extrabold text-sm dark:text-indigo-400">
+                                        <span className="text-indigo-700 font-extrabold text-sm">
                                             {activeConv.ads.price?.toLocaleString()} {activeConv.ads.currency}
                                         </span>
                                         <span className="hidden sm:flex text-[10px] text-gray-500 items-center gap-0.5 bg-gray-100 px-1.5 py-0.5 rounded">
@@ -303,13 +291,13 @@ function MessagesContent() {
                                 <div
                                     className={`
                                         relative max-w-[85%] sm:max-w-[70%] px-3 py-2 rounded-2xl text-sm shadow-sm
-                                        ${isMe ? 'bg-[#dcf8c6] dark:bg-[#005c4b] text-slate-900 dark:text-white rounded-tr-none' : 'bg-white dark:bg-[#202c33] text-slate-800 dark:text-white rounded-tl-none'}
+                                        ${isMe ? 'bg-[#dcf8c6] text-slate-900 rounded-tr-none' : 'bg-white text-slate-800 rounded-tl-none'}
                                         ${msg.is_pending ? 'opacity-70' : ''}
                                     `}
                                 >
                                     <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
                                     <div className="flex items-center justify-end gap-1 mt-1 select-none">
-                                        <span className="text-[9px] text-gray-500 dark:text-gray-400 font-medium">
+                                        <span className="text-[9px] text-gray-500 font-medium">
                                             {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                         {isMe && (
@@ -319,7 +307,7 @@ function MessagesContent() {
                                     </div>
 
                                     {isFirst && (
-                                        <div className={`absolute top-0 w-3 h-3 ${isMe ? '-right-1.5 bg-[#dcf8c6] dark:bg-[#005c4b]' : '-left-1.5 bg-white dark:bg-[#202c33]'} [clip-path:polygon(0_0,100%_0,100%_100%)] transform ${isMe ? '' : 'scale-x-[-1]'}`}></div>
+                                        <div className={`absolute top-0 w-3 h-3 ${isMe ? '-right-1.5 bg-[#dcf8c6]' : '-left-1.5 bg-white'} [clip-path:polygon(0_0,100%_0,100%_100%)] transform ${isMe ? '' : 'scale-x-[-1]'}`}></div>
                                     )}
                                 </div>
                             </div>
@@ -327,14 +315,14 @@ function MessagesContent() {
                     })}
                 </div>
 
-                <form onSubmit={handleSend} className="bg-white p-3 border-t border-gray-200 z-20 flex items-center gap-2 dark:bg-[#1c1c1c] dark:border-gray-700">
+                <form onSubmit={handleSend} className="bg-white p-3 border-t border-gray-200 z-20 flex items-center gap-2">
                     <button type="button" className="p-2 text-gray-500 hover:bg-gray-100 rounded-full transition-colors">
                         <MoreVertical size={20} className="rotate-90"/>
                     </button>
                     <input
                         value={inputText}
                         onChange={e => setInputText(e.target.value)}
-                        className="flex-1 bg-gray-100 border-none rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm dark:bg-gray-800 dark:text-white"
+                        className="flex-1 bg-gray-100 border-none rounded-full px-5 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all text-sm text-gray-800"
                         placeholder="Bir mesaj yazın..."
                     />
                     <button
@@ -351,7 +339,7 @@ function MessagesContent() {
                 <div className="w-32 h-32 bg-gray-200/50 rounded-full flex items-center justify-center mb-6 animate-in zoom-in duration-500">
                     <MessageSquare size={64} className="opacity-40"/>
                 </div>
-                <h3 className="font-bold text-xl text-gray-600 mb-2 dark:text-gray-300">Sohbet Başlatın</h3>
+                <h3 className="font-bold text-xl text-gray-600 mb-2">Sohbet Başlatın</h3>
                 <p className="text-sm max-w-xs opacity-80">
                     Mesajlaşmak için sol menüden bir konuşma seçin veya yeni bir ilana mesaj gönderin.
                 </p>

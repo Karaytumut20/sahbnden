@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 @theme {
-  /* Modern Slate & Indigo Paleti */
+  /* Modern Slate & Indigo Paleti - Light Mode Only */
   --color-background: #F8FAFC; /* Slate-50 */
   --color-foreground: #0F172A; /* Slate-900 */
 
@@ -44,5 +44,5 @@ body {
 .container-grid {
   display: grid;
   grid-template-columns: repeat(12, minmax(0, 1fr));
-  gap: 1.5rem; /* gap-6 */
+  gap: 1.5rem;
 }

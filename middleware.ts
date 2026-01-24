@@ -29,7 +29,18 @@ export async function middleware(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  let user = null;
+
+  try {
+    // Bağlantı hatası olursa (Supabase Paused vb.) çökmemesi için try-catch
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch (error) {
+    console.error("Middleware Auth Error (Supabase Bağlantı Hatası):", error);
+    // Hata durumunda kullanıcı yokmuş gibi davran, site çökmesin
+    user = null;
+  }
+
   const path = request.nextUrl.pathname;
 
   // 1. KULLANICI KORUMASI
@@ -39,23 +50,26 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // 2. ADMIN KORUMASI (DÖNGÜYÜ ENGELLEYEN MANTIK)
-  // '/admin' ile başlayan sayfalarda... AMA '/admin/login' hariç!
+  // 2. ADMIN KORUMASI
   if (path.startsWith('/admin') && path !== '/admin/login') {
     if (!user) {
       return NextResponse.redirect(new URL('/admin/login', request.url))
     }
 
-    // Rol kontrolü
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
+    // Rol kontrolü (Hata durumunda güvenli geçiş)
+    try {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .single()
 
-    if (profile?.role !== 'admin') {
-      // Yetkisiz ise ana sayfaya at
-      return NextResponse.redirect(new URL('/', request.url))
+        if (profile?.role !== 'admin') {
+          return NextResponse.redirect(new URL('/', request.url))
+        }
+    } catch {
+        // Profil çekilemezse (DB hatası) anasayfaya at
+        return NextResponse.redirect(new URL('/', request.url))
     }
   }
 
@@ -65,13 +79,7 @@ export async function middleware(request: NextRequest) {
           return NextResponse.redirect(new URL('/bana-ozel', request.url));
       }
       if (path === '/admin/login') {
-          // Admin ise panele, değilse anasayfaya
-          const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single();
-          if (profile?.role === 'admin') {
-              return NextResponse.redirect(new URL('/admin', request.url));
-          } else {
-              return NextResponse.redirect(new URL('/', request.url));
-          }
+          return NextResponse.redirect(new URL('/admin', request.url));
       }
   }
 

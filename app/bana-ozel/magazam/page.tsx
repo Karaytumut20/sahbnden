@@ -15,7 +15,6 @@ export default function MyStorePage() {
   const [submitting, setSubmitting] = useState(false);
   const [store, setStore] = useState<any>(null);
 
-  // Form State
   const [formData, setFormData] = useState({
     name: '',
     slug: '',
@@ -23,19 +22,15 @@ export default function MyStorePage() {
     phone: '',
     location: '',
     website: '',
-    image: '',   // Logo
-    banner: ''   // Kapak
+    image: '',
+    banner: ''
   });
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
-  // Veriyi Çek
   useEffect(() => {
     const fetchStore = async () => {
-      // Server Action'ı client'ta çağırıyoruz (Veri çekmek için)
-      // Not: Normalde Server Component'te çekip prop olarak geçmek daha iyidir ama
-      // "Bana Özel" dashboard yapısında client fetching yaygındır.
       const data = await getMyStoreServer();
       if (data) {
         setStore(data);
@@ -57,7 +52,6 @@ export default function MyStorePage() {
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
-    // Slug otomatik oluştur (sadece yeni mağaza açarken)
     if (name === 'name' && !store) {
       setFormData(prev => ({
         ...prev,
@@ -99,7 +93,6 @@ export default function MyStorePage() {
       addToast(res.error, 'error');
     } else {
       addToast(store ? 'Mağaza güncellendi.' : 'Mağazanız başarıyla açıldı!', 'success');
-      // Sayfayı yenile (Rol değişikliğini algılaması için)
       if (!store) window.location.reload();
     }
     setSubmitting(false);
@@ -108,9 +101,9 @@ export default function MyStorePage() {
   if (loading) return <div className="p-10 flex justify-center"><Loader2 className="animate-spin text-blue-600"/></div>;
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6 dark:bg-[#1c1c1c] dark:border-gray-700">
-      <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4 dark:border-gray-700">
-        <h1 className="text-xl font-bold text-[#333] dark:text-white flex items-center gap-2">
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6">
+      <div className="flex justify-between items-center mb-6 border-b border-gray-100 pb-4">
+        <h1 className="text-xl font-bold text-[#333] flex items-center gap-2">
           <Store size={24} className="text-blue-600" />
           {store ? 'Mağaza Yönetimi' : 'Mağaza Aç'}
         </h1>
@@ -123,11 +116,9 @@ export default function MyStorePage() {
 
       <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl">
 
-        {/* Banner & Logo */}
         <div className="space-y-4">
-          {/* Banner */}
           <div
-            className="w-full h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 relative overflow-hidden group dark:bg-gray-800 dark:border-gray-600"
+            className="w-full h-32 bg-gray-100 border-2 border-dashed border-gray-300 rounded-md flex flex-col items-center justify-center cursor-pointer hover:bg-gray-50 relative overflow-hidden group"
             onClick={() => bannerInputRef.current?.click()}
           >
             {formData.banner ? (
@@ -142,10 +133,9 @@ export default function MyStorePage() {
             <input type="file" ref={bannerInputRef} onChange={(e) => handleImageUpload(e, 'banner')} className="hidden" accept="image/*" />
           </div>
 
-          {/* Logo */}
           <div className="flex items-end gap-4 -mt-10 ml-4 relative z-10">
             <div
-              className="w-24 h-24 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center cursor-pointer overflow-hidden relative group shadow-md dark:bg-gray-700 dark:border-gray-600"
+              className="w-24 h-24 bg-white border-2 border-gray-200 rounded-full flex items-center justify-center cursor-pointer overflow-hidden relative group shadow-md"
               onClick={() => logoInputRef.current?.click()}
             >
               {formData.image ? (
@@ -157,44 +147,44 @@ export default function MyStorePage() {
               <input type="file" ref={logoInputRef} onChange={(e) => handleImageUpload(e, 'image')} className="hidden" accept="image/*" />
             </div>
             <div className="pb-2">
-               <p className="text-xs text-gray-500 dark:text-gray-400">Kurumsal kimliğinizi yansıtan logo ve kapak görseli yükleyin.</p>
+               <p className="text-xs text-gray-500">Kurumsal kimliğinizi yansıtan logo ve kapak görseli yükleyin.</p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1 dark:text-gray-300">Mağaza Adı</label>
-            <input name="name" value={formData.name} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" required placeholder="Örn: Güven Emlak" />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Mağaza Adı</label>
+            <input name="name" value={formData.name} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" required placeholder="Örn: Güven Emlak" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1 dark:text-gray-300">Mağaza Linki (Slug)</label>
-            <input name="slug" value={formData.slug} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none bg-gray-50 text-gray-500 dark:bg-gray-900 dark:border-gray-600 dark:text-gray-400" required readOnly={!!store} />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Mağaza Linki (Slug)</label>
+            <input name="slug" value={formData.slug} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none bg-gray-50 text-gray-500" required readOnly={!!store} />
             <p className="text-[10px] text-gray-400 mt-1">sahibinden-klon.com/magaza/{formData.slug || '...'}</p>
           </div>
         </div>
 
         <div>
-          <label className="block text-xs font-bold text-gray-600 mb-1 dark:text-gray-300">Açıklama / Hakkımızda</label>
-          <textarea name="description" value={formData.description} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none h-24 resize-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" placeholder="Müşterilerinize kendinizden bahsedin..." required></textarea>
+          <label className="block text-xs font-bold text-gray-600 mb-1">Açıklama / Hakkımızda</label>
+          <textarea name="description" value={formData.description} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none h-24 resize-none" placeholder="Müşterilerinize kendinizden bahsedin..." required></textarea>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1 dark:text-gray-300">Telefon</label>
-            <input name="phone" value={formData.phone} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" placeholder="0212..." />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Telefon</label>
+            <input name="phone" value={formData.phone} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" placeholder="0212..." />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1 dark:text-gray-300">Konum (İl / İlçe)</label>
-            <input name="location" value={formData.location} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" placeholder="İstanbul / Kadıköy" />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Konum (İl / İlçe)</label>
+            <input name="location" value={formData.location} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" placeholder="İstanbul / Kadıköy" />
           </div>
           <div>
-            <label className="block text-xs font-bold text-gray-600 mb-1 dark:text-gray-300">Web Sitesi</label>
-            <input name="website" value={formData.website} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none dark:bg-gray-800 dark:border-gray-600 dark:text-white" placeholder="www.ornek.com" />
+            <label className="block text-xs font-bold text-gray-600 mb-1">Web Sitesi</label>
+            <input name="website" value={formData.website} onChange={handleInputChange} className="w-full border p-2 rounded-sm outline-none" placeholder="www.ornek.com" />
           </div>
         </div>
 
-        <div className="pt-4 border-t border-gray-100 dark:border-gray-700">
+        <div className="pt-4 border-t border-gray-100">
           <button type="submit" disabled={submitting} className="bg-blue-600 text-white px-8 py-3 rounded-sm font-bold text-sm hover:bg-blue-700 transition-colors flex items-center gap-2 disabled:opacity-50">
             {submitting ? <Loader2 className="animate-spin" size={16}/> : <Save size={16}/>}
             {store ? 'Değişiklikleri Kaydet' : 'Mağazayı Oluştur'}

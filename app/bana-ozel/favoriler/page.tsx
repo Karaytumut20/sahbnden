@@ -58,8 +58,8 @@ export default function FavoritesPage() {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6 dark:bg-[#1c1c1c] dark:border-gray-700">
-      <h1 className="text-xl font-bold text-[#333] mb-6 dark:text-white flex items-center gap-2">
+    <div className="bg-white border border-gray-200 rounded-sm shadow-sm p-6">
+      <h1 className="text-xl font-bold text-[#333] mb-6 flex items-center gap-2">
         Favori İlanlarım <span className="text-sm font-normal text-gray-500">({ads.length})</span>
       </h1>
 

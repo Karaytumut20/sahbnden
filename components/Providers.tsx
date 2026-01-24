@@ -7,31 +7,26 @@ import { CompareProvider } from "@/context/CompareContext";
 import { HistoryProvider } from "@/context/HistoryContext";
 import { NotificationProvider } from "@/context/NotificationContext";
 import { ModalProvider } from "@/context/ModalContext";
-import { ThemeProvider } from "@/context/ThemeContext";
-import { MessageProvider } from "@/context/MessageContext"; // Added this import
+import { MessageProvider } from "@/context/MessageContext";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider>
-      <ToastProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <ModalProvider>
-              <FavoritesProvider>
-                <CompareProvider>
-                  <HistoryProvider>
-                    <MessageProvider>
-                      {" "}
-                      {/* Wrapped children with MessageProvider */}
-                      {children}
-                    </MessageProvider>
-                  </HistoryProvider>
-                </CompareProvider>
-              </FavoritesProvider>
-            </ModalProvider>
-          </NotificationProvider>
-        </AuthProvider>
-      </ToastProvider>
-    </ThemeProvider>
+    <ToastProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <ModalProvider>
+            <FavoritesProvider>
+              <CompareProvider>
+                <HistoryProvider>
+                  <MessageProvider>
+                    {children}
+                  </MessageProvider>
+                </HistoryProvider>
+              </CompareProvider>
+            </FavoritesProvider>
+          </ModalProvider>
+        </NotificationProvider>
+      </AuthProvider>
+    </ToastProvider>
   );
 }

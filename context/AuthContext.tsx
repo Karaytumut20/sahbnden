@@ -8,14 +8,14 @@ type User = {
   email: string;
   name: string;
   avatar?: string;
-  role?: 'user' | 'store' | 'admin'; // Rol eklendi
+  role?: 'user' | 'store' | 'admin';
 };
 
 type AuthContextType = {
   user: User | null;
   loading: boolean;
   logout: () => Promise<void>;
-  refreshUser: () => Promise<void>; // Kullanıcı bilgisini tazeleme
+  refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,23 +27,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   const fetchProfile = async (sessionUser: any) => {
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', sessionUser.id).single();
-      setUser({
-          id: sessionUser.id,
-          email: sessionUser.email!,
-          name: profile?.full_name || sessionUser.email?.split('@')[0] || 'Kullanıcı',
-          avatar: profile?.avatar_url,
-          role: profile?.role || 'user'
-      });
+      try {
+        const { data: profile, error } = await supabase.from('profiles').select('*').eq('id', sessionUser.id).single();
+
+        if (error) {
+            console.warn("Profil çekilemedi, varsayılan değerler kullanılıyor:", error.message);
+        }
+
+        setUser({
+            id: sessionUser.id,
+            email: sessionUser.email!,
+            name: profile?.full_name || sessionUser.email?.split('@')[0] || 'Kullanıcı',
+            avatar: profile?.avatar_url,
+            role: profile?.role || 'user'
+        });
+      } catch (err) {
+          console.error("fetchProfile hatası:", err);
+          // Hata olsa bile kullanıcıyı en azından email ile set et
+          setUser({
+            id: sessionUser.id,
+            email: sessionUser.email!,
+            name: sessionUser.email?.split('@')[0] || 'Kullanıcı',
+            role: 'user'
+          });
+      }
   };
 
   useEffect(() => {
+    let mounted = true;
+
     const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        await fetchProfile(session.user);
+      try {
+        // Zaman aşımı ekleyelim (5 saniye içinde yanıt gelmezse vazgeç)
+        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('Auth Timeout')), 5000));
+        const sessionPromise = supabase.auth.getSession();
+
+        const { data: { session } } : any = await Promise.race([sessionPromise, timeoutPromise]);
+
+        if (session?.user && mounted) {
+          await fetchProfile(session.user);
+        }
+      } catch (error) {
+        console.error("Auth Check Error:", error);
+      } finally {
+        if (mounted) setLoading(false); // NE OLURSA OLSUN LOADING KAPATILIR
       }
-      setLoading(false);
     };
 
     checkUser();
@@ -58,7 +86,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setLoading(false);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+        mounted = false;
+        subscription.unsubscribe();
+    };
   }, []);
 
   const logout = async () => {

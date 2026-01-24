@@ -2,41 +2,47 @@ import { createClient } from '@/lib/supabase/client'
 
 const supabase = createClient()
 
-// --- MESAJLAŞMA SİSTEMİ (FIXED) ---
+// --- MESAJLAŞMA SİSTEMİ ---
 
 export async function getConversationsClient(userId: string) {
-  const { data, error } = await supabase
-    .from('conversations')
-    .select('*, ads(id, title, image, price, currency, city, district), profiles:buyer_id(full_name, avatar_url), seller:seller_id(full_name, avatar_url)')
-    .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
-    .order('updated_at', { ascending: false });
-  if (error) {
+  try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('*, ads(id, title, image, price, currency, city, district), profiles:buyer_id(full_name, avatar_url), seller:seller_id(full_name, avatar_url)')
+        .or(`buyer_id.eq.${userId},seller_id.eq.${userId}`)
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      return data || [];
+  } catch (error) {
       console.error("Get Conversations Error:", error);
       return [];
   }
-  return data || [];
 }
 
 export async function getMessagesClient(conversationId: number) {
-  const { data, error } = await supabase
-    .from('messages')
-    .select('*')
-    .eq('conversation_id', conversationId)
-    .order('created_at', { ascending: true });
+  try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .eq('conversation_id', conversationId)
+        .order('created_at', { ascending: true });
 
-  if (error) console.error("Get Messages Error:", error);
-  return data || [];
+      if (error) throw error;
+      return data || [];
+  } catch (error) {
+      console.error("Get Messages Error:", error);
+      return [];
+  }
 }
 
 export async function sendMessageClient(conversationId: number, senderId: string, content: string) {
-  // 1. Mesajı kaydet
   const { data, error } = await supabase
     .from('messages')
     .insert([{ conversation_id: conversationId, sender_id: senderId, content }])
     .select()
     .single();
 
-  // 2. Sohbetin 'updated_at' zamanını güncelle (Listede yukarı çıksın diye)
   if (!error) {
       await supabase.from('conversations')
         .update({ updated_at: new Date().toISOString() })
@@ -47,8 +53,7 @@ export async function sendMessageClient(conversationId: number, senderId: string
 }
 
 export async function startConversationClient(adId: number, buyerId: string, sellerId: string) {
-    // 1. Önce mevcut sohbet var mı kontrol et
-    const { data: existingConv, error: fetchError } = await supabase
+    const { data: existingConv } = await supabase
         .from('conversations')
         .select('id')
         .eq('ad_id', adId)
@@ -60,7 +65,6 @@ export async function startConversationClient(adId: number, buyerId: string, sel
         return { data: existingConv, error: null };
     }
 
-    // 2. Yoksa yeni oluştur
     const { data: newConv, error: createError } = await supabase
         .from('conversations')
         .insert([{ ad_id: adId, buyer_id: buyerId, seller_id: sellerId }])
@@ -71,7 +75,6 @@ export async function startConversationClient(adId: number, buyerId: string, sel
 }
 
 export async function markMessagesAsReadClient(conversationId: number, userId: string) {
-  // Sadece karşı tarafın gönderdiği okunmamış mesajları güncelle
   return await supabase
     .from('messages')
     .update({ is_read: true })
@@ -80,12 +83,17 @@ export async function markMessagesAsReadClient(conversationId: number, userId: s
     .eq('is_read', false);
 }
 
-// --- DİĞER SERVİSLER (MEVCUT YAPIDAN KORUNDU) ---
-// (Bu kısım önceki kodların çalışmaya devam etmesi için gerekli temel servisleri içerir)
+// --- İLAN VE KULLANICI SERVİSLERİ ---
 
 export async function getUserAdsClient(userId: string) {
-  const { data } = await supabase.from('ads').select('*').eq('user_id', userId).order('created_at', { ascending: false });
-  return data || [];
+  try {
+    const { data, error } = await supabase.from('ads').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+    if (error) throw error;
+    return data || [];
+  } catch (e) {
+    console.error("getUserAdsClient Error:", e);
+    return [];
+  }
 }
 
 export async function updateAdStatusClient(id: number, status: string) {
@@ -99,8 +107,15 @@ export async function toggleFavoriteClient(userId: string, adId: number) {
 }
 
 export async function getFavoritesClient(userId: string) {
-    const { data } = await supabase.from('favorites').select('ad_id, ads(*)').eq('user_id', userId)
-    return data ? data.filter((i: any) => i.ads).map((i: any) => i.ads) : [];
+    try {
+        const { data, error } = await supabase.from('favorites').select('ad_id, ads(*)').eq('user_id', userId);
+        if (error) throw error;
+        // Filtreleme: Silinmiş ilanları (null olanları) çıkar
+        return data ? data.filter((i: any) => i.ads).map((i: any) => i.ads) : [];
+    } catch (e) {
+        console.error("getFavoritesClient Error:", e);
+        return [];
+    }
 }
 
 export async function getProfileClient(userId: string) {
