@@ -1149,6 +1149,6 @@ writeFile(
 console.log(
   colors.blue +
     colors.bold +
-    "\n✅ DARK MODE TAMAMEN KALDIRILDI!\n" +
+    "\n✅ DARK MODE TAMAMEN KALDILDI!\n" +
     colors.reset,
 );
