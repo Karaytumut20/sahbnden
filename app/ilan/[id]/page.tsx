@@ -14,17 +14,16 @@ import LoanCalculator from '@/components/tools/LoanCalculator';
 import ViewTracker from '@/components/ViewTracker';
 import LiveVisitorCount from '@/components/LiveVisitorCount';
 import Badge from '@/components/ui/Badge';
-import { Eye, MapPin, Heart, Calendar } from 'lucide-react';
+import { Eye, MapPin } from 'lucide-react';
 
 export default async function AdDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const ad = await getAdDetailServer(Number(id));
   if (!ad) return notFound();
 
-  const favCount = await getAdFavoriteCount(Number(id));
   const formattedPrice = ad.price?.toLocaleString('tr-TR');
   const location = `${ad.city || ''} / ${ad.district || ''}`;
-  const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '' };
+  const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '', show_phone: false };
 
   return (
     <div className="pb-20 relative font-sans bg-gray-50 min-h-screen">
@@ -81,7 +80,17 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
 
           {/* SAĞ: SATICI VE ÖZET (4/12) */}
           <div className="lg:col-span-4 space-y-6">
-             <SellerSidebar sellerId={ad.user_id} sellerName={sellerInfo.full_name || 'Kullanıcı'} sellerPhone={sellerInfo.phone || 'Telefon yok'} adId={ad.id} adTitle={ad.title} adImage={ad.image} price={formattedPrice} currency={ad.currency} />
+             <SellerSidebar
+                sellerId={ad.user_id}
+                sellerName={sellerInfo.full_name || 'Kullanıcı'}
+                sellerPhone={sellerInfo.phone || 'Telefon yok'}
+                showPhone={sellerInfo.show_phone} // GİZLİLİK AYARI BURADA GEÇİLİYOR
+                adId={ad.id}
+                adTitle={ad.title}
+                adImage={ad.image}
+                price={formattedPrice}
+                currency={ad.currency}
+             />
 
              {/* İlan Künyesi */}
              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
@@ -106,7 +115,7 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
 
         </div>
       </div>
-      <MobileAdActionBar price={`${formattedPrice} ${ad.currency}`} />
+      <MobileAdActionBar price={`${formattedPrice} ${ad.currency}`} phone={sellerInfo.show_phone ? sellerInfo.phone : undefined} />
     </div>
   );
 }

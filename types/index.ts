@@ -4,6 +4,7 @@ export interface Profile {
   avatar_url: string | null;
   role: 'user' | 'store' | 'admin';
   phone: string | null;
+  show_phone?: boolean; // YENİ
   created_at: string;
 }
 
@@ -52,6 +53,7 @@ export interface Ad {
   gear?: string;
   fuel?: string;
   profiles?: Profile;
+  view_count?: number; // YENİ: Görüntülenme sayısı için
 }
 
 export interface AdFormData {

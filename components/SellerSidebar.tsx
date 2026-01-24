@@ -1,18 +1,18 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Phone, ShieldCheck, User, MessageCircle, Star, Send, Loader2 } from 'lucide-react';
+import { Phone, ShieldCheck, User, MessageCircle, Star, Send, Loader2, EyeOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { startConversationClient } from '@/lib/services';
 import { useRouter } from 'next/navigation';
 import { useToast } from '@/context/ToastContext';
-import { getSellerReviewsServer, createReviewAction } from '@/lib/actions';
+import { getSellerReviewsServer } from '@/lib/actions';
 
-export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId }: any) {
+export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId, showPhone = false }: any) {
   const { user } = useAuth();
   const router = useRouter();
   const { addToast } = useToast();
-  const [showPhone, setShowPhone] = useState(false);
+  const [isPhoneRevealed, setIsPhoneRevealed] = useState(false);
   const [ratingData, setRatingData] = useState({ avg: 0, count: 0 });
   const [isMsgLoading, setIsMsgLoading] = useState(false);
 
@@ -41,7 +41,6 @@ export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId 
 
     setIsMsgLoading(true);
     try {
-        // Gerçek API Çağrısı
         const { data, error } = await startConversationClient(adId, user.id, sellerId);
 
         if(error) {
@@ -82,14 +81,20 @@ export default function SellerSidebar({ sellerId, sellerName, sellerPhone, adId 
 
       {/* Aksiyonlar */}
       <div className="space-y-3">
+
+        {/* Telefon Göster / Gizli */}
         <div className="rounded-lg overflow-hidden border border-slate-200">
             {!showPhone ? (
-                <button onClick={() => setShowPhone(true)} className="w-full bg-slate-100 hover:bg-slate-200 py-3.5 flex items-center justify-center gap-2 text-slate-700 font-bold transition-colors">
+                <div className="bg-gray-50 py-3.5 text-center text-gray-500 font-medium text-sm flex items-center justify-center gap-2 cursor-not-allowed">
+                    <EyeOff size={16} /> Numara Gizli
+                </div>
+            ) : !isPhoneRevealed ? (
+                <button onClick={() => setIsPhoneRevealed(true)} className="w-full bg-slate-100 hover:bg-slate-200 py-3.5 flex items-center justify-center gap-2 text-slate-700 font-bold transition-colors">
                     <Phone size={18} /> Telefonu Göster
                 </button>
             ) : (
                 <div className="bg-green-50 py-3.5 text-center text-green-700 font-bold text-lg select-all border-green-100">
-                    {sellerPhone}
+                    {sellerPhone || "Belirtilmemiş"}
                 </div>
             )}
         </div>

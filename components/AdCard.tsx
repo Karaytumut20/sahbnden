@@ -2,10 +2,12 @@
 import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { MapPin, Heart, Eye, Zap } from 'lucide-react';
+// Eye ikonu kaldırıldı
+import { MapPin, Heart, Zap } from 'lucide-react';
 import { formatPrice, formatDate, cn } from '@/lib/utils';
 import { useFavorites } from '@/context/FavoritesContext';
-import { useModal } from '@/context/ModalContext';
+// useModal kaldırıldı
+// import { useModal } from '@/context/ModalContext';
 
 type AdCardProps = {
   ad: any;
@@ -14,7 +16,8 @@ type AdCardProps = {
 
 export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
   const { isFavorite, toggleFavorite } = useFavorites();
-  const { openModal } = useModal();
+  // useModal hook kullanımı kaldırıldı
+  // const { openModal } = useModal();
 
   // ID'nin number olduğundan emin olalım
   const adId = Number(ad.id);
@@ -24,11 +27,14 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const imageUrl = ad.image || 'https://via.placeholder.com/600x400?text=No+Image';
 
+  // handleQuickView fonksiyonu kaldırıldı
+  /*
   const handleQuickView = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     openModal('QUICK_VIEW', { ad });
   };
+  */
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -51,9 +57,9 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
                 <h3 className="font-bold text-gray-800 group-hover:text-indigo-600 transition-colors line-clamp-1">{ad.title}</h3>
                 <button
                   onClick={handleFavoriteClick}
-                  className="p-1 rounded-full hover:bg-red-50 transition-colors group/heart"
+                  className="p-1.5 rounded-full hover:bg-red-50 transition-colors group/heart"
                 >
-                  <Heart size={18} className={liked ? "fill-red-500 text-red-500" : "text-gray-400 group-hover/heart:text-red-500"} />
+                  <Heart size={20} className={liked ? "fill-red-500 text-red-500" : "text-gray-400 group-hover/heart:text-red-500"} />
                 </button>
               </div>
               <p className="text-xs text-gray-500 mt-1 flex items-center gap-1"><MapPin size={12}/> {location}</p>
@@ -89,23 +95,16 @@ export default function AdCard({ ad, viewMode = 'grid' }: AdCardProps) {
             {ad.is_vitrin && <span className="bg-yellow-400 text-black text-[10px] font-bold px-2.5 py-1 rounded-md shadow-lg border border-yellow-300/50">VİTRİN</span>}
           </div>
 
-          {/* Hover Actions Overlay */}
-          <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center gap-3 backdrop-blur-[2px]">
-            <button
-              onClick={handleQuickView}
-              className="bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 hover:text-indigo-600 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 delay-75"
-              title="Hızlı Bakış"
-            >
-              <Eye size={18} />
-            </button>
-            <button
-              onClick={handleFavoriteClick}
-              className="bg-white text-gray-800 p-2.5 rounded-full shadow-lg hover:scale-110 hover:text-red-500 transition-all transform translate-y-4 group-hover:translate-y-0 duration-300 delay-100"
-              title={liked ? "Favorilerden Kaldır" : "Favoriye Ekle"}
-            >
-              <Heart size={18} className={liked ? "fill-red-500 text-red-500" : ""} />
-            </button>
-          </div>
+          {/* FAVORİ BUTONU */}
+          <button
+            onClick={handleFavoriteClick}
+            className="absolute top-3 right-3 z-20 bg-white/90 backdrop-blur-sm text-gray-500 p-2 rounded-full shadow-md hover:scale-110 hover:text-red-500 transition-all duration-300 active:scale-95"
+            title={liked ? "Favorilerden Kaldır" : "Favoriye Ekle"}
+          >
+            <Heart size={18} className={liked ? "fill-red-500 text-red-500" : ""} />
+          </button>
+
+          {/* Hover Overlay (Hızlı Bakış) tamamen kaldırıldı */}
         </div>
 
         {/* İçerik Alanı */}
