@@ -1,12 +1,14 @@
--- BU KODU SUPABASE SQL EDITOR'DE ÇALIŞTIRIN --
+-- BU KODU MUTLAKA SUPABASE SQL EDITOR EKRANINDA ÇALIŞTIRIN --
+-- EĞER DAHA ÖNCE ÇALIŞTIRDIYSANIZ BİLE TEKRAR ÇALIŞTIRMANIZDA SAKINCA YOKTUR (IF NOT EXISTS VAR) --
 
--- 1. 'profiles' tablosuna telefon görünürlük ayarı ekle
 ALTER TABLE profiles
 ADD COLUMN IF NOT EXISTS show_phone boolean DEFAULT false;
 
--- 2. Yeni kolon için RLS (Güvenlik) izni (Kullanıcı kendi ayarını güncelleyebilsin)
--- (Mevcut update politikası genellikle tüm kolonları kapsar, ekstra bir şey gerekmeyebilir ama garanti olsun)
--- Zaten "Users can update own profile" politikası varsa sorun yok.
+-- RLS İzinlerini Garantiye Al
+-- Kullanıcı kendi profilindeki her alanı güncelleyebilmeli
+DROP POLICY IF EXISTS "Users can update own profile" ON profiles;
+CREATE POLICY "Users can update own profile"
+ON profiles FOR UPDATE
+USING (auth.uid() = id);
 
--- 3. Cache Temizliği
 NOTIFY pgrst, 'reload schema';
