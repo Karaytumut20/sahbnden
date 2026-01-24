@@ -7,11 +7,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
         {/* SOL KOLON: Dashboard Menü (3/12) */}
-        <aside className="lg:col-span-3 xl:col-span-3">
+        {/* MOBİLDE GİZLENDİ (hidden), SADECE BÜYÜK EKRANLARDA GÖRÜNÜR (lg:block) */}
+        <aside className="hidden lg:block lg:col-span-3 xl:col-span-3">
           <DashboardSidebar />
         </aside>
 
-        {/* SAĞ KOLON: İçerik (9/12) */}
+        {/* SAĞ KOLON: İçerik (Mobilde Tam Genişlik) */}
         <main className="lg:col-span-9 xl:col-span-9 min-w-0">
           {children}
         </main>
