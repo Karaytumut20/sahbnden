@@ -1,7 +1,7 @@
 "use client";
 import React from 'react';
 import Link from 'next/link';
-import { X, ChevronRight, Home, Car, List, MessageSquare, Settings, LogOut, User, Store, Wallet, Heart } from 'lucide-react';
+import { X, ChevronRight, Home, Car, List, MessageSquare, Settings, LogOut, User, Store, Wallet, Star } from 'lucide-react'; // Heart -> Star
 import { useAuth } from '@/context/AuthContext';
 
 type MobileMenuProps = {
@@ -16,20 +16,13 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
 
   return (
     <div className="fixed inset-0 z-[100] flex md:hidden justify-end">
-      {/* Karartma Arka Planı - Tıklayınca kapanır */}
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose}></div>
-
-      {/* Menü İçeriği - Sağdan gelir */}
       <div className="relative w-[85%] max-w-[320px] bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
-
-        {/* Üst Kısım: Kullanıcı Header */}
         <div className="bg-slate-900 text-white p-5 pt-8 flex flex-col gap-4 relative overflow-hidden shrink-0">
           <div className="absolute top-0 left-0 w-32 h-32 bg-indigo-600/20 rounded-full -ml-10 -mt-10 blur-xl"></div>
-
           <button onClick={onClose} className="absolute top-4 right-4 text-white/70 hover:text-white transition-colors z-20">
             <X size={24} />
           </button>
-
           {user ? (
             <div className="relative z-10 mt-4">
               <div className="flex items-center gap-3 mb-2">
@@ -60,10 +53,7 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
           )}
         </div>
 
-        {/* Menü Linkleri */}
         <div className="flex-1 overflow-y-auto py-2 bg-slate-50">
-
-          {/* Sadece Giriş Yapmış Kullanıcılar İçin */}
           {user && (
             <div className="bg-white border-b border-slate-100 mb-2">
                <p className="px-5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">Hesabım</p>
@@ -72,32 +62,20 @@ export default function MobileMenu({ isOpen, onClose }: MobileMenuProps) {
                   <li><Link href="/bana-ozel/cuzdan" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><Wallet size={18} className="text-slate-400"/> Cüzdanım</Link></li>
                   <li><Link href="/bana-ozel/magazam" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><Store size={18} className="text-slate-400"/> Mağazam</Link></li>
                   <li><Link href="/bana-ozel/ilanlarim" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><List size={18} className="text-slate-400"/> İlanlarım</Link></li>
-                  <li><Link href="/bana-ozel/favoriler" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><Heart size={18} className="text-slate-400"/> Favorilerim</Link></li>
+                  <li><Link href="/bana-ozel/favoriler" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><Star size={18} className="text-slate-400"/> Favorilerim</Link></li>
                   <li><Link href="/bana-ozel/mesajlarim" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><MessageSquare size={18} className="text-slate-400"/> Mesajlar</Link></li>
                   <li><Link href="/bana-ozel/ayarlar" onClick={onClose} className="flex items-center gap-3 px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><Settings size={18} className="text-slate-400"/> Ayarlar</Link></li>
                </ul>
             </div>
           )}
 
-          {/* Genel Kategoriler */}
           <div className="bg-white border-b border-slate-100">
             <p className="px-5 py-3 text-[11px] font-bold text-slate-400 uppercase tracking-wider bg-slate-50/50">Kategoriler</p>
             <ul className="text-sm text-slate-700 font-medium divide-y divide-slate-50">
-              <li>
-                <Link href="/search?category=emlak" onClick={onClose} className="flex items-center justify-between px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
-                  <span className="flex items-center gap-3"><Home size={18} className="text-indigo-600"/> Emlak</span>
-                  <ChevronRight size={16} className="text-slate-300"/>
-                </Link>
-              </li>
-              <li>
-                <Link href="/search?category=vasita" onClick={onClose} className="flex items-center justify-between px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors">
-                  <span className="flex items-center gap-3"><Car size={18} className="text-indigo-600"/> Vasıta</span>
-                  <ChevronRight size={16} className="text-slate-300"/>
-                </Link>
-              </li>
+              <li><Link href="/search?category=emlak" onClick={onClose} className="flex items-center justify-between px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><span className="flex items-center gap-3"><Home size={18} className="text-indigo-600"/> Emlak</span><ChevronRight size={16} className="text-slate-300"/></Link></li>
+              <li><Link href="/search?category=vasita" onClick={onClose} className="flex items-center justify-between px-5 py-3.5 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"><span className="flex items-center gap-3"><Car size={18} className="text-indigo-600"/> Vasıta</span><ChevronRight size={16} className="text-slate-300"/></Link></li>
             </ul>
           </div>
-
         </div>
       </div>
     </div>

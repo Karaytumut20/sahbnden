@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import { getFavoritesClient, toggleFavoriteClient } from '@/lib/services';
 import { useToast } from '@/context/ToastContext';
-import { Trash2, Loader2, HeartOff } from 'lucide-react';
+import { Trash2, Loader2, StarOff } from 'lucide-react'; // HeartOff -> StarOff
 import EmptyState from '@/components/ui/EmptyState';
 import AdCard from '@/components/AdCard';
 
@@ -16,7 +16,6 @@ export default function FavoritesPage() {
 
   useEffect(() => {
     if (authLoading) return;
-
     if (user) {
       setLoading(true);
       getFavoritesClient(user.id)
@@ -65,14 +64,13 @@ export default function FavoritesPage() {
 
       {ads.length === 0 ? (
         <EmptyState
-            icon={HeartOff}
+            icon={StarOff}
             title="Favori İlanınız Yok"
             description="Beğendiğiniz ilanları favoriye ekleyerek fiyat takibi yapabilirsiniz."
             actionLabel="İlanlara Göz At"
             actionUrl="/search"
         />
       ) : (
-        // Mobilde 2'li grid yapısı
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {ads.map((ad: any) => (
             <div key={ad.id} className="relative group">

@@ -2,26 +2,25 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, List, MessageSquare, Settings, LogOut, Store, Wallet } from 'lucide-react';
+import { Home, List, Star, MessageSquare, Settings, LogOut, Store, Wallet } from 'lucide-react'; // Heart -> Star
 import { useAuth } from '@/context/AuthContext';
 
 export default function DashboardSidebar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
 
-  // Favoriler kaldırıldı, menü sırası düzenlendi
   const menuItems = [
     { href: '/bana-ozel', label: 'Özet Durum', icon: Home },
-    { href: '/bana-ozel/cuzdan', label: 'Cüzdanım', icon: Wallet },
-    { href: '/bana-ozel/magazam', label: 'Mağaza Yönetimi', icon: Store },
     { href: '/bana-ozel/ilanlarim', label: 'İlanlarım', icon: List },
+    { href: '/bana-ozel/favoriler', label: 'Favorilerim', icon: Star }, // Değişti
     { href: '/bana-ozel/mesajlarim', label: 'Mesajlar', icon: MessageSquare },
+    { href: '/bana-ozel/magazam', label: 'Mağaza Yönetimi', icon: Store },
+    { href: '/bana-ozel/cuzdan', label: 'Cüzdanım', icon: Wallet },
     { href: '/bana-ozel/ayarlar', label: 'Ayarlar', icon: Settings },
   ];
 
   return (
     <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden sticky top-24">
-      {/* Kullanıcı Kartı */}
       <div className="p-6 border-b border-gray-50 bg-gradient-to-br from-slate-50 to-white">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg border-2 border-white shadow-sm shrink-0">
@@ -34,7 +33,6 @@ export default function DashboardSidebar() {
         </div>
       </div>
 
-      {/* Menü */}
       <nav className="p-3">
         <ul className="space-y-1">
           {menuItems.map((item) => {

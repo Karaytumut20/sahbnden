@@ -1,6 +1,6 @@
 import React from 'react';
 import { notFound } from 'next/navigation';
-import { getAdDetailServer, getAdFavoriteCount } from '@/lib/actions';
+import { getAdDetailServer } from '@/lib/actions';
 import Breadcrumb from '@/components/Breadcrumb';
 import Gallery from '@/components/Gallery';
 import MobileAdActionBar from '@/components/MobileAdActionBar';
@@ -10,6 +10,7 @@ import SellerSidebar from '@/components/SellerSidebar';
 import Tabs from '@/components/AdDetail/Tabs';
 import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
+import TechnicalSpecsTab from '@/components/AdDetail/TechnicalSpecsTab'; // YENİ
 import LoanCalculator from '@/components/tools/LoanCalculator';
 import ViewTracker from '@/components/ViewTracker';
 import LiveVisitorCount from '@/components/LiveVisitorCount';
@@ -24,6 +25,19 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
   const formattedPrice = ad.price?.toLocaleString('tr-TR');
   const location = `${ad.city || ''} / ${ad.district || ''}`;
   const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '', show_phone: false };
+  const adImages = ad.images && ad.images.length > 0 ? ad.images : (ad.image ? [ad.image] : []);
+
+  // Tabs Yapılandırması
+  const tabItems = [
+     { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-slate-700 leading-relaxed whitespace-pre-wrap text-base p-2">{ad.description}</div> },
+     { id: 'features', label: 'Özellikler', content: <FeaturesTab ad={ad} /> },
+     { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
+  ];
+
+  // Eğer teknik veri varsa yeni tab ekle
+  if (ad.technical_specs) {
+      tabItems.splice(2, 0, { id: 'tech_specs', label: 'Teknik Veriler', content: <TechnicalSpecsTab specs={ad.technical_specs} /> });
+  }
 
   return (
     <div className="pb-20 relative font-sans bg-gray-50 min-h-screen">
@@ -33,7 +47,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
       <div className="container mx-auto px-4 py-6 max-w-7xl">
         <Breadcrumb path={`${ad.category === 'emlak' ? 'Emlak' : 'Vasıta'} > ${location} > İlan Detayı`} />
 
-        {/* BAŞLIK VE ETİKETLER */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
             <h1 className="text-slate-900 font-bold text-2xl md:text-3xl leading-tight mb-2">{ad.title}</h1>
@@ -50,16 +63,13 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
           </div>
         </div>
 
-        {/* 12-COLUMN GRID LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
 
-          {/* SOL: GALERİ VE DETAYLAR (8/12) */}
           <div className="lg:col-span-8 space-y-8">
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-1">
-               <Gallery mainImage={ad.image || 'https://via.placeholder.com/800x600?text=Resim+Yok'} />
+               <Gallery mainImage={ad.image} images={adImages} />
             </div>
 
-            {/* Hızlı Bilgi Şeridi */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6 flex justify-between items-center">
                <div>
                  <p className="text-sm text-slate-500 mb-1">Fiyat</p>
@@ -70,21 +80,15 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
                </div>
             </div>
 
-            {/* Sekmeler ve İçerik */}
-            <Tabs items={[
-               { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-slate-700 leading-relaxed whitespace-pre-wrap text-base p-2">{ad.description}</div> },
-               { id: 'features', label: 'Özellikler', content: <FeaturesTab ad={ad} /> },
-               { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
-            ]} />
+            <Tabs items={tabItems} />
           </div>
 
-          {/* SAĞ: SATICI VE ÖZET (4/12) */}
           <div className="lg:col-span-4 space-y-6">
              <SellerSidebar
                 sellerId={ad.user_id}
                 sellerName={sellerInfo.full_name || 'Kullanıcı'}
                 sellerPhone={sellerInfo.phone || 'Telefon yok'}
-                showPhone={sellerInfo.show_phone} // GİZLİLİK AYARI BURADA GEÇİLİYOR
+                showPhone={sellerInfo.show_phone}
                 adId={ad.id}
                 adTitle={ad.title}
                 adImage={ad.image}
@@ -92,17 +96,20 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
                 currency={ad.currency}
              />
 
-             {/* İlan Künyesi */}
              <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
                 <h3 className="font-bold text-slate-800 mb-4 text-sm uppercase tracking-wider">İlan Künyesi</h3>
                 <ul className="space-y-3 text-sm">
-                   <li className="flex justify-between border-b border-gray-50 pb-2">
-                      <span className="text-slate-500">İlan Tarihi</span>
-                      <span className="font-medium text-slate-900">{new Date(ad.created_at).toLocaleDateString()}</span>
-                   </li>
-                   {ad.m2 && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">m² (Brüt)</span><span className="font-medium text-slate-900">{ad.m2}</span></li>}
-                   {ad.room && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Oda Sayısı</span><span className="font-medium text-slate-900">{ad.room}</span></li>}
+                   <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">İlan Tarihi</span><span className="font-medium text-slate-900">{new Date(ad.created_at).toLocaleDateString()}</span></li>
+                   {ad.brand && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Marka</span><span className="font-medium text-slate-900">{ad.brand}</span></li>}
+                   {ad.model && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Model</span><span className="font-medium text-slate-900">{ad.model}</span></li>}
+                   {ad.year && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Yıl</span><span className="font-medium text-slate-900">{ad.year}</span></li>}
                    {ad.km && <li className="flex justify-between border-b border-gray-50 pb-2"><span className="text-slate-500">Kilometre</span><span className="font-medium text-slate-900">{ad.km}</span></li>}
+                   {ad.heavy_damage !== null && ad.heavy_damage !== undefined && (
+                        <li className="flex justify-between border-b border-gray-50 pb-2">
+                            <span className="text-slate-500">Ağır Hasar Kayıtlı</span>
+                            <span className={`font-bold ${ad.heavy_damage ? 'text-red-600' : 'text-green-600'}`}>{ad.heavy_damage ? 'Evet' : 'Hayır'}</span>
+                        </li>
+                   )}
                    <li className="flex justify-between pt-1">
                       <span className="text-slate-500">Görüntülenme</span>
                       <span className="font-medium text-slate-900 flex items-center gap-1"><Eye size={14}/> {ad.view_count || 0}</span>
