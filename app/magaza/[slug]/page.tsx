@@ -36,7 +36,7 @@ export default async function StorePage({ params }: { params: Promise<{ slug: st
                 </div>
             </div>
 
-            {/* İlan Grid */}
+            {/* İlan Grid - Mobilde 2'li */}
             <div className="flex-1">
                 {storeAds.length === 0 ? <p>İlan bulunamadı.</p> : (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

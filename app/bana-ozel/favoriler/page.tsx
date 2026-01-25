@@ -72,7 +72,8 @@ export default function FavoritesPage() {
             actionUrl="/search"
         />
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        // Mobilde 2'li grid yapısı
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
           {ads.map((ad: any) => (
             <div key={ad.id} className="relative group">
                 <button
@@ -82,7 +83,7 @@ export default function FavoritesPage() {
                 >
                     <Trash2 size={16} />
                 </button>
-                <div className="h-[320px]">
+                <div className="h-[300px]">
                     <AdCard ad={ad} viewMode="grid" />
                 </div>
             </div>

@@ -20,9 +20,10 @@ export default function Showcase({ vitrinAds, urgentAds }: { vitrinAds: any[], u
         <button onClick={() => setActiveTab('acil')} className={`px-4 py-2 text-sm font-bold border-b-2 transition-colors whitespace-nowrap ${activeTab === 'acil' ? 'border-red-600 text-red-600' : 'border-transparent text-gray-500 hover:text-red-600'}`}>Acil Acil</button>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+      {/* Grid yapısı 2'li (grid-cols-2) başlatıldı */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
         {getActiveAds().length === 0 ? (
-          <div className="col-span-5 text-center p-10 text-gray-500">Bu kategoride ilan bulunamadı.</div>
+          <div className="col-span-2 sm:col-span-3 lg:col-span-5 text-center p-10 text-gray-500">Bu kategoride ilan bulunamadı.</div>
         ) : (
           getActiveAds().map((ad) => (
             <div key={ad.id} className="h-[280px]">

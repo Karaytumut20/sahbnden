@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { User, Phone, MapPin, Calendar, ShieldCheck, Mail } from 'lucide-react';
 import ReviewSection from '@/components/ReviewSection';
+import AdCard from '@/components/AdCard'; // AdCard eklendi
 
 export default async function SellerPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -78,19 +79,12 @@ export default async function SellerPage({ params }: { params: Promise<{ id: str
           {!ads || ads.length === 0 ? (
             <p className="text-sm text-gray-500">Bu satıcının aktif ilanı bulunmamaktadır.</p>
           ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            // Grid 2'li olarak ayarlandı
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {ads.map((ad: any) => (
-                <Link href={`/ilan/${ad.id}`} key={ad.id} className="block group">
-                  <div className="border border-gray-200 rounded-sm hover:shadow-md transition-all h-full flex flex-col">
-                    <div className="relative aspect-[4/3] bg-gray-100 overflow-hidden">
-                      <img src={ad.image || 'https://via.placeholder.com/300x200'} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
-                    </div>
-                    <div className="p-3">
-                      <p className="text-xs font-bold text-[#333] line-clamp-2 group-hover:text-blue-700 mb-2 h-[2.4em]">{ad.title}</p>
-                      <p className="text-sm font-bold text-blue-900">{ad.price?.toLocaleString()} {ad.currency}</p>
-                    </div>
-                  </div>
-                </Link>
+                <div key={ad.id} className="h-[260px]">
+                    <AdCard ad={ad} viewMode="grid" />
+                </div>
               ))}
             </div>
           )}

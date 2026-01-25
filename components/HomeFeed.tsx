@@ -62,8 +62,8 @@ export default function HomeFeed({ initialAds }: { initialAds: any[] }) {
         <span className="text-xs font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">{ads.length} İlan</span>
       </div>
 
-      {/* Responsive Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+      {/* Grid: Mobilde 2 sütun, Tablette 3, Masaüstünde 4-5 */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-6">
         {ads.map((ad) => (
           <div key={ad.id} className="h-full animate-in fade-in zoom-in-95 duration-500">
             <AdCard ad={ad} viewMode="grid" />
