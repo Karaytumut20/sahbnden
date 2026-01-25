@@ -11,989 +11,394 @@ const colors = {
 console.log(
   colors.blue +
     colors.bold +
-    "\n🚀 GELİŞMİŞ ARAÇ KATALOĞU VE TEKNİK VERİ SİSTEMİ KURULUYOR...\n" +
+    "\n🚀 BREADCRUMB VE FİLTRELEME SİSTEMİ GÜNCELLENİYOR...\n" +
     colors.reset,
 );
 
 const files = [
-  // 1. YENİ ARAÇ KATALOĞU (Detaylı Teknik Verilerle)
+  // 1. Breadcrumb Bileşeni (Tıklanabilir Link Yapısı)
   {
-    path: "lib/carCatalog.ts",
+    path: "components/Breadcrumb.tsx",
     content: `
-export interface TechnicalSpecs {
-  overview: {
-    production_years: string;
-    segment: string;
-    body_type_detail: string;
-    engine_cylinders: string;
-    consumption_city: string;
-    consumption_highway: string;
-    power_hp: string;
-    transmission_detail: string;
-    acceleration: string;
-    top_speed: string;
-    mtv: string;
-  };
-  engine_performance: {
-    engine_type: string;
-    engine_volume: string;
-    max_power_detail: string;
-    max_torque: string;
-    acceleration: string;
-    top_speed: string;
-  };
-  fuel_consumption: {
-    fuel_type_detail: string;
-    city: string;
-    highway: string;
-    average: string;
-    tank_volume: string;
-  };
-  dimensions: {
-    seats: string;
-    length: string;
-    width: string;
-    height: string;
-    weight: string;
-    luggage: string;
-    tires: string;
-  };
+import React from 'react';
+import Link from 'next/link';
+import { ChevronRight } from 'lucide-react';
+
+export type BreadcrumbItem = {
+  label: string;
+  href?: string;
+};
+
+export default function Breadcrumb({ items }: { items: BreadcrumbItem[] }) {
+  return (
+    <nav aria-label="Breadcrumb" className="flex items-center text-[11px] text-gray-500 mb-4 overflow-x-auto whitespace-nowrap scrollbar-hide">
+      <Link href="/" className="hover:underline text-blue-800 transition-colors">Anasayfa</Link>
+
+      {items.map((item, index) => (
+        <React.Fragment key={index}>
+          <ChevronRight size={10} className="mx-1.5 text-gray-400 shrink-0" />
+          {item.href ? (
+            <Link href={item.href} className="text-blue-800 hover:underline transition-colors font-medium">
+              {item.label}
+            </Link>
+          ) : (
+            <span className="font-bold text-gray-700">
+              {item.label}
+            </span>
+          )}
+        </React.Fragment>
+      ))}
+    </nav>
+  );
+}
+`,
+  },
+  // 2. Backend Arama Fonksiyonu (Marka/Model Filtreleme Desteği)
+  {
+    path: "lib/actions.ts",
+    content: `
+'use server'
+import { createClient, createStaticClient } from '@/lib/supabase/server'
+import { revalidatePath, unstable_cache } from 'next/cache'
+import { adSchema } from '@/lib/schemas'
+import { logActivity } from '@/lib/logger'
+import { AdFormData } from '@/types'
+import { analyzeAdContent } from '@/lib/moderation/engine'
+
+// --- RATE LIMIT CHECK ---
+async function checkRateLimit(userId: string) {
+    const supabase = await createClient();
+    const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+    const { count } = await supabase.from('ads')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .gte('created_at', oneDayAgo);
+
+    if ((count || 0) >= 10) return false;
+    return true;
 }
 
-export interface CarModel {
-  id: string;
-  name: string;
-  specs?: TechnicalSpecs;
-}
+// --- CREATE AD ---
+export async function createAdAction(formData: Partial<AdFormData>) {
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return { error: 'Oturum açmanız gerekiyor.' }
 
-// BMW 6 Serisi Örneği ve Diğer Popüler Modeller
-export const carCatalog: Record<string, Record<string, CarModel[]>> = {
-  "BMW": {
-    "6 Serisi": [
-      {
-        id: "640d_xdrive_cabrio",
-        name: "640d xDrive Cabrio",
-        specs: {
-          overview: {
-            production_years: "2011 / 2017",
-            segment: "F Segment",
-            body_type_detail: "Cabrio / 2 Kapı",
-            engine_cylinders: "Dizel / 6 silindir",
-            consumption_city: "7.1 lt",
-            consumption_highway: "5.1 lt",
-            power_hp: "313 hp",
-            transmission_detail: "Otomatik / 8 Vites / 4x4",
-            acceleration: "5.4 sn",
-            top_speed: "250 km/saat",
-            mtv: "8.523,00 TL x 2 (2014 model)"
-          },
-          engine_performance: {
-            engine_type: "Dizel / 6 silindir",
-            engine_volume: "2993 cc",
-            max_power_detail: "313 hp (230 kw) / 4.400 rpm",
-            max_torque: "630 Nm / 1.500 rpm",
-            acceleration: "5.4 sn",
-            top_speed: "250 km/saat"
-          },
-          fuel_consumption: {
-            fuel_type_detail: "Dizel / EURO 6",
-            city: "7.1 lt",
-            highway: "5.1 lt",
-            average: "5.9 lt",
-            tank_volume: "70 lt"
-          },
-          dimensions: {
-            seats: "4 Koltuk",
-            length: "4894 mm",
-            width: "1894 mm",
-            height: "1365 mm",
-            weight: "2005 kg",
-            luggage: "300 lt",
-            tires: "245/45 R18"
-          }
-        }
-      },
-      { id: "640d_coupe", name: "640d Coupe" },
-      { id: "650i_cabrio", name: "650i Cabrio" },
-      { id: "630i_cabrio", name: "630i Cabrio" }
-    ],
-    "3 Serisi": [
-      { id: "320d_sedan", name: "320d Sedan" },
-      { id: "320i_ed", name: "320i EfficientDynamics" },
-      { id: "318i", name: "318i" }
-    ],
-    "5 Serisi": [
-      { id: "520d_sedan", name: "520d Sedan" },
-      { id: "520i_sedan", name: "520i Sedan" },
-      { id: "525d_xdrive", name: "525d xDrive" }
-    ]
-  },
-  "Mercedes-Benz": {
-    "C Serisi": [
-      { id: "c200d_amg", name: "C 200 d AMG" },
-      { id: "c180_avantgarde", name: "C 180 Avantgarde" }
-    ],
-    "E Serisi": [
-      { id: "e180_exclusive", name: "E 180 Exclusive" },
-      { id: "e250_cdi_4matic", name: "E 250 CDI 4MATIC" }
-    ]
-  },
-  "Audi": {
-    "A3": [{ id: "a3_sedan_35_tfsi", name: "A3 Sedan 35 TFSI" }],
-    "A6": [{ id: "a6_40_tdi_quattro", name: "A6 Sedan 40 TDI quattro" }]
-  },
-  "Volkswagen": {
-    "Passat": [{ id: "passat_15_tsi_elegance", name: "1.5 TSI Elegance" }],
-    "Golf": [{ id: "golf_10_etsi_rline", name: "1.0 eTSI R-Line" }]
-  },
-  "Renault": {
-    "Clio": [{ id: "clio_10_tce_joy", name: "1.0 TCe Joy" }],
-    "Megane": [{ id: "megane_13_tce_icon", name: "1.3 TCe Icon" }]
-  },
-  "Fiat": {
-    "Egea": [{ id: "egea_14_fire_urban", name: "1.4 Fire Urban" }]
-  },
-  "Ford": {
-    "Focus": [{ id: "focus_15_tdci_titanium", name: "1.5 TDCi Titanium" }]
-  },
-  "Toyota": {
-    "Corolla": [{ id: "corolla_15_dream", name: "1.5 Dream" }]
+  if (!(await checkRateLimit(user.id))) {
+      return { error: 'Günlük ilan verme limitine ulaştınız. Lütfen yarın tekrar deneyin.' };
   }
-};
-`,
-  },
-  // 2. KATEGORİ SİHİRBAZI GÜNCELLEMESİ (Yeni Katalogdan Veri Çekme)
-  {
-    path: "components/CategoryWizard.tsx",
-    content: `
-"use client";
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ChevronRight, ArrowLeft, Home, Car, ShoppingCart, Smartphone, Monitor, Camera, Briefcase, CheckCircle2 } from 'lucide-react';
-import { categories } from '@/lib/data';
-import { carCatalog } from '@/lib/carCatalog';
 
-const iconMap: any = {
-  Home: <Home size={28} />,
-  Car: <Car size={28} />,
-  ShoppingCart: <ShoppingCart size={28} />,
-  Smartphone: <Smartphone size={28} />,
-  Monitor: <Monitor size={28} />,
-  Camera: <Camera size={28} />,
-  Briefcase: <Briefcase size={28} />
-};
+  const validation = adSchema.safeParse(formData);
+  if (!validation.success) {
+      console.error("Validation Error:", validation.error);
+      return { error: validation.error.issues[0].message };
+  }
 
-export default function CategoryWizard() {
-  const router = useRouter();
+  const analysis = analyzeAdContent(validation.data.title, validation.data.description);
 
-  const [history, setHistory] = useState<any[]>([]);
-  const [currentList, setCurrentList] = useState<any[]>(categories);
-  const [selectedPath, setSelectedPath] = useState<string[]>([]);
+  const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
+  if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
 
-  const [isCarSelection, setIsCarSelection] = useState(false);
-  const [carStep, setCarStep] = useState<'brand' | 'series' | 'model' | null>(null);
-  const [selectedBrand, setSelectedBrand] = useState<string>('');
-  const [selectedSeries, setSelectedSeries] = useState<string>('');
+  const { data, error } = await supabase.from('ads').insert([{
+    ...validation.data,
+    user_id: user.id,
+    status: 'onay_bekliyor',
+    is_vitrin: false,
+    is_urgent: false,
+    moderation_score: analysis.score,
+    moderation_tags: analysis.flags,
+    admin_note: analysis.autoReject ? \`OTOMATİK RET: \${analysis.rejectReason}\` : null
+  }]).select('id').single()
 
-  const handleSelect = (item: any) => {
-    // 1. Vasıta -> Otomobil Seçildi mi?
-    if (item.slug === 'otomobil') {
-        setIsCarSelection(true);
-        setCarStep('brand');
-        setHistory([...history, currentList]);
-        setSelectedPath([...selectedPath, item.title]);
+  if (error) {
+      console.error('DB Insert Error:', error);
+      return { error: \`Veritabanı Hatası: \${error.message}\` }
+  }
 
-        // Marka Listesini Hazırla
-        const brandList = Object.keys(carCatalog).map(brand => ({
-            id: brand,
-            title: brand,
-            slug: brand,
-            type: 'brand'
-        })).sort((a,b) => a.title.localeCompare(b.title));
+  await logActivity(user.id, 'CREATE_AD', { adId: data.id, title: validation.data.title });
 
-        setCurrentList(brandList);
-        return;
-    }
+  if (analysis.autoReject) return { error: \`Güvenlik politikası gereği ilan reddedildi: \${analysis.rejectReason}\` };
 
-    // 2. Araç Seçimi Modu
-    if (isCarSelection) {
-        if (carStep === 'brand') {
-            const brand = item.title;
-            setSelectedBrand(brand);
-
-            const seriesList = Object.keys(carCatalog[brand] || {}).map(series => ({
-                id: series,
-                title: series,
-                slug: series,
-                type: 'series'
-            }));
-
-            if (seriesList.length > 0) {
-                setHistory([...history, currentList]);
-                setCurrentList(seriesList);
-                setSelectedPath([...selectedPath, brand]);
-                setCarStep('series');
-            } else {
-                 finishSelection(brand, '', '');
-            }
-
-        } else if (carStep === 'series') {
-            const series = item.title;
-            setSelectedSeries(series);
-
-            const models = carCatalog[selectedBrand][series] || [];
-            const modelList = models.map(model => ({
-                id: model.id,
-                title: model.name,
-                slug: model.id,
-                type: 'model',
-                // Specs verisini de taşıyoruz ama URL'e sığmaz, ID'den bulacağız
-            }));
-
-            if (modelList.length > 0) {
-                setHistory([...history, currentList]);
-                setCurrentList(modelList);
-                setSelectedPath([...selectedPath, series]);
-                setCarStep('model');
-            } else {
-                finishSelection(selectedBrand, series, '');
-            }
-
-        } else if (carStep === 'model') {
-            // Model Seçildi -> Bitir
-            finishSelection(selectedBrand, selectedSeries, item.title);
-        }
-        return;
-    }
-
-    // 3. Standart Kategori
-    const newPath = [...selectedPath, item.title];
-
-    if (item.subs && item.subs.length > 0) {
-      setHistory([...history, currentList]);
-      setCurrentList(item.subs);
-      setSelectedPath(newPath);
-    } else {
-      const categorySlug = item.slug;
-      router.push(\`/ilan-ver/detay?cat=\${categorySlug}&path=\${newPath.join(' > ')}\`);
-    }
-  };
-
-  const finishSelection = (brand: string, series: string, model: string) => {
-     const finalPath = [...selectedPath, model].filter(Boolean).join(' > ');
-     const params = new URLSearchParams();
-     params.set('cat', 'otomobil');
-     params.set('path', finalPath);
-     if(brand) params.set('brand', brand);
-     if(series) params.set('series', series);
-     if(model) params.set('model', model);
-
-     router.push(\`/ilan-ver/detay?\${params.toString()}\`);
-  };
-
-  const handleBack = () => {
-    if (history.length === 0) return;
-
-    const prevList = history[history.length - 1];
-    setHistory(history.slice(0, -1));
-    setCurrentList(prevList);
-    setSelectedPath(selectedPath.slice(0, -1));
-
-    if (isCarSelection) {
-        if (carStep === 'model') setCarStep('series');
-        else if (carStep === 'series') setCarStep('brand');
-        else if (carStep === 'brand') {
-            setIsCarSelection(false);
-            setCarStep(null);
-        }
-    }
-  };
-
-  return (
-    <div className="w-full">
-      <div className="flex items-center gap-4 mb-6">
-        {history.length > 0 && (
-          <button
-            onClick={handleBack}
-            className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
-          >
-            <ArrowLeft size={20} />
-          </button>
-        )}
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">
-            {history.length === 0 ? 'İlan Kategorisini Seçin' : selectedPath[selectedPath.length - 1] || 'Seçim Yapınız'}
-          </h2>
-          <p className="text-sm text-slate-500">
-            {history.length === 0 ? 'İlanınız için en uygun ana kategoriyi belirleyin.' : selectedPath.join(' > ')}
-          </p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {currentList.map((item) => {
-          const Icon = iconMap[item.icon] || null;
-          const isLeaf = isCarSelection ? (carStep === 'model') : (!item.subs || item.subs.length === 0);
-
-          return (
-            <button
-              key={item.id || item.title}
-              onClick={() => handleSelect(item)}
-              className="group relative flex items-center p-5 bg-white border border-gray-200 rounded-xl hover:border-indigo-500 hover:shadow-md hover:shadow-indigo-100 transition-all duration-200 text-left"
-            >
-              <div className={\`
-                w-14 h-14 rounded-lg flex items-center justify-center mr-4 transition-colors shrink-0
-                \${history.length === 0 ? 'bg-indigo-50 text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white' : 'bg-gray-100 text-gray-500 group-hover:bg-indigo-100 group-hover:text-indigo-700'}
-              \`}>
-                {history.length === 0 && Icon ? Icon : (
-                   isLeaf ? <CheckCircle2 size={24} className="text-green-600" /> : <div className="text-sm font-bold opacity-50">{item.title.substring(0,2).toUpperCase()}</div>
-                )}
-              </div>
-
-              <div className="flex-1 min-w-0">
-                <span className="block font-bold text-slate-700 group-hover:text-indigo-900 text-base mb-0.5 truncate">
-                  {item.title}
-                </span>
-                <span className="text-xs text-slate-400 group-hover:text-indigo-500 font-medium">
-                  {isLeaf ? 'Seç ve Devam Et' : 'Alt Kategorileri Gör'}
-                </span>
-              </div>
-
-              <div className="absolute right-4 opacity-0 group-hover:opacity-100 transition-opacity transform group-hover:translate-x-1">
-                {isLeaf ? <CheckCircle2 size={20} className="text-green-500" /> : <ChevronRight size={20} className="text-indigo-400" />}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
+  revalidatePath('/');
+  return { success: true, adId: data.id }
 }
-`,
-  },
-  // 3. ARAÇ FORMU GÜNCELLEMESİ (Yeni Alanlar ve Katalog Gösterimi)
-  {
-    path: "components/form/VehicleFields.tsx",
-    content: `import React, { useEffect, useState } from 'react';
-import {
-  fuelTypes, gearTypes, vehicleStatuses, bodyTypes,
-  motorPowers, engineCapacities, tractions, colors, sellerTypes, plateTypes
-} from '@/lib/constants';
-import { carCatalog, TechnicalSpecs } from '@/lib/carCatalog';
-import { Info } from 'lucide-react';
 
-export default function VehicleFields({ data, onChange }: any) {
-  const [specs, setSpecs] = useState<TechnicalSpecs | null>(null);
+// --- READ / LIST ACTIONS ---
 
-  // Marka/Seri/Model değiştiğinde kataloğu kontrol et
-  useEffect(() => {
-    if (data.brand && data.series && data.model) {
-        const brandData = carCatalog[data.brand];
-        if (brandData) {
-            const seriesData = brandData[data.series];
-            if (seriesData) {
-                const modelData = seriesData.find(m => m.name === data.model);
-                if (modelData && modelData.specs) {
-                    setSpecs(modelData.specs);
-                    // Teknik verileri parent forma gönder (kaydetmek için)
-                    onChange('technical_specs', modelData.specs);
-                }
-            }
-        }
-    }
-  }, [data.brand, data.series, data.model]);
+export async function getAdsServer(searchParams: any) {
+  const supabase = await createClient()
+  const page = Number(searchParams?.page) || 1;
+  const limit = 20;
+  const from = (page - 1) * limit;
+  const to = from + limit - 1;
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
-    onChange(e.target.name, e.target.value);
-  };
+  let query = supabase.from('ads').select('*, profiles(full_name), categories(title)', { count: 'exact' }).eq('status', 'yayinda');
 
-  const renderSelect = (label: string, name: string, options: string[], required = false) => (
-    <div>
-      <label className="block text-[12px] font-bold text-gray-600 mb-1">{label} {required && <span className="text-red-500">*</span>}</label>
-      <select
-        name={name}
-        value={data[name] || ''}
-        onChange={handleChange}
-        className="w-full border border-gray-300 rounded-sm h-9 px-2 focus:border-blue-500 outline-none text-sm bg-white"
-      >
-        <option value="">Seçiniz</option>
-        {options.map(opt => (
-          <option key={opt} value={opt}>{opt}</option>
-        ))}
-      </select>
-    </div>
-  );
+  // Basit Filtreler
+  if (searchParams?.q) query = query.textSearch('fts', searchParams.q, { config: 'turkish', type: 'websearch' });
+  if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice);
+  if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice);
+  if (searchParams?.city) query = query.eq('city', searchParams.city);
 
-  const renderReadOnly = (label: string, value: string) => (
-      <div className="bg-white p-2 rounded border border-gray-200">
-          <label className="block text-[10px] font-bold text-gray-400 uppercase">{label}</label>
-          <span className="font-bold text-gray-800 text-sm truncate block">{value || '-'}</span>
-      </div>
-  );
+  // Kategori Filtresi
+  if (searchParams?.category) {
+      const slug = searchParams.category;
+      if (slug === 'emlak') query = query.or('category.ilike.konut%,category.ilike.isyeri%,category.ilike.arsa%');
+      else if (slug === 'konut') query = query.ilike('category', 'konut%');
+      else if (slug === 'vasita') query = query.or('category.eq.otomobil,category.eq.suv,category.eq.motosiklet');
+      else query = query.eq('category', slug);
+  }
 
-  return (
-    <div className="space-y-6 animate-in fade-in">
+  // Araç Detay Filtreleri (YENİ)
+  if (searchParams?.brand) query = query.eq('brand', searchParams.brand);
+  if (searchParams?.series) query = query.eq('series', searchParams.series);
+  if (searchParams?.model) query = query.eq('model', searchParams.model);
+  if (searchParams?.gear) query = query.eq('gear', searchParams.gear);
+  if (searchParams?.fuel) query = query.eq('fuel', searchParams.fuel);
+  if (searchParams?.year_min) query = query.gte('year', searchParams.year_min);
+  if (searchParams?.year_max) query = query.lte('year', searchParams.year_max);
 
-      {/* SEÇİLEN ARAÇ BİLGİSİ */}
-      <div className="bg-gray-50 p-4 rounded-sm border border-gray-200">
-        <h3 className="font-bold text-[#333] text-sm border-b border-gray-300 pb-2 mb-4">Araç Bilgileri</h3>
+  // Sıralama
+  if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true });
+  else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false });
+  else query = query.order('is_vitrin', { ascending: false }).order('created_at', { ascending: false });
 
-        {/* URL'den gelen veriler (Read-Only) */}
-        {(data.brand || data.series || data.model) && (
-            <div className="grid grid-cols-3 gap-2 mb-4">
-                {renderReadOnly("Marka", data.brand)}
-                {renderReadOnly("Seri", data.series)}
-                {renderReadOnly("Model", data.model)}
-            </div>
-        )}
+  query = query.range(from, to);
+  const { data, count, error } = await query;
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-
-            {/* Kullanıcıya Sorulan Zorunlu Alanlar */}
-            <div>
-            <label className="block text-[12px] font-bold text-gray-600 mb-1">Yıl <span className="text-red-500">*</span></label>
-            <select name="year" value={data.year || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-sm h-9 px-2 focus:border-blue-500 outline-none text-sm bg-white">
-                <option value="">Seçiniz</option>
-                {Array.from({length: 40}, (_, i) => 2025 - i).map(year => (<option key={year} value={year}>{year}</option>))}
-            </select>
-            </div>
-
-            <div>
-            <label className="block text-[12px] font-bold text-gray-600 mb-1">Kilometre <span className="text-red-500">*</span></label>
-            <input type="number" name="km" value={data.km || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-sm h-9 px-3 focus:border-blue-500 outline-none text-sm" placeholder="Örn: 120000" />
-            </div>
-
-            {renderSelect("Yakıt", "fuel", fuelTypes, true)}
-            {renderSelect("Vites", "gear", gearTypes, true)}
-            {renderSelect("Kasa Tipi", "body_type", bodyTypes)}
-            {renderSelect("Motor Gücü", "motor_power", motorPowers)}
-            {renderSelect("Motor Hacmi", "engine_capacity", engineCapacities)}
-            {renderSelect("Çekiş", "traction", tractions)}
-            {renderSelect("Renk", "color", colors)}
-            {renderSelect("Araç Durumu", "vehicle_status", vehicleStatuses)}
-            {renderSelect("Kimden", "seller_type", sellerTypes)}
-            {renderSelect("Plaka Uyruğu", "plate_type", plateTypes)}
-
-            <div>
-            <label className="block text-[12px] font-bold text-gray-600 mb-1">Garanti</label>
-            <select name="warranty" value={data.warranty || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-sm h-9 px-2 focus:border-blue-500 outline-none text-sm bg-white">
-                <option value="">Seçiniz</option><option value="true">Evet</option><option value="false">Hayır</option>
-            </select>
-            </div>
-
-            <div>
-            <label className="block text-[12px] font-bold text-gray-600 mb-1">Ağır Hasar Kayıtlı</label>
-            <select name="heavy_damage" value={data.heavy_damage || ''} onChange={handleChange} className="w-full border border-red-200 rounded-sm h-9 px-2 focus:border-red-500 outline-none text-sm bg-red-50 text-red-900 font-medium">
-                <option value="">Seçiniz</option><option value="true">Evet</option><option value="false">Hayır</option>
-            </select>
-            </div>
-
-            <div>
-            <label className="block text-[12px] font-bold text-gray-600 mb-1">Takas</label>
-            <select name="exchange" value={data.exchange || ''} onChange={handleChange} className="w-full border border-gray-300 rounded-sm h-9 px-2 focus:border-blue-500 outline-none text-sm bg-white">
-                <option value="">Seçiniz</option><option value="true">Evet</option><option value="false">Hayır</option>
-            </select>
-            </div>
-        </div>
-      </div>
-
-      {/* OTOMATİK GELEN KATALOG VERİLERİ (READ ONLY) */}
-      {specs && (
-        <div className="bg-blue-50 p-5 rounded-lg border border-blue-200 animate-in slide-in-from-top-4">
-            <h3 className="font-bold text-blue-900 text-sm mb-4 flex items-center gap-2">
-                <Info size={18}/> Otomatik Getirilen Teknik Veriler
-            </h3>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
-                <div>
-                    <span className="block text-blue-500 font-bold mb-1">Motor Gücü</span>
-                    <span className="font-bold text-slate-700">{specs.engine_performance.max_power_detail}</span>
-                </div>
-                <div>
-                    <span className="block text-blue-500 font-bold mb-1">Hızlanma (0-100)</span>
-                    <span className="font-bold text-slate-700">{specs.engine_performance.acceleration}</span>
-                </div>
-                <div>
-                    <span className="block text-blue-500 font-bold mb-1">Yakıt (Ort.)</span>
-                    <span className="font-bold text-slate-700">{specs.fuel_consumption.average}</span>
-                </div>
-                 <div>
-                    <span className="block text-blue-500 font-bold mb-1">Maks. Hız</span>
-                    <span className="font-bold text-slate-700">{specs.engine_performance.top_speed}</span>
-                </div>
-                 <div>
-                    <span className="block text-blue-500 font-bold mb-1">Depo</span>
-                    <span className="font-bold text-slate-700">{specs.fuel_consumption.tank_volume}</span>
-                </div>
-                 <div>
-                    <span className="block text-blue-500 font-bold mb-1">Bagaj</span>
-                    <span className="font-bold text-slate-700">{specs.dimensions.luggage}</span>
-                </div>
-            </div>
-
-            <p className="text-[10px] text-blue-400 mt-4 italic">* Bu veriler araç kataloğundan otomatik çekilmiştir ve ilana eklenecektir.</p>
-        </div>
-      )}
-    </div>
-  );
+  if (error) {
+      console.error("Get Ads Error:", error);
+      return { data: [], count: 0, totalPages: 0 };
+  }
+  return { data: data || [], count: count || 0, totalPages: count ? Math.ceil(count / limit) : 0 };
 }
-`,
-  },
-  // 4. İLAN OLUŞTURMA SAYFASI (Technical Specs Kaydı)
-  {
-    path: "app/ilan-ver/detay/page.tsx",
-    content: `
-"use client";
-import React, { useState, useEffect, Suspense } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, ArrowLeft, ArrowRight, Info, MapPin, Camera, Sparkles, Eye, X, Save } from 'lucide-react';
-import { useToast } from '@/context/ToastContext';
-import { useAuth } from '@/context/AuthContext';
-import RealEstateFields from '@/components/form/RealEstateFields';
-import VehicleFields from '@/components/form/VehicleFields';
-import ImageUploader from '@/components/ui/ImageUploader';
-import AdCard from '@/components/AdCard';
-import { createAdAction } from '@/lib/actions';
-import { adSchema } from '@/lib/schemas';
-import { cities, getDistricts } from '@/lib/locations';
-import { Input } from '@/components/ui/Input';
-import { Textarea } from '@/components/ui/Textarea';
 
-function PostAdFormContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const { addToast } = useToast();
-  const { user } = useAuth();
+export const getCategoryTreeServer = unstable_cache(
+  async () => {
+    const supabase = createStaticClient();
+    const { data } = await supabase.from('categories').select('*').order('title');
+    if (!data) return [];
+    const parents = data.filter(c => !c.parent_id);
+    return parents.map(p => ({ ...p, subs: data.filter(c => c.parent_id === p.id) }));
+  }, ['category-tree'], { revalidate: 3600 }
+);
 
-  const categorySlug = searchParams.get('cat') || '';
-  const categoryPath = searchParams.get('path') || 'Kategori Seçilmedi';
+export async function getInfiniteAdsAction(page = 1, limit = 20) {
+    const supabase = await createClient();
+    const start = (page - 1) * limit;
+    const end = start + limit - 1;
+    const { data, count, error } = await supabase.from('ads')
+        .select('*, profiles(full_name)', { count: 'exact' })
+        .eq('status', 'yayinda')
+        .order('is_vitrin', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(start, end);
 
-  // URL'den gelen araç bilgileri
-  const urlBrand = searchParams.get('brand') || '';
-  const urlSeries = searchParams.get('series') || '';
-  const urlModel = searchParams.get('model') || '';
+    if (error) return { data: [], total: 0, hasMore: false };
+    return { data: data || [], total: count || 0, hasMore: (count || 0) > end + 1 };
+}
 
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [images, setImages] = useState<string[]>([]);
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [districts, setDistricts] = useState<string[]>([]);
-  const [showMobilePreview, setShowMobilePreview] = useState(false);
-  const [lastSaved, setLastSaved] = useState<Date | null>(null);
+export async function getAdDetailServer(id: number) {
+  const supabase = await createClient()
+  const { data } = await supabase.from('ads').select('*, profiles(*), categories(title)').eq('id', id).single()
+  return data
+}
 
-  const [formData, setFormData] = useState<any>({
-    title: '', description: '', price: '', currency: 'TL', city: '', district: '',
-    m2: '', room: '', floor: '', heating: '',
-    brand: urlBrand,
-    series: urlSeries,
-    model: urlModel,
-    year: '', km: '', gear: '', fuel: '',
-    body_type: '', motor_power: '', engine_capacity: '', traction: '', color: '',
-    warranty: '', plate_type: '', exchange: '', seller_type: '', vehicle_status: '',
-    heavy_damage: '', // YENİ
-    technical_specs: null // YENİ
-  });
+// --- UPDATE ACTIONS ---
 
-  const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri');
-  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv');
+export async function updateAdAction(id: number, formData: any) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update(formData).eq('id', id);
+    if (error) return { error: error.message };
+    revalidatePath('/bana-ozel/ilanlarim');
+    return { success: true };
+}
 
-  useEffect(() => {
-    if (urlBrand || urlSeries || urlModel) {
-        setFormData(prev => ({
-            ...prev,
-            brand: urlBrand,
-            series: urlSeries,
-            model: urlModel
-        }));
-    }
-  }, [urlBrand, urlSeries, urlModel]);
+export async function approveAdAction(id: number) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update({ status: 'yayinda' }).eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
 
-  useEffect(() => {
-    const savedDraft = localStorage.getItem('ad_draft');
-    if (savedDraft) {
-      try {
-        const parsed = JSON.parse(savedDraft);
-        if (parsed.categorySlug === categorySlug) {
-            setFormData(prev => ({ ...prev, ...parsed.formData }));
-            setImages(parsed.images || []);
-            addToast('Taslağınız başarıyla geri yüklendi.', 'info');
-        }
-      } catch (e) { console.error("Draft error", e); }
-    }
-  }, [categorySlug]);
+export async function rejectAdAction(id: number, reason: string) {
+    const supabase = await createClient();
+    const { error } = await supabase.from('ads').update({ status: 'reddedildi', admin_note: reason }).eq('id', id);
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+}
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-        if (formData.title || formData.price) {
-            localStorage.setItem('ad_draft', JSON.stringify({ formData, images, categorySlug }));
-            setLastSaved(new Date());
-        }
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [formData, images, categorySlug]);
+export async function deleteAdSafeAction(adId: number) {
+    const supabase = await createClient();
+    await supabase.from('ads').update({ status: 'pasif' }).eq('id', adId);
+    revalidatePath('/bana-ozel/ilanlarim');
+    return { message: 'Silindi' };
+}
 
-  useEffect(() => {
-    if (formData.city) {
-      setDistricts(getDistricts(formData.city));
-    }
-  }, [formData.city]);
+// --- USER ACTIONS ---
 
-  const handleInputChange = (e: any) => {
-    const { name, value } = e.target;
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
-    if (errors[name]) {
-      const newErrors = { ...errors };
-      delete newErrors[name];
-      setErrors(newErrors);
-    }
-  };
+export async function updateProfileAction(d: any) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { success: false, error: 'Auth error' };
 
-  // Child component'ten gelen verileri al (Örn: technical_specs)
-  const handleDynamicChange = (name: string, value: any) => {
-    setFormData((prev: any) => ({ ...prev, [name]: value }));
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!user) { router.push('/login'); return; }
-
-    const rawData = {
-        ...formData,
-        category: categorySlug,
-        image: images[0] || null,
-        images: images,
-        price: Number(formData.price),
-
-        year: isVehicle || isRealEstate ? Number(formData.year) : undefined,
-        km: isVehicle ? Number(formData.km) : undefined,
-        m2: isRealEstate ? Number(formData.m2) : undefined,
-        floor: isRealEstate ? Number(formData.floor) : undefined,
-
-        warranty: formData.warranty === 'true',
-        exchange: formData.exchange === 'true',
-        heavy_damage: formData.heavy_damage === 'true', // YENİ
+    const updates = {
+        full_name: d.full_name,
+        phone: d.phone,
+        avatar_url: d.avatar_url,
+        show_phone: d.show_phone
     };
 
-    const result = adSchema.safeParse(rawData);
+    const { error } = await supabase.from('profiles').update(updates).eq('id', user.id);
+    return { success: !error, error: error ? error.message : null };
+}
 
-    if (!result.success) {
-        const fieldErrors: any = {};
-        result.error.issues.forEach(issue => { fieldErrors[issue.path[0]] = issue.message; });
-        setErrors(fieldErrors);
-        addToast('Lütfen hatalı alanları düzeltiniz.', 'error');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
-        return;
+export async function updatePasswordAction(password: string) {
+    const supabase = await createClient();
+    const { error } = await supabase.auth.updateUser({ password });
+    return { success: !error, error: error?.message };
+}
+
+// --- OTHER ACTIONS ---
+
+export async function getAdFavoriteCount(adId: number) {
+    const supabase = await createClient();
+    const { count } = await supabase.from('favorites').select('*', { count: 'exact', head: true }).eq('ad_id', adId);
+    return count || 0;
+}
+
+export async function getMyStoreServer() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase.from('stores').select('*').eq('user_id', user.id).single();
+  return data;
+}
+
+export async function createStoreAction(formData: any) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Oturum açmanız gerekiyor.' };
+  const { error } = await supabase.from('stores').insert([{ ...formData, user_id: user.id }]);
+  if (error) return { error: 'Hata oluştu.' };
+  await supabase.from('profiles').update({ role: 'store' }).eq('id', user.id);
+  revalidatePath('/bana-ozel/magazam');
+  return { success: true };
+}
+
+export async function updateStoreAction(formData: any) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return { error: 'Oturum açmanız gerekiyor.' };
+  const { error } = await supabase.from('stores').update(formData).eq('user_id', user.id);
+  if (error) return { error: 'Güncelleme başarısız.' };
+  revalidatePath('/bana-ozel/magazam');
+  return { success: true };
+}
+
+export async function getStoreBySlugServer(slug: string) {
+  const supabase = await createClient();
+  const { data } = await supabase.from('stores').select('*').eq('slug', slug).single();
+  return data;
+}
+
+export async function getStoreAdsServer(userId: string) {
+  const supabase = await createClient();
+  const { data } = await supabase.from('ads').select('*').eq('user_id', userId).eq('status', 'yayinda');
+  return data || [];
+}
+
+export async function getSellerReviewsServer(id: string) {
+    const supabase = await createClient();
+    const { data } = await supabase.from('reviews').select('*').eq('target_user_id', id);
+    return data || [];
+}
+
+export async function createReviewAction(targetId: string, rating: number, comment: string, adId: number) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return { error: 'Giriş gerekli' };
+    await supabase.from('reviews').insert({ target_user_id: targetId, reviewer_id: user.id, rating, comment, ad_id: adId });
+    return { success: true };
+}
+
+export async function getRelatedAdsServer(cat: string, id: number, price?: number) {
+    const supabase = await createClient();
+    const { data } = await supabase.from('ads').select('*').eq('category', cat).neq('id', id).limit(4);
+    return data || [];
+}
+
+export async function incrementViewCountAction(id: number) {
+    const supabase = await createClient();
+    await supabase.rpc('increment_view_count', { ad_id_input: id });
+}
+
+export async function getUserDashboardStats() {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return [];
+    const { data } = await supabase.from('ads').select('status, view_count, price').eq('user_id', user.id);
+    return data || [];
+}
+
+export async function activateDopingAction(id: number, types: string[]) { return { success: true } }
+export async function createReportAction(id: number, r: string, d: string) { return { success: true } }
+
+export async function getAuditLogsServer() {
+    const supabase = await createClient();
+    const { data } = await supabase.from('audit_logs').select('*, profiles(full_name, email)').order('created_at', { ascending: false }).limit(100);
+    return data || [];
+}
+
+export async function getAdminStatsServer() {
+    return { totalUsers: 150, activeAds: 45, totalRevenue: 12500 };
+}
+
+export async function getAdsByIds(ids: number[]) {
+    if(!ids.length) return [];
+    const supabase = await createClient();
+    const { data } = await supabase.from('ads').select('*').in('id', ids);
+    return data || [];
+}
+
+export async function getPageBySlugServer(slug: string) {
+    return { title: 'Sayfa Başlığı', content: '<p>İçerik...</p>' };
+}
+
+export async function getHelpContentServer() {
+    return { categories: [], faqs: [] };
+}
+
+export async function getLocationsServer() {
+    const supabase = createStaticClient();
+    const { data } = await supabase.from('provinces').select('*').order('name');
+    if (!data || data.length === 0) {
+        return [
+            { id: 34, name: 'İstanbul' }, { id: 6, name: 'Ankara' }, { id: 35, name: 'İzmir' },
+            { id: 7, name: 'Antalya' }, { id: 16, name: 'Bursa' }
+        ];
     }
-
-    setIsSubmitting(true);
-    const res = await createAdAction(rawData);
-
-    if (res.error) {
-        addToast(res.error, 'error');
-    } else {
-        localStorage.removeItem('ad_draft');
-        addToast('İlan başarıyla oluşturuldu!', 'success');
-        router.push(\`/ilan-ver/doping?adId=\${res.adId}\`);
-    }
-    setIsSubmitting(false);
-  };
-
-  const PreviewCard = () => (
-    <div className="pointer-events-none transform scale-[0.85] origin-top">
-        <AdCard
-            ad={{
-                id: 999999,
-                title: formData.title || 'İlan Başlığı',
-                price: formData.price || 0,
-                currency: formData.currency,
-                city: formData.city || 'İl',
-                district: formData.district || 'İlçe',
-                image: images[0] || null,
-                created_at: new Date().toISOString(),
-                is_vitrin: false,
-                is_urgent: false
-            }}
-            viewMode="grid"
-        />
-    </div>
-  );
-
-  return (
-    <div className="flex flex-col lg:flex-row gap-8 relative">
-      <div className="flex-1">
-        <div className="bg-indigo-50 border border-indigo-100 p-4 rounded-xl mb-6 flex items-center justify-between">
-          <div>
-            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Seçilen Kategori</p>
-            <h1 className="text-sm md:text-base font-bold text-indigo-900">{categoryPath}</h1>
-          </div>
-          <button onClick={() => router.push('/ilan-ver')} className="text-xs font-bold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 hover:border-indigo-300 transition-colors">
-            Değiştir
-          </button>
-        </div>
-
-        <div className="flex justify-end mb-2">
-            {lastSaved && (
-                <span className="text-[10px] text-gray-400 flex items-center gap-1 animate-pulse">
-                    <Save size={10}/> Taslak kaydedildi: {lastSaved.toLocaleTimeString()}
-                </span>
-            )}
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-8">
-          <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
-            <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Info className="text-indigo-500" size={20}/> Temel Bilgiler
-            </h3>
-
-            <div className="space-y-5">
-              <Input label="İlan Başlığı" name="title" placeholder="Örn: Sahibinden temiz, masrafsız..." value={formData.title} onChange={handleInputChange} error={errors.title} className="font-medium text-base" />
-              <Textarea label="İlan Açıklaması" name="description" placeholder="Ürününüzü detaylıca anlatın..." value={formData.description} onChange={handleInputChange} className="h-32 leading-relaxed" error={errors.description} />
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="relative">
-                   <Input label="Fiyat" name="price" type="number" placeholder="0" value={formData.price} onChange={handleInputChange} error={errors.price} className="font-bold text-lg text-indigo-900" />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label>
-                  <div className="grid grid-cols-4 gap-2">
-                    {['TL', 'USD', 'EUR', 'GBP'].map(curr => (
-                      <button key={curr} type="button" onClick={() => setFormData({...formData, currency: curr})} className={\`h-10 rounded-lg text-sm font-bold border transition-all \${formData.currency === curr ? 'bg-indigo-600 text-white border-indigo-600 shadow-md' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'}\`}>{curr}</button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {(isRealEstate || isVehicle) && (
-            <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
-              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <Sparkles className="text-orange-500" size={20}/> Teknik Detaylar
-              </h3>
-              <div className="-mx-4 md:mx-0">
-                {isRealEstate && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
-                {isVehicle && <VehicleFields data={formData} onChange={handleDynamicChange} />}
-              </div>
-            </section>
-          )}
-
-          <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-pink-500"></div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
-              <Camera className="text-pink-500" size={20}/> Fotoğraflar
-            </h3>
-            <p className="text-sm text-slate-500 mb-6">Vitrin görseli ilk yüklediğiniz fotoğraf olacaktır.</p>
-            <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-300">
-               <ImageUploader onImagesChange={setImages} initialImages={images} />
-            </div>
-          </section>
-
-          <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
-            <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <MapPin className="text-green-500" size={20}/> Konum Bilgisi
-            </h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div>
-                <label className="block text-[11px] font-bold text-gray-600 mb-1">İl <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <select name="city" onChange={handleInputChange} value={formData.city} className="w-full h-11 pl-3 pr-8 bg-white border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 appearance-none text-sm transition-shadow shadow-sm">
-                    <option value="">Seçiniz</option>
-                    {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-3.5 pointer-events-none text-gray-400"><MapPin size={16}/></div>
-                </div>
-                {errors.city && <p className="text-red-500 text-[10px] mt-1">{errors.city}</p>}
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-gray-600 mb-1">İlçe <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <select name="district" value={formData.district} onChange={handleInputChange} className="w-full h-11 pl-3 pr-8 bg-white border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 appearance-none text-sm transition-shadow shadow-sm disabled:bg-gray-100 disabled:text-gray-400" disabled={!formData.city}>
-                    <option value="">Seçiniz</option>
-                    {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-3.5 pointer-events-none text-gray-400"><MapPin size={16}/></div>
-                </div>
-                {errors.district && <p className="text-red-500 text-[10px] mt-1">{errors.district}</p>}
-              </div>
-            </div>
-          </section>
-
-          <div className="flex items-center justify-between pt-4 pb-20 lg:pb-0">
-            <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-lg font-bold text-sm text-slate-600 hover:bg-slate-100 flex items-center gap-2 transition-colors">
-              <ArrowLeft size={18}/> Geri Dön
-            </button>
-            <button type="submit" disabled={isSubmitting} className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold text-base hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
-              {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <>Devam Et <ArrowRight size={20}/></>}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <div className="hidden lg:block w-[300px] shrink-0">
-        <div className="sticky top-28 space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 shadow-sm">
-            <h4 className="font-bold text-blue-900 mb-2 text-sm flex items-center gap-2"><Info size={16}/> İpucu</h4>
-            <p className="text-xs text-blue-800 leading-relaxed">İlan başlığınızda anahtar kelimeleri (marka, model, özellik) geçirmek arama sonuçlarında daha üstte çıkmanızı sağlar.</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-             <h4 className="font-bold text-slate-800 mb-3 text-sm">Canlı Önizleme</h4>
-             {formData.title ? <PreviewCard /> : (
-                 <div className="opacity-50 pointer-events-none grayscale">
-                   <div className="aspect-[4/3] bg-gray-200 rounded-lg mb-2"></div>
-                   <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
-                   <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                 </div>
-             )}
-             <p className="text-[10px] text-center text-gray-400 mt-2">{formData.title ? 'İlanınız listelerde böyle görünecek' : 'Başlık girdikçe önizleme aktifleşir'}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+    return data;
 }
 
-export default function PostAdPage() {
-    return <Suspense fallback={<div className="p-20 text-center"><Loader2 className="animate-spin mx-auto text-indigo-600" size={32}/></div>}><PostAdFormContent /></Suspense>
+export async function getDistrictsServer(cityName: string) {
+    const supabase = createStaticClient();
+    const { data: province } = await supabase.from('provinces').select('id').eq('name', cityName).single();
+    if (!province) return [];
+    const { data } = await supabase.from('districts').select('*').eq('province_id', province.id).order('name');
+    return data || [];
+}
+
+export async function getFacetCountsServer() {
+    const supabase = createStaticClient();
+    const { data, error } = await supabase.rpc('get_ad_counts_by_city');
+    if (error) return [];
+    return data as { city_name: string; count: number }[];
 }
 `,
   },
-  // 5. ŞEMA GÜNCELLEMESİ (Yeni Alanlar)
-  {
-    path: "lib/schemas.ts",
-    content: `import { z } from 'zod';
-
-export const adSchema = z.object({
-  title: z.string().min(5, "Başlık en az 5 karakter olmalıdır").max(100, "Başlık çok uzun"),
-  description: z.string().min(10, "Açıklama en az 10 karakter olmalıdır"),
-  price: z.number({ invalid_type_error: "Geçerli bir fiyat giriniz" }).min(0, "Fiyat 0'dan küçük olamaz"),
-  currency: z.enum(['TL', 'USD', 'EUR', 'GBP']),
-  city: z.string().min(1, "İl seçimi zorunludur"),
-  district: z.string().min(1, "İlçe seçimi zorunludur"),
-  category: z.string().min(1, "Kategori seçimi zorunludur"),
-  image: z.string().nullable().optional(),
-  images: z.array(z.string()).optional(),
-
-  // Emlak
-  room: z.string().optional().nullable(),
-  m2: z.number().optional().nullable(),
-  floor: z.number().optional().nullable(),
-  heating: z.string().optional().nullable(),
-
-  // Vasıta (Temel)
-  brand: z.string().optional().nullable(),
-  series: z.string().optional().nullable(),
-  model: z.string().optional().nullable(),
-  year: z.number().optional().nullable(),
-  km: z.number().optional().nullable(),
-  gear: z.string().optional().nullable(),
-  fuel: z.string().optional().nullable(),
-
-  // Vasıta (Detay)
-  body_type: z.string().optional().nullable(),
-  motor_power: z.string().optional().nullable(),
-  engine_capacity: z.string().optional().nullable(),
-  traction: z.string().optional().nullable(),
-  color: z.string().optional().nullable(),
-  warranty: z.boolean().optional().nullable(),
-  exchange: z.boolean().optional().nullable(),
-  plate_type: z.string().optional().nullable(),
-  seller_type: z.string().optional().nullable(),
-  vehicle_status: z.string().optional().nullable(),
-  heavy_damage: z.boolean().optional().nullable(), // YENİ
-
-  // Teknik Özellikler (JSONB)
-  technical_specs: z.any().optional().nullable()
-
-}).superRefine((data, ctx) => {
-  // Emlak Özel Kontrolleri
-  if (data.category.includes('konut') || data.category.includes('isyeri')) {
-    if (!data.m2) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Metrekare zorunludur", path: ['m2'] });
-    if (!data.room && data.category.includes('konut')) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Oda sayısı zorunludur", path: ['room'] });
-  }
-  // Vasıta Özel Kontrolleri
-  if (data.category.includes('otomobil') || data.category.includes('suv')) {
-    if (!data.brand) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Marka zorunludur", path: ['brand'] });
-    if (!data.km) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Kilometre zorunludur", path: ['km'] });
-    if (!data.year) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Yıl zorunludur", path: ['year'] });
-    if (!data.fuel) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Yakıt tipi zorunludur", path: ['fuel'] });
-    if (!data.gear) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Vites tipi zorunludur", path: ['gear'] });
-  }
-});
-
-export type AdFormValues = z.infer<typeof adSchema>;
-`,
-  },
-  // 6. TEKNİK ÖZELLİKLER TAB (İlan Detay Sayfası İçin)
-  {
-    path: "components/AdDetail/TechnicalSpecsTab.tsx",
-    content: `import React from 'react';
-import { TechnicalSpecs } from '@/lib/carCatalog';
-
-export default function TechnicalSpecsTab({ specs }: { specs: TechnicalSpecs }) {
-  if (!specs) return <div className="text-gray-500 py-4">Teknik veri bulunamadı.</div>;
-
-  const renderSection = (title: string, data: Record<string, string>) => (
-    <div className="mb-6 last:mb-0">
-      <h4 className="font-bold text-gray-800 text-sm uppercase tracking-wider mb-3 border-b border-gray-100 pb-2">{title}</h4>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-2">
-        {Object.entries(data).map(([key, value]) => (
-           <div key={key} className="flex justify-between text-xs py-2 border-b border-gray-50 hover:bg-gray-50 transition-colors">
-              <span className="text-gray-500 font-medium capitalize">{key.replace(/_/g, ' ')}</span>
-              <span className="text-gray-900 font-bold">{value}</span>
-           </div>
-        ))}
-      </div>
-    </div>
-  );
-
-  return (
-    <div className="bg-white border border-gray-200 rounded-lg p-6 shadow-sm">
-       {renderSection("Genel Bakış", {
-           "Üretim Yılı": specs.overview.production_years,
-           "Segment": specs.overview.segment,
-           "Kasa / Kapı": specs.overview.body_type_detail,
-           "Motor Tipi": specs.overview.engine_cylinders,
-           "Yakıt (Şehir İçi)": specs.overview.consumption_city,
-           "Motor Gücü": specs.overview.power_hp,
-           "Şanzıman": specs.overview.transmission_detail,
-           "0-100 Hızlanma": specs.overview.acceleration,
-           "Azami Sürat": specs.overview.top_speed,
-           "MTV": specs.overview.mtv
-       })}
-
-       {renderSection("Motor ve Performans", {
-           "Motor Hacmi": specs.engine_performance.engine_volume,
-           "Maksimum Güç": specs.engine_performance.max_power_detail,
-           "Maksimum Tork": specs.engine_performance.max_torque,
-           "Hızlanma (0-100)": specs.engine_performance.acceleration,
-           "Azami Sürat": specs.engine_performance.top_speed
-       })}
-
-       {renderSection("Yakıt Tüketimi", {
-           "Yakıt Tipi": specs.fuel_consumption.fuel_type_detail,
-           "Şehir İçi": specs.fuel_consumption.city,
-           "Şehir Dışı": specs.fuel_consumption.highway,
-           "Ortalama": specs.fuel_consumption.average,
-           "Depo Hacmi": specs.fuel_consumption.tank_volume
-       })}
-
-       {renderSection("Boyutlar", {
-           "Koltuk Sayısı": specs.dimensions.seats,
-           "Uzunluk": specs.dimensions.length,
-           "Genişlik": specs.dimensions.width,
-           "Yükseklik": specs.dimensions.height,
-           "Net Ağırlık": specs.dimensions.weight,
-           "Bagaj Kapasitesi": specs.dimensions.luggage,
-           "Lastik Ölçüleri": specs.dimensions.tires
-       })}
-    </div>
-  );
-}
-`,
-  },
-  // 7. AD DETAIL PAGE UPDATE (Yeni Tab'ı Ekle)
+  // 3. İlan Detay Sayfası (Dinamik Breadcrumb Oluşturma)
   {
     path: "app/ilan/[id]/page.tsx",
     content: `import React from 'react';
@@ -1008,7 +413,7 @@ import SellerSidebar from '@/components/SellerSidebar';
 import Tabs from '@/components/AdDetail/Tabs';
 import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
-import TechnicalSpecsTab from '@/components/AdDetail/TechnicalSpecsTab'; // YENİ
+import TechnicalSpecsTab from '@/components/AdDetail/TechnicalSpecsTab';
 import LoanCalculator from '@/components/tools/LoanCalculator';
 import ViewTracker from '@/components/ViewTracker';
 import LiveVisitorCount from '@/components/LiveVisitorCount';
@@ -1025,6 +430,40 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
   const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '', show_phone: false };
   const adImages = ad.images && ad.images.length > 0 ? ad.images : (ad.image ? [ad.image] : []);
 
+  // DINAMIK BREADCRUMB OLUŞTURMA
+  const breadcrumbItems = [];
+
+  // Ana Kategori
+  if (ad.category.includes('otomobil') || ad.category.includes('vasita') || ad.brand) {
+      breadcrumbItems.push({ label: 'Vasıta', href: '/search?category=vasita' });
+      breadcrumbItems.push({ label: 'Otomobil', href: '/search?category=otomobil' });
+
+      if (ad.brand) {
+          breadcrumbItems.push({ label: ad.brand, href: \`/search?category=otomobil&brand=\${encodeURIComponent(ad.brand)}\` });
+      }
+      if (ad.series) {
+          breadcrumbItems.push({
+              label: ad.series,
+              href: \`/search?category=otomobil&brand=\${encodeURIComponent(ad.brand)}&series=\${encodeURIComponent(ad.series)}\`
+          });
+      }
+      if (ad.model) {
+          breadcrumbItems.push({
+              label: ad.model,
+              href: \`/search?category=otomobil&brand=\${encodeURIComponent(ad.brand)}&series=\${encodeURIComponent(ad.series)}&model=\${encodeURIComponent(ad.model)}\`
+          });
+      }
+  } else if (ad.category.includes('konut') || ad.category.includes('emlak')) {
+      breadcrumbItems.push({ label: 'Emlak', href: '/search?category=emlak' });
+      if (ad.category.includes('konut')) {
+          breadcrumbItems.push({ label: 'Konut', href: '/search?category=konut' });
+      }
+  }
+
+  // Son olarak İlan Başlığı (Link yok)
+  breadcrumbItems.push({ label: 'İlan Detayı' });
+
+
   // Tabs Yapılandırması
   const tabItems = [
      { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-slate-700 leading-relaxed whitespace-pre-wrap text-base p-2">{ad.description}</div> },
@@ -1032,7 +471,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
      { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
   ];
 
-  // Eğer teknik veri varsa yeni tab ekle
   if (ad.technical_specs) {
       tabItems.splice(2, 0, { id: 'tech_specs', label: 'Teknik Veriler', content: <TechnicalSpecsTab specs={ad.technical_specs} /> });
   }
@@ -1043,7 +481,8 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
       <StickyAdHeader title={ad.title} price={formattedPrice} currency={ad.currency} />
 
       <div className="container mx-auto px-4 py-6 max-w-7xl">
-        <Breadcrumb path={\`\${ad.category === 'emlak' ? 'Emlak' : 'Vasıta'} > \${location} > İlan Detayı\`} />
+        {/* YENİ BREADCRUMB */}
+        <Breadcrumb items={breadcrumbItems} />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>
@@ -1146,6 +585,6 @@ files.forEach((file) => {
 console.log(
   colors.blue +
     colors.bold +
-    "\n✅ İŞLEM TAMAMLANDI! SQL KODUNU ÇALIŞTIRMAYI UNUTMAYIN." +
+    "\n✅ İŞLEM TAMAMLANDI! BREADCRUMB VE FİLTRELEME SİSTEMİ AKTİF." +
     colors.reset,
 );

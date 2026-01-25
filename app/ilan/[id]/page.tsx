@@ -10,7 +10,7 @@ import SellerSidebar from '@/components/SellerSidebar';
 import Tabs from '@/components/AdDetail/Tabs';
 import FeaturesTab from '@/components/AdDetail/FeaturesTab';
 import LocationTab from '@/components/AdDetail/LocationTab';
-import TechnicalSpecsTab from '@/components/AdDetail/TechnicalSpecsTab'; // YENİ
+import TechnicalSpecsTab from '@/components/AdDetail/TechnicalSpecsTab';
 import LoanCalculator from '@/components/tools/LoanCalculator';
 import ViewTracker from '@/components/ViewTracker';
 import LiveVisitorCount from '@/components/LiveVisitorCount';
@@ -27,6 +27,40 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
   const sellerInfo = ad.profiles || { full_name: 'Bilinmiyor', phone: '', email: '', show_phone: false };
   const adImages = ad.images && ad.images.length > 0 ? ad.images : (ad.image ? [ad.image] : []);
 
+  // DINAMIK BREADCRUMB OLUŞTURMA
+  const breadcrumbItems = [];
+
+  // Ana Kategori
+  if (ad.category.includes('otomobil') || ad.category.includes('vasita') || ad.brand) {
+      breadcrumbItems.push({ label: 'Vasıta', href: '/search?category=vasita' });
+      breadcrumbItems.push({ label: 'Otomobil', href: '/search?category=otomobil' });
+
+      if (ad.brand) {
+          breadcrumbItems.push({ label: ad.brand, href: `/search?category=otomobil&brand=${encodeURIComponent(ad.brand)}` });
+      }
+      if (ad.series) {
+          breadcrumbItems.push({
+              label: ad.series,
+              href: `/search?category=otomobil&brand=${encodeURIComponent(ad.brand)}&series=${encodeURIComponent(ad.series)}`
+          });
+      }
+      if (ad.model) {
+          breadcrumbItems.push({
+              label: ad.model,
+              href: `/search?category=otomobil&brand=${encodeURIComponent(ad.brand)}&series=${encodeURIComponent(ad.series)}&model=${encodeURIComponent(ad.model)}`
+          });
+      }
+  } else if (ad.category.includes('konut') || ad.category.includes('emlak')) {
+      breadcrumbItems.push({ label: 'Emlak', href: '/search?category=emlak' });
+      if (ad.category.includes('konut')) {
+          breadcrumbItems.push({ label: 'Konut', href: '/search?category=konut' });
+      }
+  }
+
+  // Son olarak İlan Başlığı (Link yok)
+  breadcrumbItems.push({ label: 'İlan Detayı' });
+
+
   // Tabs Yapılandırması
   const tabItems = [
      { id: 'desc', label: 'İlan Açıklaması', content: <div className="text-slate-700 leading-relaxed whitespace-pre-wrap text-base p-2">{ad.description}</div> },
@@ -34,7 +68,6 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
      { id: 'location', label: 'Konum', content: <LocationTab city={ad.city} district={ad.district} /> }
   ];
 
-  // Eğer teknik veri varsa yeni tab ekle
   if (ad.technical_specs) {
       tabItems.splice(2, 0, { id: 'tech_specs', label: 'Teknik Veriler', content: <TechnicalSpecsTab specs={ad.technical_specs} /> });
   }
@@ -45,7 +78,8 @@ export default async function AdDetailPage({ params }: { params: Promise<{ id: s
       <StickyAdHeader title={ad.title} price={formattedPrice} currency={ad.currency} />
 
       <div className="container mx-auto px-4 py-6 max-w-7xl">
-        <Breadcrumb path={`${ad.category === 'emlak' ? 'Emlak' : 'Vasıta'} > ${location} > İlan Detayı`} />
+        {/* YENİ BREADCRUMB */}
+        <Breadcrumb items={breadcrumbItems} />
 
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
           <div>

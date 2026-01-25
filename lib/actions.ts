@@ -41,11 +41,10 @@ export async function createAdAction(formData: Partial<AdFormData>) {
   const { data: profile } = await supabase.from('profiles').select('id').eq('id', user.id).single();
   if (!profile) await supabase.from('profiles').insert([{ id: user.id, email: user.email }]);
 
-  // DÜZELTME: default status 'onay_bekliyor' olarak ayarlandı.
   const { data, error } = await supabase.from('ads').insert([{
     ...validation.data,
     user_id: user.id,
-    status: 'onay_bekliyor', // ARTIK DİREKT YAYINLANMIYOR
+    status: 'onay_bekliyor',
     is_vitrin: false,
     is_urgent: false,
     moderation_score: analysis.score,
@@ -77,11 +76,13 @@ export async function getAdsServer(searchParams: any) {
 
   let query = supabase.from('ads').select('*, profiles(full_name), categories(title)', { count: 'exact' }).eq('status', 'yayinda');
 
+  // Basit Filtreler
   if (searchParams?.q) query = query.textSearch('fts', searchParams.q, { config: 'turkish', type: 'websearch' });
   if (searchParams?.minPrice) query = query.gte('price', searchParams.minPrice);
   if (searchParams?.maxPrice) query = query.lte('price', searchParams.maxPrice);
   if (searchParams?.city) query = query.eq('city', searchParams.city);
 
+  // Kategori Filtresi
   if (searchParams?.category) {
       const slug = searchParams.category;
       if (slug === 'emlak') query = query.or('category.ilike.konut%,category.ilike.isyeri%,category.ilike.arsa%');
@@ -90,6 +91,16 @@ export async function getAdsServer(searchParams: any) {
       else query = query.eq('category', slug);
   }
 
+  // Araç Detay Filtreleri (YENİ)
+  if (searchParams?.brand) query = query.eq('brand', searchParams.brand);
+  if (searchParams?.series) query = query.eq('series', searchParams.series);
+  if (searchParams?.model) query = query.eq('model', searchParams.model);
+  if (searchParams?.gear) query = query.eq('gear', searchParams.gear);
+  if (searchParams?.fuel) query = query.eq('fuel', searchParams.fuel);
+  if (searchParams?.year_min) query = query.gte('year', searchParams.year_min);
+  if (searchParams?.year_max) query = query.lte('year', searchParams.year_max);
+
+  // Sıralama
   if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true });
   else if (searchParams?.sort === 'price_desc') query = query.order('price', { ascending: false });
   else query = query.order('is_vitrin', { ascending: false }).order('created_at', { ascending: false });
