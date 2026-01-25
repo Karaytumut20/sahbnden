@@ -17,7 +17,7 @@ export const adSchema = z.object({
   floor: z.number().optional().nullable(),
   heating: z.string().optional().nullable(),
 
-  // Vasıta (Temel)
+  // Vasıta
   brand: z.string().optional().nullable(),
   series: z.string().optional().nullable(),
   model: z.string().optional().nullable(),
@@ -25,8 +25,6 @@ export const adSchema = z.object({
   km: z.number().optional().nullable(),
   gear: z.string().optional().nullable(),
   fuel: z.string().optional().nullable(),
-
-  // Vasıta (Detay)
   body_type: z.string().optional().nullable(),
   motor_power: z.string().optional().nullable(),
   engine_capacity: z.string().optional().nullable(),
@@ -37,24 +35,24 @@ export const adSchema = z.object({
   plate_type: z.string().optional().nullable(),
   seller_type: z.string().optional().nullable(),
   vehicle_status: z.string().optional().nullable(),
-  heavy_damage: z.boolean().optional().nullable(), // YENİ
+  heavy_damage: z.boolean().optional().nullable(),
 
-  // Teknik Özellikler (JSONB)
+  // Bilgisayar (YENİ)
+  processor: z.string().optional().nullable(),
+  ram: z.string().optional().nullable(),
+  screen_size: z.string().optional().nullable(),
+  gpu_capacity: z.string().optional().nullable(),
+  resolution: z.string().optional().nullable(),
+  ssd_capacity: z.string().optional().nullable(),
+
   technical_specs: z.any().optional().nullable()
 
 }).superRefine((data, ctx) => {
-  // Emlak Özel Kontrolleri
   if (data.category.includes('konut') || data.category.includes('isyeri')) {
     if (!data.m2) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Metrekare zorunludur", path: ['m2'] });
-    if (!data.room && data.category.includes('konut')) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Oda sayısı zorunludur", path: ['room'] });
   }
-  // Vasıta Özel Kontrolleri
   if (data.category.includes('otomobil') || data.category.includes('suv')) {
     if (!data.brand) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Marka zorunludur", path: ['brand'] });
-    if (!data.km) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Kilometre zorunludur", path: ['km'] });
-    if (!data.year) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Yıl zorunludur", path: ['year'] });
-    if (!data.fuel) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Yakıt tipi zorunludur", path: ['fuel'] });
-    if (!data.gear) ctx.addIssue({ code: z.ZodIssueCode.custom, message: "Vites tipi zorunludur", path: ['gear'] });
   }
 });
 

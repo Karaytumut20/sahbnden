@@ -68,6 +68,7 @@ export async function getAdsServer(searchParams: any) {
       if (slug === 'emlak') query = query.or('category.ilike.konut%,category.ilike.isyeri%,category.ilike.arsa%');
       else if (slug === 'konut') query = query.ilike('category', 'konut%');
       else if (slug === 'vasita') query = query.or('category.eq.otomobil,category.eq.suv,category.eq.motosiklet');
+      else if (slug === 'bilgisayar') query = query.or('category.ilike.bilgisayar%,category.ilike.laptop%,category.ilike.notebook%');
       else query = query.eq('category', slug);
   }
 
@@ -75,31 +76,16 @@ export async function getAdsServer(searchParams: any) {
   if (searchParams?.brand) query = query.eq('brand', searchParams.brand);
   if (searchParams?.series) query = query.eq('series', searchParams.series);
   if (searchParams?.model) query = query.eq('model', searchParams.model);
-
   if (searchParams?.minYear) query = query.gte('year', searchParams.minYear);
   if (searchParams?.maxYear) query = query.lte('year', searchParams.maxYear);
-
   if (searchParams?.minKm) query = query.gte('km', searchParams.minKm);
   if (searchParams?.maxKm) query = query.lte('km', searchParams.maxKm);
 
-  if (searchParams?.gear) query = query.eq('gear', searchParams.gear);
-  if (searchParams?.fuel) query = query.eq('fuel', searchParams.fuel);
-  if (searchParams?.body_type) query = query.eq('body_type', searchParams.body_type);
-  if (searchParams?.motor_power) query = query.eq('motor_power', searchParams.motor_power);
-  if (searchParams?.engine_capacity) query = query.eq('engine_capacity', searchParams.engine_capacity);
-  if (searchParams?.traction) query = query.eq('traction', searchParams.traction);
-  if (searchParams?.color) query = query.eq('color', searchParams.color);
-  if (searchParams?.vehicle_status) query = query.eq('vehicle_status', searchParams.vehicle_status);
-  if (searchParams?.seller_type) query = query.eq('seller_type', searchParams.seller_type);
-  if (searchParams?.plate_type) query = query.eq('plate_type', searchParams.plate_type);
-
-  if (searchParams?.warranty) query = query.eq('warranty', searchParams.warranty === 'true');
-  if (searchParams?.exchange) query = query.eq('exchange', searchParams.exchange === 'true');
-
-  // 4. Emlak Detaylı Filtreleri
-  if (searchParams?.room) query = query.eq('room', searchParams.room);
-  if (searchParams?.minM2) query = query.gte('m2', searchParams.minM2);
-  if (searchParams?.maxM2) query = query.lte('m2', searchParams.maxM2);
+  // 4. Bilgisayar Filtreleri (YENİ)
+  if (searchParams?.processor) query = query.eq('processor', searchParams.processor);
+  if (searchParams?.ram) query = query.eq('ram', searchParams.ram);
+  if (searchParams?.screen_size) query = query.eq('screen_size', searchParams.screen_size);
+  if (searchParams?.gpu_capacity) query = query.eq('gpu_capacity', searchParams.gpu_capacity);
 
   // 5. Sıralama
   if (searchParams?.sort === 'price_asc') query = query.order('price', { ascending: true });

@@ -1,11 +1,12 @@
 "use client";
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Loader2, ArrowLeft, ArrowRight, Info, MapPin, Camera, Sparkles, Eye, X, Save } from 'lucide-react';
+import { Loader2, ArrowLeft, Info, MapPin, Camera, Sparkles, Eye, Save } from 'lucide-react';
 import { useToast } from '@/context/ToastContext';
 import { useAuth } from '@/context/AuthContext';
 import RealEstateFields from '@/components/form/RealEstateFields';
 import VehicleFields from '@/components/form/VehicleFields';
+import ComputerFields from '@/components/form/ComputerFields'; // YENİ
 import ImageUploader from '@/components/ui/ImageUploader';
 import AdCard from '@/components/AdCard';
 import { createAdAction } from '@/lib/actions';
@@ -23,7 +24,7 @@ function PostAdFormContent() {
   const categorySlug = searchParams.get('cat') || '';
   const categoryPath = searchParams.get('path') || 'Kategori Seçilmedi';
 
-  // URL'den gelen araç bilgileri
+  // URL'den gelen araç/bilgisayar bilgileri
   const urlBrand = searchParams.get('brand') || '';
   const urlSeries = searchParams.get('series') || '';
   const urlModel = searchParams.get('model') || '';
@@ -38,27 +39,22 @@ function PostAdFormContent() {
   const [formData, setFormData] = useState<any>({
     title: '', description: '', price: '', currency: 'TL', city: '', district: '',
     m2: '', room: '', floor: '', heating: '',
-    brand: urlBrand,
-    series: urlSeries,
-    model: urlModel,
+    brand: urlBrand, series: urlSeries, model: urlModel,
     year: '', km: '', gear: '', fuel: '',
     body_type: '', motor_power: '', engine_capacity: '', traction: '', color: '',
     warranty: '', plate_type: '', exchange: '', seller_type: '', vehicle_status: '',
-    heavy_damage: '', // YENİ
-    technical_specs: null // YENİ
+    heavy_damage: '', technical_specs: null,
+    // Bilgisayar Alanları
+    processor: '', ram: '', screen_size: '', gpu_capacity: '', resolution: '', ssd_capacity: ''
   });
 
   const isRealEstate = categorySlug.includes('konut') || categorySlug.includes('isyeri');
-  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv');
+  const isVehicle = categorySlug.includes('otomobil') || categorySlug.includes('suv') || categorySlug.includes('vasita');
+  const isComputer = categorySlug.includes('bilgisayar') || categorySlug.includes('laptop') || categorySlug.includes('notebook') || categorySlug.includes('monitor') || categorySlug.includes('donanim');
 
   useEffect(() => {
     if (urlBrand || urlSeries || urlModel) {
-        setFormData(prev => ({
-            ...prev,
-            brand: urlBrand,
-            series: urlSeries,
-            model: urlModel
-        }));
+        setFormData(prev => ({ ...prev, brand: urlBrand, series: urlSeries, model: urlModel }));
     }
   }, [urlBrand, urlSeries, urlModel]);
 
@@ -87,22 +83,17 @@ function PostAdFormContent() {
   }, [formData, images, categorySlug]);
 
   useEffect(() => {
-    if (formData.city) {
-      setDistricts(getDistricts(formData.city));
-    }
+    if (formData.city) setDistricts(getDistricts(formData.city));
   }, [formData.city]);
 
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
     setFormData((prev: any) => ({ ...prev, [name]: value }));
     if (errors[name]) {
-      const newErrors = { ...errors };
-      delete newErrors[name];
-      setErrors(newErrors);
+      const newErrors = { ...errors }; delete newErrors[name]; setErrors(newErrors);
     }
   };
 
-  // Child component'ten gelen verileri al (Örn: technical_specs)
   const handleDynamicChange = (name: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [name]: value }));
   };
@@ -125,11 +116,10 @@ function PostAdFormContent() {
 
         warranty: formData.warranty === 'true',
         exchange: formData.exchange === 'true',
-        heavy_damage: formData.heavy_damage === 'true', // YENİ
+        heavy_damage: formData.heavy_damage === 'true',
     };
 
     const result = adSchema.safeParse(rawData);
-
     if (!result.success) {
         const fieldErrors: any = {};
         result.error.issues.forEach(issue => { fieldErrors[issue.path[0]] = issue.message; });
@@ -141,10 +131,8 @@ function PostAdFormContent() {
 
     setIsSubmitting(true);
     const res = await createAdAction(rawData);
-
-    if (res.error) {
-        addToast(res.error, 'error');
-    } else {
+    if (res.error) { addToast(res.error, 'error'); }
+    else {
         localStorage.removeItem('ad_draft');
         addToast('İlan başarıyla oluşturuldu!', 'success');
         router.push(`/ilan-ver/doping?adId=${res.adId}`);
@@ -180,33 +168,20 @@ function PostAdFormContent() {
             <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide mb-1">Seçilen Kategori</p>
             <h1 className="text-sm md:text-base font-bold text-indigo-900">{categoryPath}</h1>
           </div>
-          <button onClick={() => router.push('/ilan-ver')} className="text-xs font-bold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 hover:border-indigo-300 transition-colors">
-            Değiştir
-          </button>
+          <button onClick={() => router.push('/ilan-ver')} className="text-xs font-bold text-slate-500 hover:text-indigo-600 bg-white px-3 py-1.5 rounded-lg border border-indigo-100 hover:border-indigo-300 transition-colors">Değiştir</button>
         </div>
 
-        <div className="flex justify-end mb-2">
-            {lastSaved && (
-                <span className="text-[10px] text-gray-400 flex items-center gap-1 animate-pulse">
-                    <Save size={10}/> Taslak kaydedildi: {lastSaved.toLocaleTimeString()}
-                </span>
-            )}
-        </div>
+        <div className="flex justify-end mb-2">{lastSaved && (<span className="text-[10px] text-gray-400 flex items-center gap-1 animate-pulse"><Save size={10}/> Taslak kaydedildi: {lastSaved.toLocaleTimeString()}</span>)}</div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
           <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden group">
             <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <Info className="text-indigo-500" size={20}/> Temel Bilgiler
-            </h3>
-
+            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Info className="text-indigo-500" size={20}/> Temel Bilgiler</h3>
             <div className="space-y-5">
               <Input label="İlan Başlığı" name="title" placeholder="Örn: Sahibinden temiz, masrafsız..." value={formData.title} onChange={handleInputChange} error={errors.title} className="font-medium text-base" />
               <Textarea label="İlan Açıklaması" name="description" placeholder="Ürününüzü detaylıca anlatın..." value={formData.description} onChange={handleInputChange} className="h-32 leading-relaxed" error={errors.description} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div className="relative">
-                   <Input label="Fiyat" name="price" type="number" placeholder="0" value={formData.price} onChange={handleInputChange} error={errors.price} className="font-bold text-lg text-indigo-900" />
-                </div>
+                <Input label="Fiyat" name="price" type="number" placeholder="0" value={formData.price} onChange={handleInputChange} error={errors.price} className="font-bold text-lg text-indigo-900" />
                 <div>
                   <label className="block text-[11px] font-bold text-gray-600 mb-1">Para Birimi</label>
                   <div className="grid grid-cols-4 gap-2">
@@ -219,92 +194,53 @@ function PostAdFormContent() {
             </div>
           </section>
 
-          {(isRealEstate || isVehicle) && (
+          {/* Dinamik Özellik Alanları */}
+          {(isRealEstate || isVehicle || isComputer) && (
             <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-orange-500"></div>
-              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-                <Sparkles className="text-orange-500" size={20}/> Teknik Detaylar
-              </h3>
+              <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><Sparkles className="text-orange-500" size={20}/> Teknik Detaylar</h3>
               <div className="-mx-4 md:mx-0">
                 {isRealEstate && <RealEstateFields data={formData} onChange={handleDynamicChange} />}
                 {isVehicle && <VehicleFields data={formData} onChange={handleDynamicChange} />}
+                {isComputer && <ComputerFields data={formData} onChange={handleDynamicChange} categorySlug={categorySlug} />}
               </div>
             </section>
           )}
 
           <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-pink-500"></div>
-            <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2">
-              <Camera className="text-pink-500" size={20}/> Fotoğraflar
-            </h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-2 flex items-center gap-2"><Camera className="text-pink-500" size={20}/> Fotoğraflar</h3>
             <p className="text-sm text-slate-500 mb-6">Vitrin görseli ilk yüklediğiniz fotoğraf olacaktır.</p>
-            <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-300">
-               <ImageUploader onImagesChange={setImages} initialImages={images} />
-            </div>
+            <div className="bg-slate-50 p-4 rounded-xl border border-dashed border-slate-300"><ImageUploader onImagesChange={setImages} initialImages={images} /></div>
           </section>
 
           <section className="bg-white p-6 md:p-8 rounded-2xl shadow-sm border border-gray-100 relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
-            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-              <MapPin className="text-green-500" size={20}/> Konum Bilgisi
-            </h3>
+            <h3 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2"><MapPin className="text-green-500" size={20}/> Konum Bilgisi</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 mb-1">İl <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <select name="city" onChange={handleInputChange} value={formData.city} className="w-full h-11 pl-3 pr-8 bg-white border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 appearance-none text-sm transition-shadow shadow-sm">
-                    <option value="">Seçiniz</option>
-                    {cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-3.5 pointer-events-none text-gray-400"><MapPin size={16}/></div>
-                </div>
-                {errors.city && <p className="text-red-500 text-[10px] mt-1">{errors.city}</p>}
+                <select name="city" onChange={handleInputChange} value={formData.city} className="w-full h-11 pl-3 pr-8 bg-white border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 appearance-none text-sm transition-shadow shadow-sm">
+                    <option value="">Seçiniz</option>{cities.map(c => <option key={c.name} value={c.name}>{c.name}</option>)}
+                </select>
               </div>
-
               <div>
                 <label className="block text-[11px] font-bold text-gray-600 mb-1">İlçe <span className="text-red-500">*</span></label>
-                <div className="relative">
-                  <select name="district" value={formData.district} onChange={handleInputChange} className="w-full h-11 pl-3 pr-8 bg-white border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 appearance-none text-sm transition-shadow shadow-sm disabled:bg-gray-100 disabled:text-gray-400" disabled={!formData.city}>
-                    <option value="">Seçiniz</option>
-                    {districts.map(d => <option key={d} value={d}>{d}</option>)}
-                  </select>
-                  <div className="absolute right-3 top-3.5 pointer-events-none text-gray-400"><MapPin size={16}/></div>
-                </div>
-                {errors.district && <p className="text-red-500 text-[10px] mt-1">{errors.district}</p>}
+                <select name="district" value={formData.district} onChange={handleInputChange} className="w-full h-11 pl-3 pr-8 bg-white border border-gray-300 rounded-lg outline-none focus:border-green-500 focus:ring-1 focus:ring-green-500 appearance-none text-sm transition-shadow shadow-sm disabled:bg-gray-100" disabled={!formData.city}>
+                    <option value="">Seçiniz</option>{districts.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
               </div>
             </div>
           </section>
 
           <div className="flex items-center justify-between pt-4 pb-20 lg:pb-0">
-            <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-lg font-bold text-sm text-slate-600 hover:bg-slate-100 flex items-center gap-2 transition-colors">
-              <ArrowLeft size={18}/> Geri Dön
-            </button>
-            <button type="submit" disabled={isSubmitting} className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold text-base hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">
-              {isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <>Devam Et <ArrowRight size={20}/></>}
-            </button>
+            <button type="button" onClick={() => router.back()} className="px-6 py-3 rounded-lg font-bold text-sm text-slate-600 hover:bg-slate-100 flex items-center gap-2 transition-colors"><ArrowLeft size={18}/> Geri Dön</button>
+            <button type="submit" disabled={isSubmitting} className="bg-indigo-600 text-white px-10 py-4 rounded-xl font-bold text-base hover:bg-indigo-700 hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2">{isSubmitting ? <Loader2 className="animate-spin" size={20}/> : <>Devam Et <ArrowRight size={20}/></>}</button>
           </div>
         </form>
       </div>
 
-      <div className="hidden lg:block w-[300px] shrink-0">
-        <div className="sticky top-28 space-y-4">
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-5 shadow-sm">
-            <h4 className="font-bold text-blue-900 mb-2 text-sm flex items-center gap-2"><Info size={16}/> İpucu</h4>
-            <p className="text-xs text-blue-800 leading-relaxed">İlan başlığınızda anahtar kelimeleri (marka, model, özellik) geçirmek arama sonuçlarında daha üstte çıkmanızı sağlar.</p>
-          </div>
-          <div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
-             <h4 className="font-bold text-slate-800 mb-3 text-sm">Canlı Önizleme</h4>
-             {formData.title ? <PreviewCard /> : (
-                 <div className="opacity-50 pointer-events-none grayscale">
-                   <div className="aspect-[4/3] bg-gray-200 rounded-lg mb-2"></div>
-                   <div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div>
-                   <div className="h-4 bg-gray-200 rounded w-1/2"></div>
-                 </div>
-             )}
-             <p className="text-[10px] text-center text-gray-400 mt-2">{formData.title ? 'İlanınız listelerde böyle görünecek' : 'Başlık girdikçe önizleme aktifleşir'}</p>
-          </div>
-        </div>
-      </div>
+      <div className="hidden lg:block w-[300px] shrink-0"><div className="sticky top-28 space-y-4"><div className="bg-blue-50 border border-blue-100 rounded-xl p-5 shadow-sm"><h4 className="font-bold text-blue-900 mb-2 text-sm flex items-center gap-2"><Info size={16}/> İpucu</h4><p className="text-xs text-blue-800 leading-relaxed">İlan başlığınızda anahtar kelimeleri geçirmek arama sonuçlarında daha üstte çıkmanızı sağlar.</p></div><div className="bg-white border border-gray-200 rounded-xl p-5 shadow-sm"><h4 className="font-bold text-slate-800 mb-3 text-sm">Canlı Önizleme</h4>{formData.title ? <PreviewCard /> : <div className="opacity-50 pointer-events-none grayscale"><div className="aspect-[4/3] bg-gray-200 rounded-lg mb-2"></div><div className="h-4 bg-gray-200 rounded w-3/4 mb-1"></div><div className="h-4 bg-gray-200 rounded w-1/2"></div></div>}</div></div></div>
     </div>
   );
 }

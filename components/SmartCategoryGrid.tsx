@@ -1,24 +1,3 @@
-const fs = require("fs");
-const path = require("path");
-
-const colors = {
-  reset: "\x1b[0m",
-  green: "\x1b[32m",
-  blue: "\x1b[34m",
-  bold: "\x1b[1m",
-};
-
-console.log(
-  colors.blue +
-    colors.bold +
-    "\n🚀 'HEPSİNİ LİSTELE' BUTONU ENTEGRASYONU BAŞLATILIYOR...\n" +
-    colors.reset,
-);
-
-const files = [
-  {
-    path: "components/SmartCategoryGrid.tsx",
-    content: `
 "use client";
 import React from 'react';
 import Link from 'next/link';
@@ -57,8 +36,8 @@ export default function SmartCategoryGrid({ searchParams }: { searchParams: any 
             items={categoryNode.subs}
             type="category"
             parentParams={searchParams}
-            title={\`\${categoryNode.title} Alt Kategorileri\`}
-            listAllLabel={\`Tüm \${categoryNode.title} İlanlarını Listele\`}
+            title={`${categoryNode.title} Alt Kategorileri`}
+            listAllLabel={`Tüm ${categoryNode.title} İlanlarını Listele`}
         />
     );
   }
@@ -90,8 +69,8 @@ export default function SmartCategoryGrid({ searchParams }: { searchParams: any 
                     items={series}
                     type="series"
                     parentParams={searchParams}
-                    title={\`\${currentBrand} Modelleri\`}
-                    listAllLabel={\`Tüm \${currentBrand} İlanlarını Listele\`}
+                    title={`${currentBrand} Modelleri`}
+                    listAllLabel={`Tüm ${currentBrand} İlanlarını Listele`}
                 />
              );
           }
@@ -107,8 +86,8 @@ export default function SmartCategoryGrid({ searchParams }: { searchParams: any 
                     items={models}
                     type="model"
                     parentParams={searchParams}
-                    title={\`\${currentBrand} \${currentSeries} Alt Modeller\`}
-                    listAllLabel={\`Tüm \${currentBrand} \${currentSeries} İlanlarını Listele\`}
+                    title={`${currentBrand} ${currentSeries} Alt Modeller`}
+                    listAllLabel={`Tüm ${currentBrand} ${currentSeries} İlanlarını Listele`}
                 />
              );
           }
@@ -152,7 +131,7 @@ function GridDisplay({ items, type, parentParams, title, listAllLabel }: any) {
         {/* HEPSİNİ LİSTELE BUTONU */}
         {listAllLabel && (
             <Link
-                href={\`/search?\${listAllParams.toString()}\`}
+                href={`/search?${listAllParams.toString()}`}
                 className="bg-slate-800 text-white px-5 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group"
             >
                 <List size={16} className="text-slate-300 group-hover:text-white" />
@@ -174,7 +153,7 @@ function GridDisplay({ items, type, parentParams, title, listAllLabel }: any) {
           return (
             <Link
               key={item.id}
-              href={\`/search?\${params.toString()}\`}
+              href={`/search?${params.toString()}`}
               className="flex flex-col items-center justify-center p-4 border border-gray-100 rounded-xl hover:border-indigo-500 hover:bg-indigo-50 hover:shadow-lg transition-all group text-center h-28 relative overflow-hidden"
             >
               <div className="absolute top-0 right-0 p-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -193,29 +172,3 @@ function GridDisplay({ items, type, parentParams, title, listAllLabel }: any) {
     </div>
   );
 }
-`,
-  },
-];
-
-files.forEach((file) => {
-  try {
-    const dir = path.dirname(file.path);
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(path.join(process.cwd(), file.path), file.content.trim());
-    console.log(
-      colors.green + "✔ " + file.path + " güncellendi." + colors.reset,
-    );
-  } catch (error) {
-    console.error(
-      colors.bold + "✘ Hata: " + file.path + " yazılamadı." + colors.reset,
-    );
-    console.error(error);
-  }
-});
-
-console.log(
-  colors.blue +
-    colors.bold +
-    "\n✅ İŞLEM TAMAMLANDI! 'HEPSİNİ LİSTELE' BUTONU AKTİF." +
-    colors.reset,
-);
