@@ -8,6 +8,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* SOL KOLON: Dashboard Menü (3/12) */}
         {/* MOBİLDE GİZLENDİ (hidden), SADECE BÜYÜK EKRANLARDA GÖRÜNÜR (lg:block) */}
+        {/* Bu sayede mobilde hem üst menü hem de bu sidebar üst üste binmez */}
         <aside className="hidden lg:block lg:col-span-3 xl:col-span-3">
           <DashboardSidebar />
         </aside>

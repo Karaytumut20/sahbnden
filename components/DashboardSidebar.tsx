@@ -2,19 +2,19 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, List, Heart, MessageSquare, Settings, LogOut, Store, Wallet } from 'lucide-react';
+import { Home, List, MessageSquare, Settings, LogOut, Store, Wallet } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function DashboardSidebar() {
   const { user, logout } = useAuth();
   const pathname = usePathname();
 
+  // Favoriler kaldırıldı, menü sırası düzenlendi
   const menuItems = [
     { href: '/bana-ozel', label: 'Özet Durum', icon: Home },
     { href: '/bana-ozel/cuzdan', label: 'Cüzdanım', icon: Wallet },
     { href: '/bana-ozel/magazam', label: 'Mağaza Yönetimi', icon: Store },
     { href: '/bana-ozel/ilanlarim', label: 'İlanlarım', icon: List },
-    { href: '/bana-ozel/favoriler', label: 'Favorilerim', icon: Heart },
     { href: '/bana-ozel/mesajlarim', label: 'Mesajlar', icon: MessageSquare },
     { href: '/bana-ozel/ayarlar', label: 'Ayarlar', icon: Settings },
   ];
@@ -24,12 +24,12 @@ export default function DashboardSidebar() {
       {/* Kullanıcı Kartı */}
       <div className="p-6 border-b border-gray-50 bg-gradient-to-br from-slate-50 to-white">
         <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg border-2 border-white shadow-sm">
+          <div className="w-12 h-12 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-lg border-2 border-white shadow-sm shrink-0">
             {user?.name?.charAt(0) || 'U'}
           </div>
-          <div>
-            <h3 className="font-bold text-slate-800">{user?.name || 'Kullanıcı'}</h3>
-            <p className="text-xs text-slate-500 font-medium">Bireysel Üye</p>
+          <div className="overflow-hidden">
+            <h3 className="font-bold text-slate-800 truncate">{user?.name || 'Kullanıcı'}</h3>
+            <p className="text-xs text-slate-500 font-medium capitalize">{user?.role === 'store' ? 'Kurumsal Mağaza' : 'Bireysel Üye'}</p>
           </div>
         </div>
       </div>
